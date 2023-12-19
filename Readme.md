@@ -1,4 +1,4 @@
-Dockerfile on GitHub: https://github.com/mshin77/textanalysisr.app \   
+Dockerfile on GitHub: https://github.com/mshin77/textanalysisr.app    
 
 Repo name: mshin77/textanalysisr \
 docker build -t mshin77/textanalysisr . \
