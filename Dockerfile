@@ -1,4 +1,4 @@
-FROM rocker/shiny-verse
+FROM rocker/r-ubuntu:20.04
 
 LABEL maintainer="Mikyung Shin <shin.mikyung@gmail.com>"
 LABEL description="Docker image for TextAnalysisR Shiny application"
