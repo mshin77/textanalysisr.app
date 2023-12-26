@@ -23,8 +23,7 @@ The development version from
 
 ## Run the Shiny App:
 
-Access the web app at <https://www.textanalysisr.app>. Refresh the
-browser if your screen grays out or shows a 502 Bad Gateway error.
+Access the web app at <https://www.textanalysisr.org>.
 
 Launch and browser the TextAnalysisR.app on the local computer:
 
@@ -38,7 +37,7 @@ Launch and browser the TextAnalysisR.app on the local computer:
     <https://mshin77.github.io/TextAnalysisR>
 
 -   Shin, M. (2023). *TextAnalysisR: Analyze text data* \[Web
-    application\]. <https://www.textanalysisr.app>
+    application\]. <https://www.textanalysisr.org>
 
 ## Reference
 
