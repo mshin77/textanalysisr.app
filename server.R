@@ -50,7 +50,7 @@ server <- shinyServer(function(input, output, session) {
 
     mydata <- reactive({
         if (input$dataset_choice == "SpecialEduTech") {
-            data <- loadData()
+            data <- loadData() %>% tibble()
         } else {
             req(input$file)
             filename <- input$file$datapath
