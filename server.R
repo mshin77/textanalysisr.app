@@ -11,12 +11,10 @@ suppressPackageStartupMessages({
     library(ggraph)
     library(widyr)
     library(markdown)
+    library(TextAnalysisR)
 })
 
-load("source/dictionary_list_1.rda")
-load("source/dictionary_list_2.rda")
-load("source/SpecialEduTech.rda")
-load("source/stopwords_list.rda")
+
 source("source/text_mining_functions.R")
 
 server <- shinyServer(function(input, output, session) {
