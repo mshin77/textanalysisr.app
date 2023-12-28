@@ -15,6 +15,28 @@ suppressPackageStartupMessages({
 })
 
 Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8")
+database <- "sped_tech"
+collection <- "text_analysis"
+
+options(mongodb = list(
+  "host" = "cluster0.eyp9hhw.mongodb.net",
+  "username" = "mshin77",
+  "password" = "32hzOLqv42MsMTEn"
+))
+
+loadData <- function() {
+  db <- mongo(collection = collection,
+              url = sprintf(
+                "mongodb+srv://%s:%s@%s/%s",
+                options()$mongodb$username,
+                options()$mongodb$password,
+                options()$mongodb$host,
+                database
+              ),
+              options = ssl_options(weak_cert_validation = TRUE))
+  data <- db$find()
+  data
+}
 
 server <- shinyServer(function(input, output, session) {
   
@@ -28,7 +50,7 @@ server <- shinyServer(function(input, output, session) {
 
     mydata <- reactive({
         if (input$dataset_choice == "SpecialEduTech") {
-            data <- SpecialEduTech
+            data <- loadData() %>% tibble()
         } else {
             req(input$file)
             filename <- input$file$datapath
