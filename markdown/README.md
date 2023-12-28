@@ -13,7 +13,7 @@ The web app incorporates
 [tidytext](https://github.com/cran/tidytext) was implemented to tidy
 non-tidy format objects.
 
-## Installation
+## Installation:
 
 The development version from
 [GitHub](https://github.com/mshin77/TextAnalysisR) with:
@@ -39,7 +39,7 @@ Launch and browser the TextAnalysisR.app on the local computer:
 -   Shin, M. (2023). *TextAnalysisR: Analyze text data* \[Web
     application\]. <https://www.textanalysisr.org>
 
-## Reference
+## Reference:
 
 -   Shin, M., Ok, M. W., Choo, S., Hossain, G., Bryant, D. P., &
     Kang, E. (2023). A content analysis of research on technology use
