@@ -15,8 +15,6 @@ suppressPackageStartupMessages({
 })
 
 
-source("source/text_mining_functions.R")
-
 server <- shinyServer(function(input, output, session) {
 
   Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8")
