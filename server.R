@@ -1,22 +1,19 @@
 
+
 suppressPackageStartupMessages({
-  library(dplyr)
-  library(ggplot2)
-  library(quanteda)
-  library(shiny)
-  library(stm)
-  library(tidyr)
-  library(tidytext)
-  library(ggraph)
-  library(widyr)
-  library(markdown)
-  library(TextAnalysisR)
+    library(dplyr)
+    library(ggplot2)
+    library(quanteda)
+    library(shiny)
+    library(stm)
+    library(tidyr)
+    library(tidytext)
+    library(ggraph)
+    library(widyr)
+    library(markdown)
 })
 
-Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8")
-
 server <- shinyServer(function(input, output, session) {
-  
     observe({
         if (input$dataset_choice == "SpecialEduTech") {
             shinyjs::disable("file")
@@ -27,7 +24,7 @@ server <- shinyServer(function(input, output, session) {
 
     mydata <- reactive({
         if (input$dataset_choice == "SpecialEduTech") {
-            data <- SpecialEduTech
+            data <- TextAnalysisR::SpecialEduTech
         } else {
             req(input$file)
             filename <- input$file$datapath
@@ -41,6 +38,7 @@ server <- shinyServer(function(input, output, session) {
         }
         return(data)
     })
+
 
     output$data_table <-
         DT::renderDataTable(mydata(), rownames = FALSE)
@@ -69,7 +67,7 @@ server <- shinyServer(function(input, output, session) {
                          sep = " ",
                          remove = FALSE)
         docvar_tbl <- mydata()
-        united_texts_tbl %>% dplyr::left_join(docvar_tbl, relationship = "many-to-many")
+        united_texts_tbl %>% dplyr::left_join(docvar_tbl)
 
     })
 
@@ -90,7 +88,7 @@ server <- shinyServer(function(input, output, session) {
     # Preprocess data
     processed_tokens <-
         eventReactive(eventExpr = input$preprocess, {
-            united_tbl() %>% preprocess_texts()
+            united_tbl() %>% TextAnalysisR::preprocess_texts()
         })
 
     output$step2_print_preprocess <- renderPrint({
@@ -100,8 +98,8 @@ server <- shinyServer(function(input, output, session) {
     # Step 3
     # Apply researcher-developed dictionaries
     tokens_dict <- eventReactive(input$dictionary, {
-        dictionary_list_1 <- dictionary_list_1
-        dictionary_list_2 <- dictionary_list_2
+        dictionary_list_1 <- TextAnalysisR::dictionary_list_1
+        dictionary_list_2 <- TextAnalysisR::dictionary_list_2
 
         tokens_dict_int <-
             processed_tokens() %>% quanteda::tokens_lookup(
@@ -128,7 +126,7 @@ server <- shinyServer(function(input, output, session) {
     # Step 4
     # Remove researcher-developed stop words.
 
-    stopwords_list <- stopwords_list
+    stopwords_list <- TextAnalysisR::stopwords_list
 
     tokens_dict_no_stop <- eventReactive(input$stopword, {
         tokens_dict() %>% quanteda::tokens_remove(stopwords_list)
@@ -145,7 +143,7 @@ server <- shinyServer(function(input, output, session) {
     })
 
     output$step3_plot <- plotly::renderPlotly({
-        dfm_init() %>% plot_word_frequency(n = 20)
+        dfm_init() %>% TextAnalysisR::plot_word_frequency(n = 20)
     })
 
     output$step3_table <- DT::renderDataTable({
@@ -172,10 +170,9 @@ server <- shinyServer(function(input, output, session) {
     })
 
     # Remove common words across documents
-    dfm_outcome <- eventReactive(eventExpr = input$remove, {
-    
-        dictionary_list_1 <- dictionary_list_1
-        dictionary_list_2 <- dictionary_list_2
+    dfm_outcome <- eventReactive(input$remove, {
+        dictionary_list_1 <- TextAnalysisR::dictionary_list_1
+        dictionary_list_2 <- TextAnalysisR::dictionary_list_2
 
         rm <- isolate(input$remove.var)
 
@@ -211,7 +208,7 @@ server <- shinyServer(function(input, output, session) {
     observeEvent(input$remove, {
         if (!is.null(input$remove.var)) {
             output$step4_plot <- plotly::renderPlotly({
-                dfm_outcome() %>% plot_word_frequency(n = 20)
+                dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
             })
         }
     })
@@ -334,18 +331,19 @@ server <- shinyServer(function(input, output, session) {
 
 
     # 2. Step 2: Run a model and display highest word probabilities for each labeled topic
+    
     output$K_number_uiOutput <- renderUI({
         sliderInput(
             "K_number",
             "Choose K (number of topics)",
-            value = 5,
+            value = 15,
             min = 0,
             max = 50
         )
     })
 
     print_K_number <- eventReactive(eventExpr = input$K_number, {
-       print(input$K_number)
+        print(input$K_number)
     })
 
     colnames_cat_2 <- reactive({
@@ -447,6 +445,7 @@ server <- shinyServer(function(input, output, session) {
     # Display highest word probabilities for each topic
 
     # Tidy the word-topic combinations
+    
     beta_td <- reactive({
         tidytext::tidy(stm_K_number(), document_names = rownames(dfm_outcome()))
     })
@@ -487,7 +486,9 @@ server <- shinyServer(function(input, output, session) {
             topic_term_plot$topic =
                 factor(topic_term_plot$topic, levels = topic_term_plot$topic %>% unique())
         }
+        
         topic_term_plot$tt = NULL
+        
         topic_term_plot %>%
             ggplot(aes(term, beta, fill = topic)) +
             geom_col(show.legend = FALSE, alpha = 0.8) +
