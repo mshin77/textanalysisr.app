@@ -110,8 +110,7 @@ ui <- fluidPage(
                                  "remove.var",
                                  "Remove common words.",
                                  choices = NULL,
-                                 options = list(maxItems = 20)
-                             ),
+                                 options = list(maxItems = 20)),
                              actionButton("remove", "Remove", icon = icon("minus-circle"))
                          )
                      ),

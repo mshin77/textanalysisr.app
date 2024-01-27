@@ -172,11 +172,10 @@ server <- shinyServer(function(input, output, session) {
     })
 
     # Remove common words across documents
-    dfm_outcome <- reactive({
+    dfm_outcome <- eventReactive(eventExpr = input$remove, {
+    
         dictionary_list_1 <- dictionary_list_1
         dictionary_list_2 <- dictionary_list_2
-
-        # print(input$remove)
 
         rm <- isolate(input$remove.var)
 
