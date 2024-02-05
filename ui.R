@@ -48,7 +48,7 @@ ui <- fluidPage(
                              "dataset_choice",
                              "Upload a file or use the dataset",
                              selected = " ",
-                             choices = c(" ", "SpecialEduTech", "Upload Your File")
+                             choices = c(" ", "Upload an Example Dataset", "Upload Your File")
 
                          ),
                          fileInput(
