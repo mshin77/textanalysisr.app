@@ -331,7 +331,7 @@ server <- shinyServer(function(input, output, session) {
 
 
     # 2. Step 2: Run a model and display highest word probabilities for each labeled topic
-    
+
     output$K_number_uiOutput <- renderUI({
         sliderInput(
             "K_number",
@@ -445,7 +445,7 @@ server <- shinyServer(function(input, output, session) {
     # Display highest word probabilities for each topic
 
     # Tidy the word-topic combinations
-    
+
     beta_td <- reactive({
         tidytext::tidy(stm_K_number(), document_names = rownames(dfm_outcome()))
     })
@@ -486,9 +486,9 @@ server <- shinyServer(function(input, output, session) {
             topic_term_plot$topic =
                 factor(topic_term_plot$topic, levels = topic_term_plot$topic %>% unique())
         }
-        
+
         topic_term_plot$tt = NULL
-        
+
         topic_term_plot %>%
             ggplot(aes(term, beta, fill = topic)) +
             geom_col(show.legend = FALSE, alpha = 0.8) +
