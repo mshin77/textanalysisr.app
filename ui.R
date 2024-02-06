@@ -110,7 +110,8 @@ ui <- fluidPage(
                                  "remove.var",
                                  "Remove common words.",
                                  choices = NULL,
-                                 options = list(maxItems = 20)),
+                                 options = list(maxItems = 20)
+                             ),
                              actionButton("remove", "Remove", icon = icon("minus-circle"))
                          )
                      ),
@@ -167,7 +168,7 @@ ui <- fluidPage(
                         sliderInput(
                             "K_range_1",
                             "Range of topic numbers",
-                            value = c(2, 10),
+                            value = c(5, 20),
                             min = 0,
                             max = 50
                         ),
@@ -486,9 +487,9 @@ ui <- fluidPage(
                              sliderInput(
                                  "co_occurence_number",
                                  "Minimum co-occurence numbers",
-                                 value = 50,
+                                 value = 5,
                                  min = 0,
-                                 max = 500
+                                 max = 100
                              ),
                              sliderInput(
                                  "correlation_value",
