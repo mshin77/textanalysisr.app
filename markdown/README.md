@@ -7,11 +7,16 @@
 `TextAnalysisR` provides a supporting workflow for text mining analysis.
 The web app incorporates
 [quanteda](https://github.com/quanteda/quanteda) (text preprocessing),
-[stm](https://github.com/bstewart/stm) (structural topic modeling), and
-[ggraph](https://github.com/thomasp85/ggraph) as well as
+[stm](https://github.com/bstewart/stm) (structural topic modeling),
+[ggraph](https://github.com/thomasp85/ggraph), and
 [widyr](https://github.com/juliasilge/widyr) (network analysis).
-[tidytext](https://github.com/cran/tidytext) was implemented to tidy
-non-tidy format objects.
+[tidytext](https://github.com/cran/tidytext) is implemented to tidy
+non-tidy format objects. The R Shiny web app is available at
+`TextAnalysisR::TextAnalysisR.app()` or <https://textanalysisr.org>.
+Functions are provided for completing word-topic probabilities,
+document-topic probabilities, estimated effects of covariates on topic
+prevalence, and network analysis, similar to tasks available in the web
+app.
 
 ## Installation:
 
@@ -32,18 +37,23 @@ Launch and browser the TextAnalysisR.app on the local computer:
 
 ## Citation:
 
--   Shin, M. (2023). *TextAnalysisR: Text mining workflow tools* (R
-    package version 0.0.1) \[Computer software\].
+-   Shin, M. (2024). *TextAnalysisR: Text mining workflow tools* (R
+    package version 0.0.2) \[Computer software\].
     <https://mshin77.github.io/TextAnalysisR>
 
--   Shin, M. (2023). *TextAnalysisR: Analyze text data* \[Web
+-   Shin, M. (2024). *TextAnalysisR: Text mining workflow tools* \[Web
     application\]. <https://www.textanalysisr.org>
 
-## Reference:
+## References:
 
+-   Shin, M., Park, H., & Kang, E. (2024). Development of education
+    policies and practices for students with learning disabilities in
+    South Korea using Delphi surveys and topic modeling. *Learning
+    Disability Quarterly*.
+    [GitHub](https://github.com/mshin77/Korea-LD-policy)
 -   Shin, M., Ok, M. W., Choo, S., Hossain, G., Bryant, D. P., &
     Kang, E. (2023). A content analysis of research on technology use
     for teaching mathematics to students with disabilities: word
     networks and topic modeling. *International Journal of STEM
     Education, 10*(1), 1-23.
-    <https://doi.org/10.1186/s40594-023-00414-x>
+    [GitHub](https://github.com/mshin77/math-tech-sped)

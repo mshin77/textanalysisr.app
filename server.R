@@ -11,6 +11,7 @@ suppressPackageStartupMessages({
     library(ggraph)
     library(widyr)
     library(markdown)
+    library(tidygraph)
 })
 
 server <- shinyServer(function(input, output, session) {
@@ -1010,61 +1011,137 @@ server <- shinyServer(function(input, output, session) {
     })
 
 
-    # 2. Visualize word network
+    # 2. Visualize word co-occurrence network
+
+    output$word_co_occurrence_network_plot <- renderPlot({
+      observeEvent(input$plot_word_co_occurrence_network, {
+        output$word_co_occurrence_network_plot <- renderPlot({
+
+          dfm_td <- tidytext::tidy(dfm_outcome())
+
+          co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
+
+          term_co_occur <- dfm_td %>%
+            tibble::as_tibble() %>%
+            widyr::pairwise_count(term, document, sort = TRUE) %>%
+            filter(n >= co_occur_n)
+
+          co_occur_graph <- igraph::graph_from_data_frame(term_co_occur, directed = FALSE)
+
+          igraph::V(co_occur_graph)$centrality <- igraph::degree(co_occur_graph, mode = "out") / (igraph::vcount(co_occur_graph) - 1)
+
+          layout <- ggraph::create_layout(co_occur_graph, layout = "fr")
+
+          word_co_occurrence_network <- layout %>% ggraph() +
+            geom_edge_link(aes(edge_alpha = n), edge_colour = "#b0aeae", edge_width = 1.5) +
+            geom_node_point(aes(size = centrality, colour = centrality)) +
+            geom_node_text(
+              aes(label = name),
+              repel = TRUE,
+              check_overlap = FALSE,
+              size = 5
+            ) +
+            scale_color_continuous(name = "Centrality",
+                                   guide = 'legend',
+                                   high = "#47a0ed",
+                                   low = "#deebf7") +
+            scale_size_continuous(
+              name = "Centrality",
+              guide = guide_legend(title.position = "top")
+            ) +
+            scale_edge_alpha_continuous(
+              name = "Co-occurrence",
+              labels = scales::number_format(accuracy = 1),
+              guide = guide_legend(title.position = "top")
+            ) +
+            theme_void(base_size = 14) +
+            theme(
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              legend.text = element_text(size = 14)
+            )
+
+          word_co_occurrence_network
+        })
+      })
+    })
+
+    output$word_co_occurrence_network_plot_uiOutput <- renderUI({
+      shinycssloaders::withSpinner(
+        plotOutput(
+          "word_co_occurrence_network_plot",
+          height = input$height_word_co_occurrence_network_plot,
+          width = input$width_word_co_occurrence_network_plot
+        )
+      )
+    })
+
+    # 3. Visualize word correlation network
 
     output$word_network_plot <- renderPlot({
-        observeEvent(input$plot_word_network, {
-            output$word_network_plot <- renderPlot({
-                dfm_td <- tidytext::tidy(dfm_outcome())
+      observeEvent(input$plot_word_network, {
+        output$word_network_plot <- renderPlot({
 
-                co_occur_n <- as.numeric(input$co_occurence_number)
-                corr_n <- as.numeric(input$correlation_value)
-                term_cor <- dfm_td %>% tibble::as_tibble() %>%
-                    group_by(term) %>%
-                    filter(n() >= co_occur_n) %>%
-                    widyr::pairwise_cor(term, document, sort = TRUE)
+          dfm_td <- tidytext::tidy(dfm_outcome())
 
-                word_network <- term_cor %>%
-                    filter(correlation > corr_n) %>%
-                    ggraph(layout = "fr") +
-                    geom_edge_link(
-                        aes(
-                            edge_alpha = correlation,
-                            edge_width = correlation
-                        ),
-                        edge_colour = "#47a0ed"
-                    ) +
-                    geom_node_point(size = 3, color = "white") +
-                    geom_node_text(
-                        aes(label = name),
-                        repel = TRUE,
-                        check_overlap = FALSE,
-                        size = 5
-                    ) +
-                    theme_void(base_size = 14) +
-                    theme(
-                        panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(),
-                        legend.text = element_text(size = 14)
-                    )
+          co_occur_n <- floor(as.numeric(input$co_occurence_number))
 
-                word_network
-            })
+          corr_n <- as.numeric(input$correlation_value)
+
+          term_cor <- dfm_td %>% tibble::as_tibble() %>%
+            group_by(term) %>%
+            filter(n() >= co_occur_n) %>%
+            widyr::pairwise_cor(term, document, sort = TRUE)
+
+          word_network <- term_cor %>%
+            filter(correlation > corr_n) %>%
+            ggraph(layout = "fr") +
+            geom_edge_link(
+              aes(
+                edge_alpha = correlation,
+                edge_width = correlation
+              ),
+              edge_colour = "#47a0ed"
+            ) +
+            geom_node_point(size = 3, color = "white") +
+            geom_node_text(
+              aes(label = name),
+              repel = TRUE,
+              check_overlap = FALSE,
+              size = 5
+            ) +
+            scale_edge_alpha_continuous(
+              name = "Correlation",
+              guide = guide_legend(title.position = "top")
+            ) +
+            scale_edge_width_continuous(
+              name = "Correlation",
+              guide = guide_legend(title.position = "top")
+            ) +
+            theme_void(base_size = 14) +
+            theme(
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              legend.text = element_text(size = 14)
+            )
+
+          word_network
         })
+      })
     })
 
     output$word_network_plot_uiOutput <- renderUI({
-        shinycssloaders::withSpinner(
-            plotOutput(
-                "word_network_plot",
-                height = input$height_word_network_plot,
-                width = input$width_word_network_plot
-            )
+      shinycssloaders::withSpinner(
+        plotOutput(
+          "word_network_plot",
+          height = input$height_word_network_plot,
+          width = input$width_word_network_plot
         )
+      )
     })
 
 
-    # Display selected terms that have changed in frequency over time
+    # 4. Display selected terms that have changed in frequency over time
 
     observe({
         updateSelectizeInput(session,

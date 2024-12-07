@@ -32,14 +32,12 @@ ui <- fluidPage(
         )
     )),
     includeCSS("css/styles.css"),
-    titlePanel("Analyze Text Data"),
+    titlePanel("TextAnalysisR"),
     navbarPage(
-        "",
-        tabPanel("TextAnalysisR",
-                 navlistPanel(
-                   widths = c(3, 9),
-                   tabPanel("About", includeMarkdown("markdown/README.md"))
-                 )),
+      "",
+      tabPanel("About",
+               includeMarkdown("markdown/README.md")
+      ),
         tabPanel("Upload",
                  sidebarLayout(
                      sidebarPanel(
@@ -482,29 +480,42 @@ ui <- fluidPage(
                          ),
                          # Step 2
                          conditionalPanel(
-                             condition = "input.conditioned3 == 11",
-                             helpText(strong("Visualize word network.")),
-                             sliderInput(
-                                 "co_occurence_number",
-                                 "Minimum co-occurence numbers",
-                                 value = 5,
-                                 min = 0,
-                                 max = 100
-                             ),
-                             sliderInput(
-                                 "correlation_value",
-                                 "Minimum correlation betweewn pairwise words",
-                                 value = 0.2,
-                                 min = 0,
-                                 max = 1,
-                                 step = 0.1
-                             ),
-                             actionButton("plot_word_network", "Plot", icon = icon("search"))
-                         ),
+                           condition = "input.conditioned3 == 11",
+                           helpText(strong("Visualize word co-occurrence network.")),
+                           sliderInput(
+                             "co_occurence_number_init",
+                             "Minimum co-occurrence numbers",
+                             value = 5,
+                             min = 0,
+                             max = 100
+                           ),
+                           actionButton("plot_word_co_occurrence_network", "Plot", icon = icon("search"))
+                           ),
                          # Step 3
                          conditionalPanel(
-                             condition = "input.conditioned3 == 12",
-                             helpText(strong("Display changes in frequency over time.")),
+                           condition = "input.conditioned3 == 12",
+                           helpText(strong("Visualize word correlation network.")),
+                           sliderInput(
+                             "co_occurence_number",
+                             "Minimum co-occurence numbers",
+                             value = 5,
+                             min = 0,
+                             max = 100
+                           ),
+                           sliderInput(
+                             "correlation_value",
+                             "Minimum correlation betweewn pairwise words",
+                             value = 0.2,
+                             min = 0,
+                             max = 1,
+                             step = 0.1
+                           ),
+                           actionButton("plot_word_network", "Plot", icon = icon("search"))
+                         ),
+                         # Step 4
+                         conditionalPanel(
+                             condition = "input.conditioned3 == 13",
+                             helpText(strong("Display changes in frequency over time. If you haven't already, run the Structural Topic Model first to extract topic-document probabilities.")),
                              selectizeInput(
                                  "continuous_var_3",
                                  "Select a time-related variable.",
@@ -531,55 +542,102 @@ ui <- fluidPage(
                                  plotly::plotlyOutput("dendro_plot")
                              ),
                              tabPanel(
-                                 "2. Text Network",
-                                 value = 11,
-                                 bsCollapse(
-                                     open = 0,
-                                     bsCollapsePanel(
-                                         p(strong("Click to set plot dimensions"),
-                                           style = "font-size: 15px;"),
-                                         value = 4,
-                                         style = "success",
-                                         p(strong("Dimensions of the plot")),
-                                         div(
-                                             style = "display:inline-block",
-                                             sliderInput(
-                                                 inputId = "height_word_network_plot",
-                                                 post = " px",
-                                                 label = "height",
-                                                 min = 200,
-                                                 max = 4000,
-                                                 step = 5,
-                                                 value = 500
-                                             )
-                                         ),
-                                         div(
-                                             style = "display:inline-block",
-                                             sliderInput(
-                                                 inputId = "width_word_network_plot",
-                                                 post = " px",
-                                                 label = "width",
-                                                 min = 500,
-                                                 max = 3000,
-                                                 step = 5,
-                                                 value = 1000
-                                             )
-                                         )
+                               "2. Word Co-Occurrence",
+                               value = 11,
+                               bsCollapse(
+                                 open = 0,
+                                 bsCollapsePanel(
+                                   p(strong("Click to set plot dimensions"),
+                                     style = "font-size: 15px;"),
+                                   value = 4,
+                                   style = "success",
+                                   p(strong("Dimensions of the plot")),
+                                   div(
+                                     style = "display:inline-block",
+                                     sliderInput(
+                                       inputId = "height_word_co_occurrence_network_plot",
+                                       post = " px",
+                                       label = "height",
+                                       min = 200,
+                                       max = 4000,
+                                       step = 5,
+                                       value = 500
                                      )
-                                 ),
-                                 tags$style(
-                                     HTML(
-                                         ".plot-container {
+                                   ),
+                                   div(
+                                     style = "display:inline-block",
+                                     sliderInput(
+                                       inputId = "width_word_co_occurrence_network_plot",
+                                       post = " px",
+                                       label = "width",
+                                       min = 500,
+                                       max = 3000,
+                                       step = 5,
+                                       value = 1000
+                                     )
+                                   )
+                                 )
+                               ),
+                               tags$style(
+                                 HTML(
+                                   ".plot-container {
                                 max-height: 4000px;
                                 max-width: 3000px;
                                 overflow: auto; }"
-                                     )
-                                 ),
-                                 shinycssloaders::withSpinner(uiOutput("word_network_plot_uiOutput"))
+                                 )
+                               ),
+                               shinycssloaders::withSpinner(uiOutput("word_co_occurrence_network_plot_uiOutput"))
                              ),
                              tabPanel(
-                                 "3. Term Frequency Over Time",
-                                 value = 12,
+                               "3. Word Correlation Network",
+                               value = 12,
+                               bsCollapse(
+                                 open = 0,
+                                 bsCollapsePanel(
+                                   p(strong("Click to set plot dimensions"),
+                                     style = "font-size: 15px;"),
+                                   value = 4,
+                                   style = "success",
+                                   p(strong("Dimensions of the plot")),
+                                   div(
+                                     style = "display:inline-block",
+                                     sliderInput(
+                                       inputId = "height_word_network_plot",
+                                       post = " px",
+                                       label = "height",
+                                       min = 200,
+                                       max = 4000,
+                                       step = 5,
+                                       value = 500
+                                     )
+                                   ),
+                                   div(
+                                     style = "display:inline-block",
+                                     sliderInput(
+                                       inputId = "width_word_network_plot",
+                                       post = " px",
+                                       label = "width",
+                                       min = 500,
+                                       max = 3000,
+                                       step = 5,
+                                       value = 1000
+                                     )
+                                   )
+                                 )
+                               ),
+                               tags$style(
+                                 HTML(
+                                   ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                                 )
+                               ),
+                               shinycssloaders::withSpinner(uiOutput("word_network_plot_uiOutput"))
+                             ),
+                             tabPanel(
+                                 "4. Term Frequency Over Time",
+                                 value = 13,
                                  bsCollapse(
                                      open = 0,
                                      bsCollapsePanel(
