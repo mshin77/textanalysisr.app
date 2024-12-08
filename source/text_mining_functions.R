@@ -373,19 +373,19 @@ hierarchical_clustering <- function(gamma_matrix, method = "ward.D2") {
   hclust_res <- stats::hclust(stats::as.dist(stm_dist), method = method)
 
   ggdendro::ggdendrogram(hclust_res, rotate = TRUE) +
-    theme_classic(base_size = 11) +
+    theme_classic(base_size = 14) +
     theme(
       axis.line = element_line(linewidth = 0.1, color = "#3B3B3B"),
-      axis.text.x = element_text(size = 11, color = "#3B3B3B"),
-      axis.text.y = element_text(size = 11, color = "#3B3B3B"),
-      axis.title = element_text(size = 11, color = "#3B3B3B"),
+      axis.text.x = element_text(size = 14, color = "#3B3B3B"),
+      axis.text.y = element_text(size = 14, color = "#3B3B3B"),
+      axis.title = element_text(size = 14, color = "#3B3B3B"),
       plot.title = element_text(hjust = 1),
       axis.title.x = element_text(margin = margin(t = 10)),
       axis.title.y = element_text(margin = margin(r = 10))
     ) +
-    labs(title = "Hierarchical Clustering Dendrogram",
-         x = "Distance",
-         y = "Height")
+    labs(title = NULL,
+         x = 'Distance',
+         y = 'Height')
 }
 
 

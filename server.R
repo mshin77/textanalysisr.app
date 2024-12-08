@@ -992,14 +992,14 @@ server <- shinyServer(function(input, output, session) {
 
     # create dendrogram
     observeEvent(input$plot_dendrogram, {
-        output$dendro_plot <- plotly::renderPlotly({
+        output$dendro_plot <- renderPlot({
             ggdendro::ggdendrogram(hclust(), rotate = TRUE) +
-                theme_classic(base_size = 11) +
+                theme_classic(base_size = 14) +
                 theme(
                     axis.line = element_line(linewidth = 0.1, color = "#3B3B3B"),
-                    axis.text.x = element_text(size = 11, color = "#3B3B3B"),
-                    axis.text.y = element_text(size = 11, color = "#3B3B3B"),
-                    axis.title = element_text(size = 11, color = "#3B3B3B"),
+                    axis.text.x = element_text(size = 14, color = "#3B3B3B"),
+                    axis.text.y = element_text(size = 14, color = "#3B3B3B"),
+                    axis.title = element_text(size = 14, color = "#3B3B3B"),
                     plot.title = element_text(hjust = 1),
                     axis.title.x = element_text(margin = margin(t = 10)),
                     axis.title.y = element_text(margin = margin(r = 10))

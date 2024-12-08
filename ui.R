@@ -539,7 +539,7 @@ ui <- fluidPage(
                              tabPanel(
                                  "1. Hierarchical Clustering",
                                  value = 10,
-                                 plotly::plotlyOutput("dendro_plot")
+                                 plotOutput("dendro_plot")
                              ),
                              tabPanel(
                                "2. Word Co-Occurrence",
