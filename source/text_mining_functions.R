@@ -339,57 +339,6 @@ topic_probability_table <-
   }
 
 
-#' @title Plot a Hierarchical Clustering Dendrogram
-#'
-#' @description
-#' Perform hierarchical clustering on STM model's document-topic probabilities
-#' and plot a dendrogram.
-#'
-#' @param gamma_matrix A document-topic probability matrix (output of `stm_model$gamma`).
-#' @param method Clustering method (default is "ward.D2").
-#'
-#' @return A ggplot2 dendrogram plot.
-#' @export
-#'
-#' @examples
-#' if (interactive()) {
-#'   # Assume stm_model is a fitted STM model.
-#'   gamma_matrix <- stm_model$gamma
-#'   hierarchical_clustering(gamma_matrix, method = "ward.D2")
-#' }
-#'
-#' @importFrom textmineR CalcHellingerDist
-#' @importFrom ggdendro ggdendrogram
-#' @importFrom stats hclust
-#'
-hierarchical_clustering <- function(gamma_matrix, method = "ward.D2") {
-
-  if (!is.matrix(gamma_matrix)) {
-    stop("`gamma_matrix` must be a matrix. Ensure you are passing `stm_model$gamma`.")
-  }
-
-  stm_dist <- textmineR::CalcHellingerDist(gamma_matrix, by_rows = FALSE)
-
-  hclust_res <- stats::hclust(stats::as.dist(stm_dist), method = method)
-
-  ggdendro::ggdendrogram(hclust_res, rotate = TRUE) +
-    theme_classic(base_size = 14) +
-    theme(
-      axis.line = element_line(linewidth = 0.1, color = "#3B3B3B"),
-      axis.text.x = element_text(size = 14, color = "#3B3B3B"),
-      axis.text.y = element_text(size = 14, color = "#3B3B3B"),
-      axis.title = element_text(size = 14, color = "#3B3B3B"),
-      plot.title = element_text(hjust = 1),
-      axis.title.x = element_text(margin = margin(t = 10)),
-      axis.title.y = element_text(margin = margin(r = 10))
-    ) +
-    labs(title = NULL,
-         x = 'Distance',
-         y = 'Height')
-}
-
-
-
 #' @title Plot a Word Co-occurrence Network
 #'
 #' @description

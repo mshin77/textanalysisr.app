@@ -153,7 +153,7 @@ ui <- fluidPage(
                      )
                  )),
         tabPanel(
-            "Structural Topic Model",
+            "Topic Modeling",
             sidebarLayout(
                 sidebarPanel(
                     width = 3,
@@ -468,19 +468,13 @@ ui <- fluidPage(
                 )
             )
         ),
-        tabPanel("Network Analysis",
+        tabPanel("Word Networks",
                  sidebarLayout(
                      sidebarPanel(
                          width = 3,
                          # Step 1
                          conditionalPanel(
-                             condition = "input.conditioned3 == 10",
-                             helpText(strong("Create dendrogram.")),
-                             actionButton("plot_dendrogram", "Plot", icon = icon("search"))
-                         ),
-                         # Step 2
-                         conditionalPanel(
-                           condition = "input.conditioned3 == 11",
+                           condition = "input.conditioned3 == 10",
                            helpText(strong("Visualize word co-occurrence network.")),
                            sliderInput(
                              "co_occurence_number_init",
@@ -491,9 +485,9 @@ ui <- fluidPage(
                            ),
                            actionButton("plot_word_co_occurrence_network", "Plot", icon = icon("search"))
                            ),
-                         # Step 3
+                         # Step 2
                          conditionalPanel(
-                           condition = "input.conditioned3 == 12",
+                           condition = "input.conditioned3 == 11",
                            helpText(strong("Visualize word correlation network.")),
                            sliderInput(
                              "co_occurence_number",
@@ -512,10 +506,10 @@ ui <- fluidPage(
                            ),
                            actionButton("plot_word_network", "Plot", icon = icon("search"))
                          ),
-                         # Step 4
+                         # Step 3
                          conditionalPanel(
-                             condition = "input.conditioned3 == 13",
-                             helpText(strong("Display changes in frequency over time. If you haven't already, run the Structural Topic Model first to extract topic-document probabilities.")),
+                             condition = "input.conditioned3 == 12",
+                             helpText(strong("Display changes in frequency over time. If you haven't already, run the Topic Modeling first to extract topic-document probabilities.")),
                              selectizeInput(
                                  "continuous_var_3",
                                  "Select a time-related variable.",
@@ -537,13 +531,8 @@ ui <- fluidPage(
                          tabsetPanel(
                              id = "conditioned3",
                              tabPanel(
-                                 "1. Hierarchical Clustering",
-                                 value = 10,
-                                 plotOutput("dendro_plot")
-                             ),
-                             tabPanel(
-                               "2. Word Co-Occurrence",
-                               value = 11,
+                               "1. Word Co-Occurrence",
+                               value = 10,
                                bsCollapse(
                                  open = 0,
                                  bsCollapsePanel(
@@ -589,8 +578,8 @@ ui <- fluidPage(
                                shinycssloaders::withSpinner(uiOutput("word_co_occurrence_network_plot_uiOutput"))
                              ),
                              tabPanel(
-                               "3. Word Correlation Network",
-                               value = 12,
+                               "2. Word Correlation Network",
+                               value = 11,
                                bsCollapse(
                                  open = 0,
                                  bsCollapsePanel(
@@ -636,8 +625,8 @@ ui <- fluidPage(
                                shinycssloaders::withSpinner(uiOutput("word_network_plot_uiOutput"))
                              ),
                              tabPanel(
-                                 "4. Term Frequency Over Time",
-                                 value = 13,
+                                 "3. Term Frequency Over Time",
+                                 value = 12,
                                  bsCollapse(
                                      open = 0,
                                      bsCollapsePanel(

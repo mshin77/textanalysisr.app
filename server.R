@@ -224,8 +224,10 @@ server <- shinyServer(function(input, output, session) {
         }
     })
 
-    # "Structural topic model" page
+    # "Topic Modeling" page
+
     # 1. Search K
+
     colnames_cat <- reactive({
         categorical <- mydata() %>% select(where(is.character)) %>%
             select(where(~ n_distinct(.) <= (0.2 * nrow(mydata(
@@ -982,36 +984,9 @@ server <- shinyServer(function(input, output, session) {
         }
     })
 
-    # "Network analysis" page
-    # 1. Hierarchical clustering
-    hclust <- reactive({
-        stm_dist <-
-            textmineR::CalcHellingerDist(stm_K_number()$theta, by_rows = FALSE)
-        stats::hclust(stats::as.dist(stm_dist), "ward.D2")
-    })
+    # "Word Networks" page
 
-    # create dendrogram
-    observeEvent(input$plot_dendrogram, {
-        output$dendro_plot <- renderPlot({
-            ggdendro::ggdendrogram(hclust(), rotate = TRUE) +
-                theme_classic(base_size = 14) +
-                theme(
-                    axis.line = element_line(linewidth = 0.1, color = "#3B3B3B"),
-                    axis.text.x = element_text(size = 14, color = "#3B3B3B"),
-                    axis.text.y = element_text(size = 14, color = "#3B3B3B"),
-                    axis.title = element_text(size = 14, color = "#3B3B3B"),
-                    plot.title = element_text(hjust = 1),
-                    axis.title.x = element_text(margin = margin(t = 10)),
-                    axis.title.y = element_text(margin = margin(r = 10))
-                ) +
-                labs(title = NULL,
-                     x = 'Distance',
-                     y = 'Height')
-        })
-    })
-
-
-    # 2. Visualize word co-occurrence network
+    # 1. Visualize word co-occurrence network
 
     output$word_co_occurrence_network_plot <- renderPlot({
       observeEvent(input$plot_word_co_occurrence_network, {
@@ -1076,7 +1051,7 @@ server <- shinyServer(function(input, output, session) {
       )
     })
 
-    # 3. Visualize word correlation network
+    # 2. Visualize word correlation network
 
     output$word_network_plot <- renderPlot({
       observeEvent(input$plot_word_network, {
@@ -1141,7 +1116,7 @@ server <- shinyServer(function(input, output, session) {
     })
 
 
-    # 4. Display selected terms that have changed in frequency over time
+    # 3. Display selected terms that have changed in frequency over time
 
     observe({
         updateSelectizeInput(session,
