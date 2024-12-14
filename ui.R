@@ -136,11 +136,11 @@ ui <- fluidPage(
                                  shiny::verbatimTextOutput("step2_print_stopword")
                              ),
                              tabPanel(
-                                 "5. Document-feature matrix",
-                                 value = 5,
-                                 plotly::plotlyOutput("step3_plot", height = 500, width = 1000),
-                                 br(),
-                                 DT::dataTableOutput("step3_table")
+                               "5. Document-feature matrix",
+                               value = 5,
+                               plotly::plotlyOutput("step3_plot", height = 500, width = 1000),
+                               br(),
+                               DT::dataTableOutput("step3_table")
                              ),
                              tabPanel(
                                  "6. Remove common words",
@@ -153,7 +153,7 @@ ui <- fluidPage(
                      )
                  )),
         tabPanel(
-            "Topic Modeling",
+            "Structural Topic Model",
             sidebarLayout(
                 sidebarPanel(
                     width = 3,
@@ -259,420 +259,430 @@ ui <- fluidPage(
                     ),
                     # Step 6
                     conditionalPanel(
-                        condition = "input.conditioned2 == 6",
-                        helpText(
-                            strong(
-                                "Plot topic prevalence effects by categorical covariates. Esimate coefficients first in the '5. Estimated Effects' tab."
-                            )
+                      condition = "input.conditioned2 == 6",
+                      helpText(
+                        strong(
+                          "Plot topic prevalence effects by categorical covariates."
                         ),
-                        selectizeInput(
-                            "effect_cat_btn",
-                            "Select a categorical covariate.",
-                            choices = NULL,
-                            multiple = TRUE
-                        ),
-                        actionButton("display_cat", "Display", icon = icon("file-alt"))
+                        br(),
+                        tags$ul(
+                          tags$li("Select categorical covariate(s) in the '2. Word-Topic' tab."),
+                          tags$li("Then, estimate coefficients first in the '5. Estimated Effects' tab.")
+                        )
+                      ),
+                      selectizeInput(
+                        "effect_cat_btn",
+                        "Select a categorical covariate.",
+                        choices = NULL,
+                        multiple = TRUE
+                      ),
+                      actionButton("display_cat", "Display", icon = icon("file-alt"))
                     ),
                     # Step 7
                     conditionalPanel(
-                        condition = "input.conditioned2 == 7",
-                        helpText(
-                            strong(
-                                "Plot topic prevalence effects by continuous covariates. Esimate coefficients first in the '5. Estimated Effects' tab."
-                            )
+                      condition = "input.conditioned2 == 7",
+                      helpText(
+                        strong(
+                          "Plot topic prevalence effects by continuous covariates."
                         ),
-                        selectizeInput(
-                            "effect_con_btn",
-                            "Select a continuous covariate.",
-                            choices = NULL,
-                            multiple = TRUE
-                        ),
-                        actionButton("display_con", "Display", icon = icon("file-alt"))
+                        br(),
+                        tags$ul(
+                          tags$li("Select continuous covariate(s) in the '2. Word-Topic' tab."),
+                          tags$li("Then, estimate coefficients first in the '5. Estimated Effects' tab.")
+                        )
+                      ),
+                      selectizeInput(
+                        "effect_con_btn",
+                        "Select a continuous covariate.",
+                        choices = NULL,
+                        multiple = TRUE
+                      ),
+                      actionButton("display_con", "Display", icon = icon("file-alt"))
                     )
                 ),
 
                 mainPanel(
-                    width = 9,
-                    tabsetPanel(
-                        id = "conditioned2",
-                        tabPanel(
-                            "1. Search K ",
-                            value = 1,
-                            shinycssloaders::withSpinner(plotOutput("search_K_plot"))
-                        ),
-                        tabPanel(
-                            "2. Word-Topic",
-                            value = 2,
-                            bsCollapse(
-                                open = 0,
-                                bsCollapsePanel(
-                                    p(strong("Click to set plot dimensions"),
-                                      style = "font-size: 15px;"),
-                                    value = 1,
-                                    style = "success",
-                                    p(strong("Dimensions of the plot")),
-                                    div(
-                                        style = "display:inline-block",
-                                        sliderInput(
-                                            inputId = "height",
-                                            post = " px",
-                                            label = "height",
-                                            min = 200,
-                                            max = 4000,
-                                            step = 5,
-                                            value = 500
-                                        )
-                                    ),
-                                    div(
-                                        style = "display:inline-block",
-                                        sliderInput(
-                                            inputId = "width",
-                                            post = " px",
-                                            label = "width",
-                                            min = 500,
-                                            max = 3000,
-                                            step = 5,
-                                            value = 1000
-                                        )
-                                    )
-                                )
-                            ),
-                            tags$style(
-                                HTML(
-                                    ".plot-container {
-                                max-height: 4000px;
-                                max-width: 3000px;
-                                overflow: auto; }"
-                                )
-                            ),
-                            shinycssloaders::withSpinner(uiOutput("topic_term_plot_uiOutput"))
-                        ),
-                        tabPanel(
-                            "3. Document-Topic",
-                            value = 3,
-                            plotly::plotlyOutput(
-                                "topic_by_prevalence_plot2",
-                                height = 500,
-                                width = 1000
-                            ),
-                            br(),
-                            DT::dataTableOutput("topic_by_prevalence_table")
-                        ),
-                        tabPanel("4. Quotes", value = 4,
-                                 DT::dataTableOutput("quote_table")),
-                        tabPanel(
-                            "5. Estimated Effects",
-                            value = 5,
-                            DT::dataTableOutput("effect_table")
-                        ),
-                        tabPanel(
-                            "6. Categorical Variables",
-                            value = 6,
-                            bsCollapse(
-                                open = 0,
-                                bsCollapsePanel(
-                                    p(strong("Click to set plot dimensions"),
-                                      style = "font-size: 15px;"),
-                                    value = 2,
-                                    style = "success",
-                                    p(strong("Dimensions of the plot")),
-                                    div(
-                                        style = "display:inline-block",
-                                        sliderInput(
-                                            inputId = "height_cat_plot",
-                                            post = " px",
-                                            label = "height",
-                                            min = 200,
-                                            max = 4000,
-                                            step = 5,
-                                            value = 500
-                                        )
-                                    ),
-                                    div(
-                                        style = "display:inline-block",
-                                        sliderInput(
-                                            inputId = "width_cat_plot",
-                                            post = " px",
-                                            label = "width",
-                                            min = 500,
-                                            max = 3000,
-                                            step = 5,
-                                            value = 1000
-                                        )
-                                    )
-                                )
-                            ),
-                            tags$style(
-                                HTML(
-                                    ".plot-container {
-                                max-height: 4000px;
-                                max-width: 3000px;
-                                overflow: auto; }"
-                                )
-                            ),
-                            shinycssloaders::withSpinner(uiOutput("cat_plot_uiOutput")),
-                            br(),
-                            DT::dataTableOutput("cat_table")
-                        ),
-                        tabPanel(
-                            "7. Continuous Variables",
-                            value = 7,
-                            bsCollapse(
-                                open = 0,
-                                bsCollapsePanel(
-                                    p(strong("Click to set plot dimensions"),
-                                      style = "font-size: 15px;"),
-                                    value = 3,
-                                    style = "success",
-                                    p(strong("Dimensions of the plot")),
-                                    div(
-                                        style = "display:inline-block",
-                                        sliderInput(
-                                            inputId = "height_con_plot",
-                                            post = " px",
-                                            label = "height",
-                                            min = 200,
-                                            max = 4000,
-                                            step = 5,
-                                            value = 500
-                                        )
-                                    ),
-                                    div(
-                                        style = "display:inline-block",
-                                        sliderInput(
-                                            inputId = "width_con_plot",
-                                            post = " px",
-                                            label = "width",
-                                            min = 500,
-                                            max = 3000,
-                                            step = 5,
-                                            value = 1000
-                                        )
-                                    )
-                                )
-                            ),
-                            tags$style(
-                                HTML(
-                                    ".plot-container {
-                                max-height: 4000px;
-                                max-width: 3000px;
-                                overflow: auto; }"
-                                )
-                            ),
-                            shinycssloaders::withSpinner(uiOutput("con_plot_uiOutput")),
-                            br(),
-                            DT::dataTableOutput("con_table")
+                  width = 9,
+                  tabsetPanel(
+                    id = "conditioned2",
+                    tabPanel(
+                      "1. Search K ",
+                      value = 1,
+                      shinycssloaders::withSpinner(plotly::plotlyOutput("search_K_plot"))
+                    ),
+                    tabPanel(
+                      "2. Word-Topic",
+                      value = 2,
+                      bsCollapse(
+                        open = 0,
+                        bsCollapsePanel(
+                          p(strong("Click to set plot dimensions"),
+                            style = "font-size: 15px;"),
+                          value = 1,
+                          style = "success",
+                          p(strong("Dimensions of the plot")),
+                          div(
+                            style = "display:inline-block",
+                            sliderInput(
+                              inputId = "height",
+                              post = " px",
+                              label = "height",
+                              min = 200,
+                              max = 4000,
+                              step = 5,
+                              value = 1000
+                            )
+                          ),
+                          div(
+                            style = "display:inline-block",
+                            sliderInput(
+                              inputId = "width",
+                              post = " px",
+                              label = "width",
+                              min = 500,
+                              max = 3000,
+                              step = 5,
+                              value = 1000
+                            )
+                          )
                         )
+                      ),
+                      tags$style(
+                        HTML(
+                          ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                        )
+                      ),
+                      shinycssloaders::withSpinner(uiOutput("topic_term_plot_uiOutput"))
+                    ),
+                    tabPanel(
+                      "3. Document-Topic",
+                      value = 3,
+                      plotly::plotlyOutput(
+                        "topic_by_prevalence_plot2",
+                        height = 500,
+                        width = 1000
+                      ),
+                      br(),
+                      DT::dataTableOutput("topic_by_prevalence_table")
+                    ),
+                    tabPanel("4. Quotes", value = 4,
+                             DT::dataTableOutput("quote_table")),
+                    tabPanel(
+                      "5. Estimated Effects",
+                      value = 5,
+                      DT::dataTableOutput("effect_table")
+                    ),
+                    tabPanel(
+                      "6. Categorical Variables",
+                      value = 6,
+                      bsCollapse(
+                        open = 0,
+                        bsCollapsePanel(
+                          p(strong("Click to set plot dimensions"),
+                            style = "font-size: 15px;"),
+                          value = 2,
+                          style = "success",
+                          p(strong("Dimensions of the plot")),
+                          div(
+                            style = "display:inline-block",
+                            sliderInput(
+                              inputId = "height_cat_plot",
+                              post = " px",
+                              label = "height",
+                              min = 200,
+                              max = 4000,
+                              step = 5,
+                              value = 500
+                            )
+                          ),
+                          div(
+                            style = "display:inline-block",
+                            sliderInput(
+                              inputId = "width_cat_plot",
+                              post = " px",
+                              label = "width",
+                              min = 500,
+                              max = 3000,
+                              step = 5,
+                              value = 1000
+                            )
+                          )
+                        )
+                      ),
+                      tags$style(
+                        HTML(
+                          ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                        )
+                      ),
+                      shinycssloaders::withSpinner(uiOutput("cat_plot_uiOutput")),
+                      br(),
+                      uiOutput("cat_table_uiOutput")
+                    ),
+                    tabPanel(
+                      "7. Continuous Variables",
+                      value = 7,
+                      bsCollapse(
+                        open = 0,
+                        bsCollapsePanel(
+                          p(strong("Click to set plot dimensions"),
+                            style = "font-size: 15px;"),
+                          value = 3,
+                          style = "success",
+                          p(strong("Dimensions of the plot")),
+                          div(
+                            style = "display:inline-block",
+                            sliderInput(
+                              inputId = "height_con_plot",
+                              post = " px",
+                              label = "height",
+                              min = 200,
+                              max = 4000,
+                              step = 5,
+                              value = 500
+                            )
+                          ),
+                          div(
+                            style = "display:inline-block",
+                            sliderInput(
+                              inputId = "width_con_plot",
+                              post = " px",
+                              label = "width",
+                              min = 500,
+                              max = 3000,
+                              step = 5,
+                              value = 1000
+                            )
+                          )
+                        )
+                      ),
+                      tags$style(
+                        HTML(
+                          ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                        )
+                      ),
+                      shinycssloaders::withSpinner(uiOutput("con_plot_uiOutput")),
+                      br(),
+                      uiOutput("con_table_uiOutput")
                     )
+                  )
 
                 )
             )
         ),
-        tabPanel("Word Networks",
-                 sidebarLayout(
-                     sidebarPanel(
-                         width = 3,
-                         # Step 1
-                         conditionalPanel(
-                           condition = "input.conditioned3 == 10",
-                           helpText(strong("Visualize word co-occurrence network.")),
-                           sliderInput(
-                             "co_occurence_number_init",
-                             "Minimum co-occurrence numbers",
-                             value = 5,
-                             min = 0,
-                             max = 100
-                           ),
-                           actionButton("plot_word_co_occurrence_network", "Plot", icon = icon("search"))
-                           ),
-                         # Step 2
-                         conditionalPanel(
-                           condition = "input.conditioned3 == 11",
-                           helpText(strong("Visualize word correlation network.")),
-                           sliderInput(
-                             "co_occurence_number",
-                             "Minimum co-occurence numbers",
-                             value = 5,
-                             min = 0,
-                             max = 100
-                           ),
-                           sliderInput(
-                             "correlation_value",
-                             "Minimum correlation betweewn pairwise words",
-                             value = 0.2,
-                             min = 0,
-                             max = 1,
-                             step = 0.1
-                           ),
-                           actionButton("plot_word_network", "Plot", icon = icon("search"))
-                         ),
-                         # Step 3
-                         conditionalPanel(
-                             condition = "input.conditioned3 == 12",
-                             helpText(strong("Display changes in frequency over time. If you haven't already, run the Topic Modeling first to extract topic-document probabilities.")),
-                             selectizeInput(
-                                 "continuous_var_3",
-                                 "Select a time-related variable.",
-                                 choices = NULL,
-                                 multiple = TRUE
-                             ),
-                             selectizeInput(
-                                 "type_terms",
-                                 "Select or type terms.",
-                                 choices = NULL,
-                                 options = list(maxItems = 20, multiple = TRUE)
-                             ),
-                             actionButton("plot_term", "Plot", icon = icon("play"))
-                         )
+      tabPanel("Word Networks",
+               sidebarLayout(
+                 sidebarPanel(
+                   width = 3,
+                   # Step 1
+                   conditionalPanel(
+                     condition = "input.conditioned3 == 10",
+                     helpText(strong("Visualize word co-occurrence network.")),
+                     sliderInput(
+                       "co_occurence_number_init",
+                       "Minimum co-occurrence numbers",
+                       value = 5,
+                       min = 0,
+                       max = 100
                      ),
+                     actionButton("plot_word_co_occurrence_network", "Plot", icon = icon("search"))
+                   ),
+                   # Step 2
+                   conditionalPanel(
+                     condition = "input.conditioned3 == 11",
+                     helpText(strong("Visualize word correlation network.")),
+                     sliderInput(
+                       "co_occurence_number",
+                       "Minimum co-occurence numbers",
+                       value = 5,
+                       min = 0,
+                       max = 100
+                     ),
+                     sliderInput(
+                       "correlation_value",
+                       "Minimum correlation betweewn pairwise words",
+                       value = 0.3,
+                       min = 0,
+                       max = 1,
+                       step = 0.1
+                     ),
+                     actionButton("plot_word_correlation_network", "Plot", icon = icon("search"))
+                   ),
+                   # Step 3
+                   conditionalPanel(
+                     condition = "input.conditioned3 == 12",
+                     helpText(strong("Display changes in frequency over time. If you haven't already, run the Structural Topic Model first to extract topic-document probabilities.")),
+                     selectizeInput(
+                       "continuous_var_3",
+                       "Select a time-related variable.",
+                       choices = NULL,
+                       multiple = TRUE
+                     ),
+                     selectizeInput(
+                       "type_terms",
+                       "Select or type terms.",
+                       choices = NULL,
+                       options = list(maxItems = 20, multiple = TRUE)
+                     ),
+                     actionButton("plot_term", "Plot", icon = icon("play"))
+                   )
+                 ),
 
-                     mainPanel(
-                         width = 9,
-                         tabsetPanel(
-                             id = "conditioned3",
-                             tabPanel(
-                               "1. Word Co-Occurrence",
-                               value = 10,
-                               bsCollapse(
-                                 open = 0,
-                                 bsCollapsePanel(
-                                   p(strong("Click to set plot dimensions"),
-                                     style = "font-size: 15px;"),
-                                   value = 4,
-                                   style = "success",
-                                   p(strong("Dimensions of the plot")),
-                                   div(
-                                     style = "display:inline-block",
-                                     sliderInput(
-                                       inputId = "height_word_co_occurrence_network_plot",
-                                       post = " px",
-                                       label = "height",
-                                       min = 200,
-                                       max = 4000,
-                                       step = 5,
-                                       value = 500
-                                     )
-                                   ),
-                                   div(
-                                     style = "display:inline-block",
-                                     sliderInput(
-                                       inputId = "width_word_co_occurrence_network_plot",
-                                       post = " px",
-                                       label = "width",
-                                       min = 500,
-                                       max = 3000,
-                                       step = 5,
-                                       value = 1000
-                                     )
-                                   )
-                                 )
-                               ),
-                               tags$style(
-                                 HTML(
-                                   ".plot-container {
-                                max-height: 4000px;
-                                max-width: 3000px;
-                                overflow: auto; }"
-                                 )
-                               ),
-                               shinycssloaders::withSpinner(uiOutput("word_co_occurrence_network_plot_uiOutput"))
-                             ),
-                             tabPanel(
-                               "2. Word Correlation Network",
-                               value = 11,
-                               bsCollapse(
-                                 open = 0,
-                                 bsCollapsePanel(
-                                   p(strong("Click to set plot dimensions"),
-                                     style = "font-size: 15px;"),
-                                   value = 4,
-                                   style = "success",
-                                   p(strong("Dimensions of the plot")),
-                                   div(
-                                     style = "display:inline-block",
-                                     sliderInput(
-                                       inputId = "height_word_network_plot",
-                                       post = " px",
-                                       label = "height",
-                                       min = 200,
-                                       max = 4000,
-                                       step = 5,
-                                       value = 500
-                                     )
-                                   ),
-                                   div(
-                                     style = "display:inline-block",
-                                     sliderInput(
-                                       inputId = "width_word_network_plot",
-                                       post = " px",
-                                       label = "width",
-                                       min = 500,
-                                       max = 3000,
-                                       step = 5,
-                                       value = 1000
-                                     )
-                                   )
-                                 )
-                               ),
-                               tags$style(
-                                 HTML(
-                                   ".plot-container {
-                                max-height: 4000px;
-                                max-width: 3000px;
-                                overflow: auto; }"
-                                 )
-                               ),
-                               shinycssloaders::withSpinner(uiOutput("word_network_plot_uiOutput"))
-                             ),
-                             tabPanel(
-                                 "3. Term Frequency Over Time",
-                                 value = 12,
-                                 bsCollapse(
-                                     open = 0,
-                                     bsCollapsePanel(
-                                         p(strong("Click to set plot dimensions"),
-                                           style = "font-size: 15px;"),
-                                         value = 5,
-                                         style = "success",
-                                         p(strong("Dimensions of the plot")),
-                                         div(
-                                             style = "display:inline-block",
-                                             sliderInput(
-                                                 inputId = "height_line_year_plot,",
-                                                 post = " px",
-                                                 label = "height",
-                                                 min = 200,
-                                                 max = 4000,
-                                                 step = 5,
-                                                 value = 500
-                                             )
-                                         ),
-                                         div(
-                                             style = "display:inline-block",
-                                             sliderInput(
-                                                 inputId = "width_line_year_plot,",
-                                                 post = " px",
-                                                 label = "width",
-                                                 min = 500,
-                                                 max = 3000,
-                                                 step = 5,
-                                                 value = 1000
-                                             )
-                                         )
-                                     )
-                                 ),
-                                 tags$style(
-                                     HTML(
-                                         ".plot-container {
-                                max-height: 4000px;
-                                max-width: 3000px;
-                                overflow: auto; }"
-                                     )
-                                 ),
-                                 shinycssloaders::withSpinner(uiOutput("line_year_plot_uiOutput"))
+                 mainPanel(
+                   width = 9,
+                   tabsetPanel(
+                     id = "conditioned3",
+                     tabPanel(
+                       "1. Word Co-Occurrence",
+                       value = 10,
+                       bsCollapse(
+                         open = 0,
+                         bsCollapsePanel(
+                           p(strong("Click to set plot dimensions"),
+                             style = "font-size: 15px;"),
+                           value = 4,
+                           style = "success",
+                           p(strong("Dimensions of the plot")),
+                           div(
+                             style = "display:inline-block",
+                             sliderInput(
+                               inputId = "height_word_co_occurrence_network_plot",
+                               post = " px",
+                               label = "height",
+                               min = 200,
+                               max = 4000,
+                               step = 5,
+                               value = 700
                              )
+                           ),
+                           div(
+                             style = "display:inline-block",
+                             sliderInput(
+                               inputId = "width_word_co_occurrence_network_plot",
+                               post = " px",
+                               label = "width",
+                               min = 500,
+                               max = 3000,
+                               step = 5,
+                               value = 1000
+                             )
+                           )
                          )
+                       ),
+                       tags$style(
+                         HTML(
+                           ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                         )
+                       ),
+                       shinycssloaders::withSpinner(uiOutput("word_co_occurrence_network_plot_uiOutput"))
+                     ),
+                     tabPanel(
+                       "2. Word Correlation Network",
+                       value = 11,
+                       bsCollapse(
+                         open = 0,
+                         bsCollapsePanel(
+                           p(strong("Click to set plot dimensions"),
+                             style = "font-size: 15px;"),
+                           value = 4,
+                           style = "success",
+                           p(strong("Dimensions of the plot")),
+                           div(
+                             style = "display:inline-block",
+                             sliderInput(
+                               inputId = "height_word_correlation_network_plot",
+                               post = " px",
+                               label = "height",
+                               min = 200,
+                               max = 4000,
+                               step = 5,
+                               value = 700
+                             )
+                           ),
+                           div(
+                             style = "display:inline-block",
+                             sliderInput(
+                               inputId = "width_word_correlation_network_plot",
+                               post = " px",
+                               label = "width",
+                               min = 500,
+                               max = 3000,
+                               step = 5,
+                               value = 1000
+                             )
+                           )
+                         )
+                       ),
+                       tags$style(
+                         HTML(
+                           ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                         )
+                       ),
+                       shinycssloaders::withSpinner(uiOutput("word_correlation_network_plot_uiOutput"))
+                     ),
+                     tabPanel(
+                       "3. Term Frequency Over Time",
+                       value = 12,
+                       bsCollapse(
+                         open = 0,
+                         bsCollapsePanel(
+                           p(strong("Click to set plot dimensions"),
+                             style = "font-size: 15px;"),
+                           value = 5,
+                           style = "success",
+                           p(strong("Dimensions of the plot")),
+                           div(
+                             style = "display:inline-block",
+                             sliderInput(
+                               inputId = "height_line_year_plot,",
+                               post = " px",
+                               label = "height",
+                               min = 200,
+                               max = 4000,
+                               step = 5,
+                               value = 700
+                             )
+                           ),
+                           div(
+                             style = "display:inline-block",
+                             sliderInput(
+                               inputId = "width_line_year_plot,",
+                               post = " px",
+                               label = "width",
+                               min = 500,
+                               max = 3000,
+                               step = 5,
+                               value = 1000
+                             )
+                           )
+                         )
+                       ),
+                       tags$style(
+                         HTML(
+                           ".plot-container {
+                                max-height: 4000px;
+                                max-width: 3000px;
+                                overflow: auto; }"
+                         )
+                       ),
+                       shinycssloaders::withSpinner(uiOutput("line_year_plot_uiOutput"))
                      )
-                 ))
+                   )
+                 )
+               ))
     )
 )

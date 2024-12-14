@@ -12,9 +12,14 @@ suppressPackageStartupMessages({
     library(widyr)
     library(markdown)
     library(tidygraph)
+    library(plotly)
+    library(rlang)
+    library(broom)
+    library(igraph)
 })
 
 server <- shinyServer(function(input, output, session) {
+
     observe({
         if (input$dataset_choice == "Upload an Example Dataset") {
             shinyjs::disable("file")
@@ -72,17 +77,16 @@ server <- shinyServer(function(input, output, session) {
 
     })
 
-    # Print data table
     output$step1_table <- DT::renderDataTable(united_tbl(),
                                               rownames = FALSE)
-    # Download data table as a csv file
+
     output$download_table <- downloadHandler(
-        filename = function() {
-            paste(input$file, ".csv", sep = "")
-        },
-        content = function(file) {
-            utils::write.csv(united_tbl(), file, row.names = FALSE)
-        }
+      filename = function() {
+        paste0(ifelse(is.null(input$file) || input$file == "", "combined data", input$file), ".xlsx")
+      },
+      content = function(file) {
+        openxlsx::write.xlsx(united_tbl(), file)
+      }
     )
 
     # Step 2
@@ -211,8 +215,10 @@ server <- shinyServer(function(input, output, session) {
     observeEvent(input$remove, {
         if (!is.null(input$remove.var)) {
             output$step4_plot <- plotly::renderPlotly({
+
                 dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
-            })
+
+              })
         }
     })
 
@@ -224,7 +230,7 @@ server <- shinyServer(function(input, output, session) {
         }
     })
 
-    # "Topic Modeling" page
+    # "Structural Topic Model" page
 
     # 1. Search K
 
@@ -271,6 +277,7 @@ server <- shinyServer(function(input, output, session) {
     })
 
     K_search <- eventReactive(eventExpr = input$search, {
+
         if (!is.null(input$categorical_var) &&
             !is.null(input$continuous_var)) {
             stm::searchK(
@@ -330,8 +337,99 @@ server <- shinyServer(function(input, output, session) {
         }
     })
 
-    output$search_K_plot <- renderPlot({
-        plot(K_search())
+    output$search_K_plot <- plotly::renderPlotly({
+
+      search_result <- K_search()
+
+      print(search_result$results)
+
+      search_result$results$heldout <- as.numeric(search_result$results$heldout)
+      search_result$results$residual <- as.numeric(search_result$results$residual)
+      search_result$results$semcoh <- as.numeric(search_result$results$semcoh)
+      search_result$results$lbound <- as.numeric(search_result$results$lbound)
+
+      p1 <- plotly::plot_ly(
+        data = search_result$results,
+        x = ~K,
+        y = ~heldout,
+        type = 'scatter',
+        mode = 'lines+markers',
+        text = ~paste("K:", K, "<br>Held-out Likelihood:", round(heldout, 3)),
+        hoverinfo = 'text'
+      )
+
+      p2 <- plotly::plot_ly(
+        data = search_result$results,
+        x = ~K,
+        y = ~residual,
+        type = 'scatter',
+        mode = 'lines+markers',
+        text = ~paste("K:", K, "<br>Residuals:", round(residual, 3)),
+        hoverinfo = 'text'
+      )
+
+      p3 <- plotly::plot_ly(
+        data = search_result$results,
+        x = ~K,
+        y = ~semcoh,
+        type = 'scatter',
+        mode = 'lines+markers',
+        text = ~paste("K:", K, "<br>Semantic Coherence:", round(semcoh, 3)),
+        hoverinfo = 'text'
+      )
+
+      p4 <- plotly::plot_ly(
+        data = search_result$results,
+        x = ~K,
+        y = ~lbound,
+        type = 'scatter',
+        mode = 'lines+markers',
+        text = ~paste("K:", K, "<br>Lower Bound:", round(lbound, 3)),
+        hoverinfo = 'text'
+      )
+
+      plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.15) %>%
+        plotly::layout(
+          title = list(
+            text = "Model Metrics by Number of Topics (K)",
+            font = list(size = 16)
+          ),
+          showlegend = FALSE,
+          margin = list(t = 100, b = 100, l = 50, r = 50),
+          annotations = list(
+            list(
+              x = 0.5, y = 1.1, text = "Held-out Likelihood", showarrow = FALSE,
+              xref = 'x domain', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+              font = list(size = 14)
+            ),
+            list(
+              x = 0.5, y = 1.1, text = "Residuals", showarrow = FALSE,
+              xref = 'x2 domain', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+              font = list(size = 14)
+            ),
+            list(
+              x = 0.5, y = 0.5, text = "Semantic Coherence", showarrow = FALSE,
+              xref = 'x3 domain', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+              font = list(size = 14)
+            ),
+            list(
+              x = 0.5, y = 0.5, text = "Lower Bound", showarrow = FALSE,
+              xref = 'x4 domain', yanchor = 'bottom', xanchor = 'center', yref = 'paper',
+              font = list(size = 14)
+            ),
+            list(
+              x = 0.5, y = -0.2, text = "Number of Topics (K)", showarrow = FALSE,
+              xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'top',
+              font = list(size = 14)
+            )
+          ),
+          yaxis = list(
+            title = list(
+              text = "Metric Value",
+              font = list(size = 14)
+            )
+          )
+        )
     })
 
 
@@ -457,73 +555,84 @@ server <- shinyServer(function(input, output, session) {
         print(input$label_topics)
     })
 
-    output$topic_term_plot <- renderPlot({
-        print(input$top_term_number_1)
-        req(!is.na(stm_K_number()))
+    output$topic_term_plot <- plotly::renderPlotly({
+      print(input$top_term_number_1)
+      req(!is.na(stm_K_number()))
 
-        if (input$label_topics == '') {
-            tn = NULL
-        } else{
-            tn = strsplit(input$label_topics, split = ',')[[1]]
-        }
+      if (input$label_topics == '') {
+        tn = NULL
+      } else {
+        tn = strsplit(input$label_topics, split = ',')[[1]]
+      }
 
-        topic_term_plot <- beta_td() %>%
-            group_by(topic) %>%
-            top_n(input$top_term_number_1, beta) %>%
-            ungroup() %>%
-            mutate(
-                ord = factor(topic, levels = c(min(topic):max(topic))),
-                tt = as.numeric(topic),
-                topic = paste("Topic", topic),
-                term = reorder_within(term, beta, topic)
-            ) %>% arrange(ord)
+      topic_term_plot <- beta_td() %>%
+        group_by(topic) %>%
+        top_n(input$top_term_number_1, beta) %>%
+        ungroup() %>%
+        mutate(
+          ord = factor(topic, levels = c(min(topic):max(topic))),
+          tt = as.numeric(topic),
+          topic = paste("Topic", topic),
+          term = reorder_within(term, beta, topic)
+        ) %>% arrange(ord)
 
-        levelt = paste("Topic", topic_term_plot$ord) %>% unique()
-        topic_term_plot$topic = factor(topic_term_plot$topic,
-                                       levels = levelt)
-        if (!is.null(tn)) {
-            topic_term_plot$topic = tn[topic_term_plot$tt]
-            topic_term_plot <- topic_term_plot %>%
-                mutate(topic = as.character(topic)) %>%
-                mutate(topic = ifelse(!is.na(topic), topic, paste('Topic', tt)))
-            topic_term_plot$topic =
-                factor(topic_term_plot$topic, levels = topic_term_plot$topic %>% unique())
-        }
-        topic_term_plot$tt = NULL
-        topic_term_plot %>%
-            ggplot(aes(term, beta, fill = topic)) +
-            geom_col(show.legend = FALSE, alpha = 0.8) +
-            facet_wrap(~ topic, scales = "free", ncol = 3) +
-            scale_x_reordered() +
-            scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
-            coord_flip() +
-            xlab("") +
-            ylab("Word probability") +
-            theme_minimal(base_size = 14) +
-            theme(
-                panel.grid.major = element_blank(),
-                panel.grid.minor = element_blank(),
-                axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
-                axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
-                strip.text.x = element_text(size = 14, color = "#3B3B3B"),
-                axis.text.x = element_text(size = 14, color = "#3B3B3B"),
-                axis.text.y = element_text(size = 14, color = "#3B3B3B"),
-                axis.title = element_text(size = 14, color = "#3B3B3B"),
-                axis.title.x = element_text(margin = margin(t = 7)),
-                axis.title.y = element_text(margin = margin(r = 7))
-            )
+      levelt = paste("Topic", topic_term_plot$ord) %>% unique()
+      topic_term_plot$topic = factor(topic_term_plot$topic,
+                                     levels = levelt)
+      if (!is.null(tn)) {
+        topic_term_plot$topic = tn[topic_term_plot$tt]
+        topic_term_plot <- topic_term_plot %>%
+          mutate(topic = as.character(topic)) %>%
+          mutate(topic = ifelse(!is.na(topic), topic, paste('Topic', tt)))
+        topic_term_plot$topic =
+          factor(topic_term_plot$topic, levels = topic_term_plot$topic %>% unique())
+      }
+      topic_term_plot$tt = NULL
+
+      topic_term_plot_gg <- ggplot(
+        topic_term_plot,
+        aes(term, beta, fill = topic, text = paste("Topic:", topic, "<br>Beta:", sprintf("%.3f", beta)))
+      ) +
+        geom_col(show.legend = FALSE, alpha = 0.8) +
+        facet_wrap(~ topic, scales = "free", ncol = 2, strip.position = "top") +
+        scale_x_reordered() +
+        scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
+        coord_flip() +
+        xlab("") +
+        ylab("Word probability") +
+        theme_minimal(base_size = 11) +
+        theme(
+          legend.position = "none",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+          axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+          strip.text.x = element_text(size = 11, color = "#3B3B3B", margin = margin(b = 30, t = 15)),
+          axis.text.x = element_text(size = 11, color = "#3B3B3B", hjust = 1, margin = margin(t = 20)),
+          axis.text.y = element_text(size = 11, color = "#3B3B3B", margin = margin(r = 20)),
+          axis.title = element_text(size = 11, color = "#3B3B3B"),
+          axis.title.x = element_text(margin = margin(t = 25)),
+          axis.title.y = element_text(margin = margin(r = 25)),
+          plot.margin = margin(t = 40, b = 40)
+        )
+
+      plotly::ggplotly(topic_term_plot_gg, height = input$height, width = input$width, tooltip = "text") %>%
+        plotly::layout(
+          margin = list(t = 40, b = 40)
+        )
     })
 
     output$topic_term_plot_uiOutput <- renderUI({
-        shinycssloaders::withSpinner(plotOutput(
-            "topic_term_plot",
-            height = input$height,
-            width = input$width
-        ))
+      shinycssloaders::withSpinner(plotly::plotlyOutput(
+        "topic_term_plot",
+        height = input$height,
+        width = input$width
+      ))
     })
 
 
-    # Step 3: Display per-document-per topic probabilities by topics
+
+ # Step 3: Display per-document-per topic probabilities by topics
 
     output$topic_number_uiOutput <- renderUI({
         req(print_K_number())
@@ -597,8 +706,9 @@ server <- shinyServer(function(input, output, session) {
                            levels = topic_by_prevalence_plot$topic)
             }
 
-            topic_by_prevalence_plot %>%
-                ggplot(aes(topic, gamma, label = terms, fill = topic)) +
+            tp <- topic_by_prevalence_plot %>%
+                ggplot(aes(topic, gamma, label = terms, fill = topic, text = paste("Topic:", topic, "<br>Terms:", terms, "<br>Gamma:", sprintf("%.3f", gamma)))
+                       ) +
                 geom_col(alpha = 0.8) +
                 coord_flip() +
                 scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 2)) +
@@ -618,33 +728,65 @@ server <- shinyServer(function(input, output, session) {
                     axis.title.x = element_text(margin = margin(t = 9)),
                     axis.title.y = element_text(margin = margin(r = 9))
                 )
+            tp %>% plotly::ggplotly(tooltip = "text") %>%
+            plotly::layout(
+              margin = list(t = 40, b = 40)
+            )
         })
 
     })
 
     # Display topics ordered by prevalence
+
     observeEvent(input$display, {
-        if (input$label_topics == '') {
-            tn = NULL
-        } else{
-            tn = strsplit(input$label_topics, split = ',')[[1]]
+      if (input$label_topics == '') {
+        tn <- NULL
+      } else {
+        tn <- strsplit(input$label_topics, split = ',')[[1]]
+      }
+
+      output$topic_by_prevalence_table <- DT::renderDataTable({
+        topic_by_prevalence_table <- gamma_terms() %>%
+          top_n(input$topic_number, gamma) %>%
+          mutate(
+            tt = as.numeric(topic),
+            ord = tt
+          ) %>%
+          arrange(ord)
+
+        if (!is.null(tn)) {
+          topic_by_prevalence_table <- topic_by_prevalence_table %>%
+            mutate(
+              topic_label = ifelse(tt <= length(tn), tn[tt], paste('Topic', tt))
+            )
+        } else {
+          topic_by_prevalence_table <- topic_by_prevalence_table %>%
+            mutate(
+              topic_label = paste('Topic', tt)
+            )
         }
 
-        output$topic_by_prevalence_table <- DT::renderDataTable({
-            topic_by_prevalence_table <- gamma_terms() %>%
-                top_n(input$topic_number, gamma) %>%
-                mutate(tt = as.numeric(topic)) %>%
-                mutate(ord = topic) %>%
-                mutate(topic = paste('Topic', topic)) %>%  arrange(ord)
-            levelt = paste("Topic", topic_by_prevalence_table$ord) %>% unique()
+        topic_by_prevalence_table$topic_label <- factor(
+          topic_by_prevalence_table$topic_label,
+          levels = unique(topic_by_prevalence_table$topic_label)
+        )
 
-            topic_by_prevalence_table$topic = factor(topic_by_prevalence_table$topic,
-                                                     levels = levelt)
-            topic_by_prevalence_table %>%
-                select(topic, gamma) %>%
-                mutate_if(is.numeric, ~ round(., 3)) %>%
-                DT::datatable(rownames = FALSE)
-        })
+        topic_by_prevalence_table %>%
+          select(topic = topic_label, gamma) %>%
+          mutate_if(is.numeric, ~ round(., 3)) %>%
+          DT::datatable(
+            rownames = FALSE,
+            options = list(
+              pageLength = 10,
+              autoWidth = TRUE,
+              columnDefs = list(list(targets = "_all", className = "dt-center"))
+            )
+          ) %>%
+          DT::formatStyle(
+            columns = c("topic", "gamma"),
+            fontSize = '15px'
+          )
+      })
     })
 
 
@@ -763,493 +905,756 @@ server <- shinyServer(function(input, output, session) {
     })
 
     observe({
-        effect_stm_K_number_td = effect_stm_K_number()
+      effect_stm_K_number_td <- effect_stm_K_number()
 
-        td <-
-            tidytext::tidy(effect_stm_K_number_td) %>% mutate_if(is.numeric, ~ round(., 3))
+      td <- tidytext::tidy(effect_stm_K_number_td) %>%
+        mutate_if(is.numeric, ~ round(., 3))
 
-        output$effect_table <-
-            DT::renderDataTable(td, rownames = FALSE)
-
+      output$effect_table <- DT::renderDataTable(td, rownames = FALSE)
     })
 
-    # Download data table as a csv file
     output$effect_download_table <- downloadHandler(
-        filename = function() {
-            paste(input$file, ".csv", sep = "")
-        },
-        content = function(file) {
-            utils::write.csv(effect_stm_K_number(), file, row.names = FALSE)
-        }
+      filename = function() {
+        paste0(ifelse(is.null(input$file) || input$file == "", "estimated regression data", input$file), ".xlsx")
+      },
+      content = function(file) {
+        td <- tidytext::tidy(effect_stm_K_number()) %>%
+          mutate_if(is.numeric, ~ round(., 3))
+        openxlsx::write.xlsx(td, file)
+      }
     )
 
 
     # Step 6: Plot topic prevalence effects by a categorical variable.
     observe({
-        updateSelectizeInput(session,
-                             "effect_cat_btn",
-                             choices = colnames_cat_2(),
-                             selected = "")
+      updateSelectizeInput(session,
+                           "effect_cat_btn",
+                           choices = colnames_cat_2(),
+                           selected = "")
     })
 
     observeEvent(eventExpr = input$effect_cat_btn, {
-        print(input$effect_cat_btn)
+      print(input$effect_cat_btn)
     })
 
     effects_categorical_var <- reactive({
-        stminsights::get_effects(
-            estimates = effect_stm_K_number(),
-            variable = input$effect_cat_btn,
-            type = 'pointestimate'
-        )
+      stminsights::get_effects(
+        estimates = effect_stm_K_number(),
+        variable = input$effect_cat_btn,
+        type = 'pointestimate'
+      )
     })
 
+    observeEvent(input$display_cat, {
 
-    output$cat_plot <- renderPlot({
-        observeEvent(input$display_cat, {
-            if (!is.null(input$effect_cat_btn)) {
-                output$cat_plot <-  renderPlot({
-                    effects_categorical_var() %>%
-                        ggplot(aes(x = value, y = proportion)) +
-                        facet_wrap( ~ topic,
-                                    ncol = 3,
-                                    scales = "free") +
-                        scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
-                        xlab("") +
-                        ylab("Topic proportion") +
-                        geom_errorbar(
-                            aes(ymin = lower, ymax = upper),
-                            width = 0.1,
-                            size = 0.5,
-                            color = "#337ab7"
-                        ) +
-                        geom_point(color = "#337ab7",
-                                   size = 1.5) +
-                        theme_minimal(base_size = 14) +
-                        theme(
-                            panel.grid.major = element_blank(),
-                            panel.grid.minor = element_blank(),
-                            axis.line = element_line(
-                                color = "#3B3B3B",
-                                linewidth = 0.3
-                            ),
-                            axis.ticks = element_line(
-                                color = "#3B3B3B",
-                                linewidth = 0.3
-                            ),
-                            strip.text.x = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.text.x = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.text.y = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.title = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.title.x = element_text(margin = margin(t = 9)),
-                            axis.title.y = element_text(margin = margin(r = 9))
-                        )
-                })
+      output$cat_plot <- plotly::renderPlotly({
+        req(effects_categorical_var())
 
-            } else {
-                NULL
-            }
-        })
+        effects_categorical_var_gg <- effects_categorical_var() %>%
+          ggplot(aes(x = value, y = proportion)) +
+          facet_wrap(~ topic, ncol = 2, scales = "free") +
+          scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
+          xlab("") +
+          ylab("Topic proportion") +
+          geom_errorbar(
+            aes(ymin = lower, ymax = upper),
+            width = 0.1,
+            linewidth = 0.5,
+            color = "#337ab7"
+          ) +
+          geom_point(color = "#337ab7", size = 1.5) +
+          theme_minimal(base_size = 11) +
+          theme(
+            legend.position = "none",
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+            axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+            strip.text.x = element_text(size = 11, color = "#3B3B3B", margin = margin(b = 30, t = 15)),
+            axis.text.x = element_text(size = 11, color = "#3B3B3B", hjust = 1, margin = margin(t = 20)),
+            axis.text.y = element_text(size = 11, color = "#3B3B3B", margin = margin(r = 20)),
+            axis.title = element_text(size = 11, color = "#3B3B3B"),
+            axis.title.x = element_text(margin = margin(t = 25)),
+            axis.title.y = element_text(margin = margin(r = 25)),
+            plot.margin = margin(t = 40, b = 40)
+          )
 
-
+        plotly::ggplotly(effects_categorical_var_gg, tooltip = "text",
+                         height = input$height_cat_plot,
+                         width = input$width_cat_plot
+        ) %>%
+          plotly::layout(
+            margin = list(t = 40, b = 40)
+          )
+      })
     })
 
     output$cat_plot_uiOutput <- renderUI({
-        shinycssloaders::withSpinner(
-            plotOutput(
-                "cat_plot",
-                height = input$height_cat_plot,
-                width = input$width_cat_plot
-            )
+      req(input$effect_cat_btn)
+      req(input$display_cat)
+      shinycssloaders::withSpinner(
+        plotly::plotlyOutput(
+          "cat_plot",
+          height = input$height_cat_plot,
+          width = input$width_cat_plot
         )
+      )
     })
 
-
-
     observeEvent(input$display_cat, {
-        if (!is.null(input$effect_cat_btn)) {
-            output$cat_table <- DT::renderDataTable({
-                effects_categorical_var() %>%
-                    mutate_if(is.numeric, ~ round(., 3)) %>%
-                    DT::datatable(rownames = FALSE)
-            })
+      req(input$effect_cat_btn)
+      output$cat_table <- DT::renderDataTable({
+        req(effects_categorical_var())
+        effects_categorical_var() %>%
+          mutate_if(is.numeric, ~ round(., 3)) %>%
+          DT::datatable(rownames = FALSE, options = list(
+            scrollX = TRUE,
+            pageLength = 10
+          ))
+      })
+    })
 
-        }
+    output$cat_table_uiOutput <- renderUI({
+      req(input$effect_cat_btn)
+      req(input$display_cat)
+      tags$div(
+        style = "margin-top: 20px;",
+        DT::dataTableOutput("cat_table")
+      )
     })
 
     # Step 7: Plot topic prevalence effects by a continuous variable.
+
     observe({
-        updateSelectizeInput(session,
-                             "effect_con_btn",
-                             choices = colnames_con_2(),
-                             selected = "")
+      updateSelectizeInput(session,
+                           "effect_con_btn",
+                           choices = colnames_con_2(),
+                           selected = "")
     })
 
     observeEvent(input$effect_con_btn, {
-        print(input$effect_con_btn)
+      print(input$effect_con_btn)
     })
 
     effects_continuous_var <- reactive({
-        stminsights::get_effects(
-            estimates = effect_stm_K_number(),
-            variable = input$effect_con_btn,
-            type = 'continuous'
-        )
-    })
-
-    output$con_plot <- renderPlot({
-        observeEvent(input$display_con, {
-            if (!is.null(input$effect_con_btn)) {
-                output$con_plot <- renderPlot({
-                    effects_continuous_var() %>%
-                        ggplot(aes(x = value, y = proportion)) +
-                        facet_wrap( ~ topic,
-                                    ncol = 3,
-                                    scales = "free") +
-                        scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
-                        geom_line(linewidth = 0.5,
-                                  color = "#337ab7") +
-                        xlab("") +
-                        ylab("Topic proportion") +
-                        theme_minimal(base_size = 14) +
-                        theme(
-                            panel.grid.major = element_blank(),
-                            panel.grid.minor = element_blank(),
-                            axis.line = element_line(
-                                color = "#3B3B3B",
-                                linewidth = 0.3
-                            ),
-                            axis.ticks = element_line(
-                                color = "#3B3B3B",
-                                linewidth = 0.3
-                            ),
-                            strip.text.x = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.text.x = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.text.y = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.title = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.title.x = element_text(margin = margin(t = 9)),
-                            axis.title.y = element_text(margin = margin(r = 9))
-                        )
-                })
-
-            } else {
-                NULL
-            }
-        })
-
-    })
-
-    output$con_plot_uiOutput <- renderUI({
-        shinycssloaders::withSpinner(
-            plotOutput(
-                "con_plot",
-                height = input$height_con_plot,
-                width = input$width_con_plot
-            )
-        )
+      stminsights::get_effects(
+        estimates = effect_stm_K_number(),
+        variable = input$effect_con_btn,
+        type = 'continuous'
+      )
     })
 
     observeEvent(input$display_con, {
-        if (!is.null(input$effect_con_btn)) {
-            output$con_table <- DT::renderDataTable({
-                effects_continuous_var() %>%
-                    mutate_if(is.numeric, ~ round(., 3)) %>%
-                    DT::datatable(rownames = FALSE)
-            })
 
-        }
+      output$con_plot <- plotly::renderPlotly({
+        req(effects_continuous_var())
+
+        effects_continuous_var_gg <-  effects_continuous_var() %>%
+          ggplot(aes(x = value, y = proportion)) +
+          facet_wrap( ~ topic,
+                      ncol = 2,
+                      scales = "free") +
+          scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
+          geom_line(linewidth = 0.5,
+                    color = "#337ab7") +
+          xlab("") +
+          ylab("Topic proportion") +
+          theme_minimal(base_size = 11) +
+          theme(
+            legend.position = "none",
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+            axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+            strip.text.x = element_text(size = 11, color = "#3B3B3B", margin = margin(b = 30, t = 15)),
+            axis.text.x = element_text(size = 11, color = "#3B3B3B", hjust = 1, margin = margin(t = 20)),
+            axis.text.y = element_text(size = 11, color = "#3B3B3B", margin = margin(r = 20)),
+            axis.title = element_text(size = 11, color = "#3B3B3B"),
+            axis.title.x = element_text(margin = margin(t = 25)),
+            axis.title.y = element_text(margin = margin(r = 25)),
+            plot.margin = margin(t = 40, b = 40)
+          )
+
+        plotly::ggplotly(effects_continuous_var_gg, tooltip = "text",
+                         height = input$height_con_plot,
+                         width = input$width_con_plot
+        ) %>%
+          plotly::layout(
+            margin = list(t = 40, b = 40)
+          )
+      })
+    })
+
+    output$con_plot_uiOutput <- renderUI({
+      req(input$effect_con_btn)
+      req(input$display_con)
+      shinycssloaders::withSpinner(
+        plotly::plotlyOutput(
+          "con_plot",
+          height = input$height_con_plot,
+          width = input$width_con_plot
+        )
+      )
+    })
+
+    observeEvent(input$display_con, {
+      req(input$effect_con_btn)
+      output$con_table <- DT::renderDataTable({
+        req(effects_continuous_var())
+        effects_continuous_var() %>%
+          mutate_if(is.numeric, ~ round(., 3)) %>%
+          DT::datatable(rownames = FALSE, options = list(
+            scrollX = TRUE,
+            pageLength = 10
+          ))
+      })
+    })
+
+    output$con_table_uiOutput <- renderUI({
+      req(input$effect_con_btn)
+      req(input$display_con)
+      tags$div(
+        style = "margin-top: 20px;",
+        DT::dataTableOutput("con_table")
+      )
     })
 
     # "Word Networks" page
 
     # 1. Visualize word co-occurrence network
 
-    output$word_co_occurrence_network_plot <- renderPlot({
-      observeEvent(input$plot_word_co_occurrence_network, {
-        output$word_co_occurrence_network_plot <- renderPlot({
+    output$word_co_occurrence_network_plot <- renderPlotly({
+      req(input$plot_word_co_occurrence_network, dfm_outcome())
 
-          dfm_td <- tidytext::tidy(dfm_outcome())
+      dfm_td <- tidytext::tidy(dfm_outcome())
+      co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
 
-          co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
+      term_co_occur <- dfm_td %>%
+        count(document, term) %>%
+        widyr::pairwise_count(term, document, sort = TRUE) %>%
+        filter(n >= co_occur_n)
 
-          term_co_occur <- dfm_td %>%
-            tibble::as_tibble() %>%
-            widyr::pairwise_count(term, document, sort = TRUE) %>%
-            filter(n >= co_occur_n)
+      co_occur_graph <- igraph::graph_from_data_frame(term_co_occur, directed = FALSE)
 
-          co_occur_graph <- igraph::graph_from_data_frame(term_co_occur, directed = FALSE)
+      if (igraph::vcount(co_occur_graph) == 0) {
+        showNotification("No co-occurrence relationships meet the threshold.", type = "error")
+        return(NULL)
+      }
 
-          igraph::V(co_occur_graph)$centrality <- igraph::degree(co_occur_graph, mode = "out") / (igraph::vcount(co_occur_graph) - 1)
+      V(co_occur_graph)$degree <- igraph::degree(co_occur_graph)
+      V(co_occur_graph)$betweenness <- igraph::betweenness(co_occur_graph)
+      V(co_occur_graph)$closeness <- igraph::closeness(co_occur_graph)
+      V(co_occur_graph)$eigenvector <- igraph::eigen_centrality(co_occur_graph)$vector
 
-          layout <- ggraph::create_layout(co_occur_graph, layout = "fr")
+      layout <- igraph::layout_with_fr(co_occur_graph)
+      layout_df <- as.data.frame(layout)
+      colnames(layout_df) <- c("x", "y")
+      layout_df$label <- V(co_occur_graph)$name
+      layout_df$degree <- V(co_occur_graph)$degree
+      layout_df$betweenness <- V(co_occur_graph)$betweenness
+      layout_df$closeness <- V(co_occur_graph)$closeness
+      layout_df$eigenvector <- V(co_occur_graph)$eigenvector
 
-          word_co_occurrence_network <- layout %>% ggraph() +
-            geom_edge_link(aes(edge_alpha = n), edge_colour = "#b0aeae", edge_width = 1.5) +
-            geom_node_point(aes(size = centrality, colour = centrality)) +
-            geom_node_text(
-              aes(label = name),
-              repel = TRUE,
-              check_overlap = FALSE,
-              size = 5
-            ) +
-            scale_color_continuous(name = "Centrality",
-                                   guide = 'legend',
-                                   high = "#47a0ed",
-                                   low = "#deebf7") +
-            scale_size_continuous(
-              name = "Centrality",
-              guide = guide_legend(title.position = "top")
-            ) +
-            scale_edge_alpha_continuous(
-              name = "Co-occurrence",
-              labels = scales::number_format(accuracy = 1),
-              guide = guide_legend(title.position = "top")
-            ) +
-            theme_void(base_size = 14) +
-            theme(
-              panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              legend.text = element_text(size = 14)
+      edge_data <- igraph::as_data_frame(co_occur_graph, what = "edges") %>%
+        mutate(
+          x = layout_df$x[match(from, layout_df$label)],
+          y = layout_df$y[match(from, layout_df$label)],
+          xend = layout_df$x[match(to, layout_df$label)],
+          yend = layout_df$y[match(to, layout_df$label)],
+          cooccur_count = n
+        ) %>%
+        select(x, y, xend, yend, cooccur_count)
+
+      edge_data <- edge_data %>%
+        mutate(
+          line_group = as.integer(cut(
+            cooccur_count,
+            breaks = unique(quantile(cooccur_count, probs = seq(0, 1, length.out = 6), na.rm = TRUE)),
+            include.lowest = TRUE
+          )),
+          line_width = scales::rescale(line_group, to = c(2, 10)),
+          alpha = scales::rescale(line_group, to = c(0.2, 0.6))
+        )
+
+      edge_group_labels <- edge_data %>%
+        group_by(line_group) %>%
+        summarise(
+          min_count = min(cooccur_count, na.rm = TRUE),
+          max_count = max(cooccur_count, na.rm = TRUE)
+        ) %>%
+        mutate(label = paste0("Count: ", min_count, " - ", max_count)) %>%
+        pull(label)
+
+      node_data <- layout_df %>%
+        mutate(
+          degree_log = log1p(degree),
+          size = scales::rescale(degree_log, to = c(12, 30)),
+          text_size = scales::rescale(degree_log, to = c(14, 20)),
+          alpha = scales::rescale(degree_log, to = c(0.2, 0.9)),
+          hover_text = paste(
+            "Word:", label,
+            "<br>Degree:", degree,
+            "<br>Betweenness:", round(betweenness, 2),
+            "<br>Closeness:", round(closeness, 2),
+            "<br>Eigenvector:", round(eigenvector, 2)
+          )
+        )
+
+      color_scale <- 'Viridis'
+
+      plot <- plot_ly(
+        type = 'scatter',
+        mode = 'markers',
+        width = input$width_word_co_occurrence_network_plot,
+        height = input$height_word_co_occurrence_network_plot
+      )
+
+      for (i in unique(edge_data$line_group)) {
+        edge_subset <- edge_data %>% filter(line_group == i)
+        edge_label <- edge_group_labels[i]
+
+        if (nrow(edge_subset) > 0) {
+          plot <- plot %>%
+            add_segments(
+              data = edge_subset,
+              x = ~x,
+              y = ~y,
+              xend = ~xend,
+              yend = ~yend,
+              line = list(color = 'rgba(0, 0, 255, 0.6)', width = ~line_width),
+              hoverinfo = 'text',
+              text = ~paste("Co-occurrence:", cooccur_count),
+              opacity = ~alpha,
+              showlegend = TRUE,
+              name = edge_label,
+              legendgroup = "Edges"
             )
+        }
+      }
 
-          word_co_occurrence_network
-        })
+      plot <- plot %>%
+        layout(
+          legend = list(
+            title = list(text = "Co-occurrence"),
+            orientation = "v",
+            x = 1.1,
+            y = 1,
+            xanchor = "left",
+            yanchor = "top"
+          )
+        )
+
+      marker_params <- list(
+        size = ~size,
+        color = ~degree,
+        colorscale = color_scale,
+        showscale = TRUE,
+        colorbar = list(
+          title = "Degree Centrality",
+          len = 0.25,
+          x = 1.1,
+          y = 0.6
+        ),
+        line = list(width = 2, color = '#FFFFFF'),
+        opacity = ~alpha
+      )
+
+      plot <- plot %>%
+        add_markers(
+          data = node_data,
+          x = ~x,
+          y = ~y,
+          marker = marker_params,
+          hoverinfo = 'text',
+          text = ~hover_text,
+          showlegend = FALSE
+        )
+
+      annotations <- lapply(1:nrow(node_data), function(i) {
+        list(
+          x = node_data$x[i],
+          y = node_data$y[i],
+          text = node_data$label[i],
+          xanchor = "center",
+          yanchor = "bottom",
+          showarrow = FALSE,
+          font = list(size = node_data$text_size[i], color = 'black')
+        )
       })
+
+      plot <- plot %>%
+        layout(
+          dragmode = "pan",
+          title = list(text = "Word Co-occurrence Network", font = list(size = 16)),
+          showlegend = TRUE,
+          xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+          yaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+          margin = list(l = 40, r = 100, t = 60, b = 40),
+          annotations = annotations
+        )
+
+      plot
     })
 
     output$word_co_occurrence_network_plot_uiOutput <- renderUI({
+      req(input$plot_word_co_occurrence_network)
       shinycssloaders::withSpinner(
-        plotOutput(
+        plotly::plotlyOutput(
           "word_co_occurrence_network_plot",
-          height = input$height_word_co_occurrence_network_plot,
-          width = input$width_word_co_occurrence_network_plot
+          width = input$width_word_co_occurrence_network_plot,
+          height = input$height_word_co_occurrence_network_plot
         )
       )
     })
 
     # 2. Visualize word correlation network
 
-    output$word_network_plot <- renderPlot({
-      observeEvent(input$plot_word_network, {
-        output$word_network_plot <- renderPlot({
+    output$word_correlation_network_plot <- renderPlotly({
+      req(input$plot_word_correlation_network, dfm_outcome())
 
-          dfm_td <- tidytext::tidy(dfm_outcome())
+      dfm_td <- tidytext::tidy(dfm_outcome())
 
-          co_occur_n <- floor(as.numeric(input$co_occurence_number))
+      co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
+      corr_n <- as.numeric(input$correlation_value)
 
-          corr_n <- as.numeric(input$correlation_value)
+      term_cor <- dfm_td %>%
+        tibble::as_tibble() %>%
+        group_by(term) %>%
+        filter(n() >= co_occur_n) %>%
+        widyr::pairwise_cor(term, document, sort = TRUE)
 
-          term_cor <- dfm_td %>% tibble::as_tibble() %>%
-            group_by(term) %>%
-            filter(n() >= co_occur_n) %>%
-            widyr::pairwise_cor(term, document, sort = TRUE)
+      term_cor_graph <- term_cor %>%
+        filter(correlation > corr_n) %>%
+        igraph::graph_from_data_frame(directed = FALSE)
 
-          word_network <- term_cor %>%
-            filter(correlation > corr_n) %>%
-            ggraph(layout = "fr") +
-            geom_edge_link(
-              aes(
-                edge_alpha = correlation,
-                edge_width = correlation
-              ),
-              edge_colour = "#47a0ed"
-            ) +
-            geom_node_point(size = 3, color = "white") +
-            geom_node_text(
-              aes(label = name),
-              repel = TRUE,
-              check_overlap = FALSE,
-              size = 5
-            ) +
-            scale_edge_alpha_continuous(
-              name = "Correlation",
-              guide = guide_legend(title.position = "top")
-            ) +
-            scale_edge_width_continuous(
-              name = "Correlation",
-              guide = guide_legend(title.position = "top")
-            ) +
-            theme_void(base_size = 14) +
-            theme(
-              panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              legend.text = element_text(size = 14)
+      if (igraph::vcount(term_cor_graph) == 0) {
+        showNotification("No correlation relationships meet the threshold.", type = "error")
+        return(NULL)
+      }
+
+      igraph::V(term_cor_graph)$degree <- igraph::degree(term_cor_graph)
+      igraph::V(term_cor_graph)$betweenness <- igraph::betweenness(term_cor_graph)
+      igraph::V(term_cor_graph)$closeness <- igraph::closeness(term_cor_graph)
+      igraph::V(term_cor_graph)$eigenvector <- igraph::eigen_centrality(term_cor_graph)$vector
+
+      layout <- igraph::layout_with_fr(term_cor_graph)
+      layout_df <- as.data.frame(layout)
+      colnames(layout_df) <- c("x", "y")
+      layout_df$label <- igraph::V(term_cor_graph)$name
+      layout_df$degree <- igraph::V(term_cor_graph)$degree
+      layout_df$betweenness <- igraph::V(term_cor_graph)$betweenness
+      layout_df$closeness <- igraph::V(term_cor_graph)$closeness
+      layout_df$eigenvector <- igraph::V(term_cor_graph)$eigenvector
+
+      edge_data <- igraph::as_data_frame(term_cor_graph, what = "edges") %>%
+        mutate(
+          x = layout_df$x[match(from, layout_df$label)],
+          y = layout_df$y[match(from, layout_df$label)],
+          xend = layout_df$x[match(to, layout_df$label)],
+          yend = layout_df$y[match(to, layout_df$label)],
+          correlation = correlation
+        ) %>%
+        select(x, y, xend, yend, correlation)
+
+      edge_data <- edge_data %>%
+        mutate(
+          line_group = as.integer(cut(
+            correlation,
+            breaks = unique(quantile(correlation, probs = seq(0, 1, length.out = 6), na.rm = TRUE)),
+            include.lowest = TRUE
+          )),
+          line_width = scales::rescale(line_group, to = c(2, 10)),
+          alpha = scales::rescale(line_group, to = c(0.2, 0.6))
+        )
+
+      edge_group_labels <- edge_data %>%
+        group_by(line_group) %>%
+        summarise(
+          min_corr = min(correlation, na.rm = TRUE),
+          max_corr = max(correlation, na.rm = TRUE)
+        ) %>%
+        mutate(label = paste0("Correlation: ", round(min_corr, 2), " - ", round(max_corr, 2))) %>%
+        pull(label) %>%
+        unname()
+
+      node_data <- layout_df %>%
+        mutate(
+          degree_log = log1p(degree),
+          size = scales::rescale(degree_log, to = c(12, 30)),
+          text_size = scales::rescale(degree_log, to = c(14, 20)),
+          alpha = scales::rescale(degree_log, to = c(0.2, 0.9)),
+          hover_text = paste(
+            "Word:", label,
+            "<br>Degree:", degree,
+            "<br>Betweenness:", round(betweenness, 2),
+            "<br>Closeness:", round(closeness, 2),
+            "<br>Eigenvector:", round(eigenvector, 2)
+          )
+        )
+
+      color_scale <- 'Viridis'
+
+      plot <- plot_ly(
+        type = 'scatter',
+        mode = 'markers',
+        width = input$width_word_correlation_network_plot,
+        height = input$height_word_correlation_network_plot
+      )
+
+      for (i in unique(edge_data$line_group)) {
+        edge_subset <- edge_data %>% filter(line_group == i)
+        edge_label <- edge_group_labels[i]
+
+        if (nrow(edge_subset) > 0) {
+          plot <- plot %>%
+            add_segments(
+              data = edge_subset,
+              x = ~x,
+              y = ~y,
+              xend = ~xend,
+              yend = ~yend,
+              line = list(color = 'rgba(0, 0, 255, 0.6)', width = ~line_width),
+              hoverinfo = 'text',
+              text = ~paste("Correlation:", round(correlation, 2)),
+              opacity = ~alpha,
+              showlegend = TRUE,
+              name = edge_label,
+              legendgroup = "Edges"
             )
+        }
+      }
 
-          word_network
-        })
+      plot <- plot %>%
+        layout(
+          legend = list(
+            title = list(text = "Correlation"),
+            orientation = "v",
+            x = 1.1,
+            y = 1,
+            xanchor = "left",
+            yanchor = "top"
+          )
+        )
+
+      marker_params <- list(
+        size = ~size,
+        color = ~degree,
+        colorscale = color_scale,
+        showscale = TRUE,
+        colorbar = list(
+          title = "Degree Centrality",
+          len = 0.25,
+          x = 1.1,
+          y = 0.6
+        ),
+        line = list(width = 2, color = '#FFFFFF'),
+        opacity = ~alpha
+      )
+
+      plot <- plot %>%
+        add_markers(
+          data = node_data,
+          x = ~x,
+          y = ~y,
+          marker = marker_params,
+          hoverinfo = 'text',
+          text = ~hover_text,
+          showlegend = FALSE
+        )
+
+      annotations <- lapply(1:nrow(node_data), function(i) {
+        list(
+          x = node_data$x[i],
+          y = node_data$y[i],
+          text = node_data$label[i],
+          xanchor = "center",
+          yanchor = "bottom",
+          showarrow = FALSE,
+          font = list(size = node_data$text_size[i], color = 'black')
+        )
       })
+
+      plot <- plot %>%
+        layout(
+          dragmode = "pan",
+          title = list(text = "Word Correlation Network", font = list(size = 16)),
+          showlegend = TRUE,
+          xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+          yaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+          margin = list(l = 40, r = 150, t = 60, b = 40),
+          annotations = annotations
+        )
+
+      plot
     })
 
-    output$word_network_plot_uiOutput <- renderUI({
+
+    output$word_correlation_network_plot_uiOutput <- renderUI({
+      req(input$plot_word_correlation_network)
       shinycssloaders::withSpinner(
-        plotOutput(
-          "word_network_plot",
-          height = input$height_word_network_plot,
-          width = input$width_word_network_plot
+        plotly::plotlyOutput(
+          "word_correlation_network_plot",
+          height = input$height_word_correlation_network_plot,
+          width = input$width_word_correlation_network_plot
         )
       )
     })
 
-
     # 3. Display selected terms that have changed in frequency over time
 
     observe({
-        updateSelectizeInput(session,
-                             "continuous_var_3",
-                             choices = colnames_con_2(),
-                             selected = "")
+      updateSelectizeInput(session,
+                           "continuous_var_3",
+                           choices = colnames_con_2(),
+                           selected = "")
     })
 
-    top_frequent_over_time  <- reactive({
-        tstat_freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
-        tstat_freq_n_20 <- head(tstat_freq, 20)
-        tstat_freq_n_20$feature
+    top_frequent_over_time <- reactive({
+      tstat_freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
+      tstat_freq_n_20 <- head(tstat_freq, 20)
+      tstat_freq_n_20$feature
     })
 
     observe({
-        updateSelectizeInput(
-            session,
-            "type_terms",
-            choices = top_frequent_over_time(),
-            options = list(create = TRUE),
-            selected = ""
-        )
+      updateSelectizeInput(
+        session,
+        "type_terms",
+        choices = top_frequent_over_time(),
+        options = list(create = TRUE),
+        selected = ""
+      )
     })
 
     observeEvent(input$type_terms, {
-        print(input$type_terms)
+      print(input$type_terms)
     })
 
     observeEvent(input$continuous_var_3, {
-        print(input$continuous_var_3)
+      print(input$continuous_var_3)
     })
 
+    observeEvent(input$plot_term, {
+      vm <- isolate(input$type_terms)
+      if (!is.null(vm)) {
+        dfm_outcome_obj <- dfm_outcome()
+        dfm_td <- tidytext::tidy(dfm_outcome())
+        gamma_td <-
+          tidytext::tidy(
+            stm_K_number(),
+            matrix = "gamma",
+            document_names = rownames(dfm_outcome())
+          )
+        dfm_outcome_obj@docvars$document <- dfm_outcome_obj@docvars$docname_
 
+        dfm_gamma_td <- gamma_td %>%
+          left_join(dfm_outcome_obj@docvars,
+                    by = c("document" = "document")) %>%
+          left_join(dfm_td, by = c("document" = "document"), relationship = "many-to-many")
 
-    output$line_year_plot <- renderPlot({
-        observeEvent(input$plot_term, {
-            vm <- isolate(input$type_terms)
-            if (!is.null(vm)) {
-                dfm_outcome_obj <- dfm_outcome()
-                dfm_td <- tidytext::tidy(dfm_outcome())
-                gamma_td <-
-                    tidytext::tidy(
-                        stm_K_number(),
-                        matrix = "gamma",
-                        document_names = rownames(dfm_outcome())
-                    )
-                dfm_outcome_obj@docvars$document <-
-                    dfm_outcome_obj@docvars$docname_
+        year_term_counts <- dfm_gamma_td %>%
+          tibble::as_tibble() %>%
+          group_by(!!rlang::sym(input$continuous_var_3)) %>%
+          mutate(
+            con_3_total = sum(count),
+            term_proportion = count / con_3_total
+          ) %>%
+          ungroup()
 
-                # Bind data by column
-                dfm_gamma_td <- gamma_td %>%
-                    left_join(dfm_outcome_obj@docvars,
-                              by = c("document" = "document")) %>%
-                    left_join(dfm_td, by = c("document" = "document"))
+        output$line_year_plot <- plotly::renderPlotly({
+          req(input$continuous_var_3)
+          req(vm)
 
-                year_term_counts <-
-                    dfm_gamma_td %>% tibble::as_tibble() %>%
-                    group_by(eval(parse(text = input$continuous_var_3))) %>%
-                    mutate(con_3_total = sum(count),
-                           percent = count / con_3_total) %>%
-                    ungroup()
+          year_term_gg <- year_term_counts %>%
+            mutate(across(where(is.numeric), ~ round(., 3))) %>%
+            filter(term %in% vm) %>%
+            ggplot(aes(
+              x = !!rlang::sym(input$continuous_var_3),
+              y = term_proportion,
+              group = term
+            )) +
+            geom_point(color = "#636363", alpha = 0.6, size = 1) +
+            geom_smooth(color = "#337ab7", se = TRUE, method = "loess", linewidth = 0.5, formula = y ~ x) +
+            facet_wrap(~ term, scales = "free_y") +
+            scale_y_continuous(labels = scales::percent_format()) +
+            labs(x = "", y = "") +
+            theme_minimal(base_size = 11) +
+            theme(
+              legend.position = "none",
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+              axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+              strip.text.x = element_text(size = 11, color = "#3B3B3B"),
+              axis.text.x = element_text(size = 11, color = "#3B3B3B"),
+              axis.text.y = element_text(size = 11, color = "#3B3B3B"),
+              axis.title = element_text(size = 11, color = "#3B3B3B"),
+              axis.title.x = element_text(margin = margin(t = 9)),
+              axis.title.y = element_text(margin = margin(r = 9))
+            )
 
-                output$line_year_plot <- renderPlot({
-                    year_term_counts %>%
-                        filter(term %in% vm) %>%
-                        ggplot(aes(eval(
-                            parse(text = input$continuous_var_3)
-                        ), count / con_3_total)) +
-                        geom_point(color = "#337ab7") +
-                        geom_smooth(color = "#337ab7") +
-                        facet_wrap(~ term, scales = "free_y") +
-                        scale_y_continuous(labels = scales::percent_format()) +
-                        labs(x = "", y = "") +
-                        theme_minimal(base_size = 14) +
-                        theme(
-                            panel.grid.major = element_blank(),
-                            panel.grid.minor = element_blank(),
-                            axis.line = element_line(
-                                color = "#3B3B3B",
-                                linewidth = 0.3
-                            ),
-                            axis.ticks = element_line(
-                                color = "#3B3B3B",
-                                linewidth = 0.3
-                            ),
-                            strip.text.x = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.text.x = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.text.y = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.title = element_text(
-                                size = 14,
-                                color = "#3B3B3B"
-                            ),
-                            axis.title.x = element_text(margin = margin(t = 9)),
-                            axis.title.y = element_text(margin = margin(r = 9))
-                        )
-                })
-
-                # Test the significance of word frequency over time
-                year_term_counts %>%
-                    mutate(word = term) %>%
-                    filter(word %in% vm) %>%
-                    group_by(word) %>%
-                    do(tidy(glm(
-                        cbind(count, con_3_total - count) ~ eval(parse(text = input$continuous_var_3)),
-                        .,
-                        family = "binomial"
-                    ))) %>%
-                    ungroup() %>%
-                    filter(term == "eval(parse(text = input$continuous_var_3))") %>%
-                    arrange(desc(abs(estimate)))
-            }
-
+          plotly::ggplotly(
+            year_term_gg,
+            height = input$height_line_year_plot,
+            width = input$width_line_year_plot
+          ) %>%
+            plotly::layout(
+              margin = list(l = 40, r = 150, t = 60, b = 40)
+            )
         })
 
+        significance_results <- year_term_counts %>%
+          mutate(word = term) %>%
+          filter(word %in% vm) %>%
+          group_by(word) %>%
+          do(tidy(glm(
+            cbind(count, con_3_total - count) ~ !!rlang::sym(input$continuous_var_3),
+            .,
+            family = "binomial"
+          ))) %>%
+          ungroup() %>%
+          mutate(across(where(is.numeric), ~ round(., 3))) %>%
+          arrange(desc(abs(estimate)))
+
+        output$significance_results_table <- DT::renderDataTable({
+          if (nrow(significance_results) > 0) {
+            significance_results %>%
+              mutate_if(is.numeric, ~ round(., 3)) %>%
+              DT::datatable(
+                rownames = FALSE,
+                options = list(
+                  scrollX = TRUE,
+                  pageLength = 10
+                )
+              )
+          } else {
+            DT::datatable(
+              data.frame(Message = "No significant results to display."),
+              options = list(
+                paging = FALSE,
+                searching = FALSE,
+                info = FALSE
+              )
+            )
+          }
+        })
+      }
     })
 
     output$line_year_plot_uiOutput <- renderUI({
+      req(input$plot_term > 0, input$continuous_var_3, input$type_terms)
+      tagList(
         shinycssloaders::withSpinner(
-            plotOutput(
-                "line_year_plot",
-                height = input$height_line_year_plot,
-                width = input$width_line_year_plot
-            )
+          plotly::plotlyOutput(
+            "line_year_plot",
+            height = input$height_line_year_plot,
+            width = input$width_line_year_plot
+          )
+        ),
+        tags$div(
+          style = "margin-top: 20px;",
+          DT::dataTableOutput("significance_results_table")
         )
+      )
     })
 
     session$onSessionEnded(stopApp)

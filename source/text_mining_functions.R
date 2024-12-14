@@ -25,7 +25,7 @@
 #' @examples
 #' if (interactive()) {
 #'   df <- TextAnalysisR::SpecialEduTech
-#'   tokens <- preprocess_texts(df, text_field = "abstract")
+#'   tokens <- TextAnalysisR::preprocess_texts(df, text_field = "abstract")
 #'   tokens
 #' }
 preprocess_texts <-
@@ -80,12 +80,13 @@ preprocess_texts <-
 #'
 #' @examples
 #' if (interactive()) {
-#'   df <- TextAnalysisR::SpecialEduTech
-#'   dfm_object <- df %>%
-#'     preprocess_texts(text_field = "abstract") %>%
-#'     quanteda::dfm()
-#'   plot <- plot_word_frequency(dfm_object, n = 20)
-#'   print(plot)
+#' df <- TextAnalysisR::SpecialEduTech
+#' dfm_object <- df %>%
+#'   TextAnalysisR::preprocess_texts(text_field = "abstract") %>%
+#'   quanteda::dfm() %>%
+#'   quanteda::dfm_trim(min_termfreq = 1, min_docfreq = 1) %>%
+#'   .[quanteda::ntoken(.) > 0, ]
+#' TextAnalysisR::plot_word_frequency(dfm_object, n = 20)
 #' }
 plot_word_frequency <-
   function(dfm_object, n = 20, ...) {
@@ -94,16 +95,16 @@ plot_word_frequency <-
       geom_point(colour = "#5f7994", size = 1) +
       coord_flip() +
       labs(x = NULL, y = "Word frequency") +
-      theme_minimal(base_size = 10) +
+      theme_minimal(base_size = 11) +
       theme(
         legend.position = "none",
         panel.grid.minor = element_blank(),
         axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
         axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
-        strip.text.x = element_text(size = 10, color = "#3B3B3B"),
-        axis.text.x = element_text(size = 10, color = "#3B3B3B"),
-        axis.text.y = element_text(size = 10, color = "#3B3B3B"),
-        axis.title = element_text(size = 10, color = "#3B3B3B"),
+        strip.text.x = element_text(size = 11, color = "#3B3B3B"),
+        axis.text.x = element_text(size = 11, color = "#3B3B3B"),
+        axis.text.y = element_text(size = 11, color = "#3B3B3B"),
+        axis.title = element_text(size = 11, color = "#3B3B3B"),
         axis.title.x = element_text(margin = margin(t = 9)),
         axis.title.y = element_text(margin = margin(r = 9))
       )
@@ -111,19 +112,191 @@ plot_word_frequency <-
   }
 
 
-#' @title Examine Highest Per-Term Per-Topic Probabilities
+#' @title Evaluate Optimal Number of Topics
 #'
 #' @description
-#' Given a tidy data frame of word-topic probabilities (beta values) from an STM model,
-#' this function extracts the top terms for each topic.
+#' This function performs a search for the optimal number of topics (K) using \code{stm::searchK}
+#' and visualizes diagnostics, including held-out likelihood, residuals, semantic coherence,
+#' and lower bound metrics.
 #'
-#' @param beta_td A tidy data frame from \code{tidytext::tidy(stm_model, matrix = "beta")},
-#'    where \code{stm_model} is a fitted Structural Topic Model created using \code{stm::stm()}.
-#' @param top_n The number of top terms per topic to return.
-#' @param ... Further arguments passed to \code{dplyr::group_by}.
+#' @param dfm_object A quanteda document-feature matrix (dfm).
+#' @param K_range A numeric vector specifying the range of topics (K) to search over.
+#' @param max.em.its Maximum number of EM iterations (default: 75).
+#' @param categorical_var An optional character string for a categorical variable in the metadata.
+#' @param continuous_var An optional character string for a continuous variable in the metadata.
+#' @param verbose Logical; if \code{TRUE}, prints progress information (default: TRUE).
+#' @param ... Further arguments passed to \code{stm::searchK}.
 #'
-#' @return A \code{tibble} containing the top \code{top_n} terms for each topic. The output includes
-#' columns for \code{topic}, \code{term}, and \code{beta} values, restricted to the highest-probability terms.
+#' @return A Plotly object showing the diagnostics for the number of topics (K).
+#'
+#' @export
+#'
+#' @examples
+#' if (interactive()) {
+#'  df <- TextAnalysisR::SpecialEduTech
+#'  dfm_object <- df %>%
+#'    TextAnalysisR::preprocess_texts(text_field = "abstract") %>%
+#'    quanteda::dfm() %>%
+#'    quanteda::dfm_trim(min_termfreq = 1, min_docfreq = 1) %>%
+#'    .[quanteda::ntoken(.) > 0, ]
+#'  TextAnalysisR::evaluate_optimal_topic_number(
+#'    dfm_object = dfm_object,
+#'    K_range = 5:30,
+#'    max.em.its = 75,
+#'    categorical_var = "reference_type",
+#'    continuous_var = "year")
+#' }
+#'
+#' @importFrom quanteda convert
+#' @importFrom stm searchK
+#' @importFrom plotly plot_ly subplot layout
+evaluate_optimal_topic_number <- function(dfm_object, K_range, max.em.its = 75, categorical_var = NULL, continuous_var = NULL, verbose = TRUE, ...) {
+
+  out <- quanteda::convert(dfm_object, to = "stm")
+  if (!all(c("meta", "documents", "vocab") %in% names(out))) {
+    stop("Conversion of dfm_outcome must result in 'meta', 'documents', and 'vocab'.")
+  }
+
+  meta <- out$meta
+  documents <- out$documents
+  vocab <- out$vocab
+
+  prevalence_formula <- NULL
+
+  if (!is.null(categorical_var) && !is.null(continuous_var)) {
+    prevalence_formula <- reformulate(c(categorical_var, sprintf("s(%s)", continuous_var)))
+  } else if (!is.null(categorical_var)) {
+    prevalence_formula <- reformulate(categorical_var)
+  } else if (!is.null(continuous_var)) {
+    prevalence_formula <- reformulate(sprintf("s(%s)", continuous_var))
+  }
+
+  stm_model <- stm::searchK(
+    data = meta,
+    documents = documents,
+    vocab = vocab,
+    K = K_range,
+    prevalence = prevalence_formula,
+    max.em.its = max.em.its,
+    init.type = "Spectral",
+    verbose = verbose,
+    ...
+  )
+
+  stm_model$results$heldout <- as.numeric(stm_model$results$heldout)
+  stm_model$results$residual <- as.numeric(stm_model$results$residual)
+  stm_model$results$semcoh <- as.numeric(stm_model$results$semcoh)
+  stm_model$results$lbound <- as.numeric(stm_model$results$lbound)
+
+  p1 <- plotly::plot_ly(
+    data = stm_model$results,
+    x = ~K,
+    y = ~heldout,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Held-out Likelihood:", round(heldout, 3)),
+    hoverinfo = 'text'
+  )
+
+  p2 <- plotly::plot_ly(
+    data = stm_model$results,
+    x = ~K,
+    y = ~residual,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Residuals:", round(residual, 3)),
+    hoverinfo = 'text'
+  )
+
+  p3 <- plotly::plot_ly(
+    data = stm_model$results,
+    x = ~K,
+    y = ~semcoh,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Semantic Coherence:", round(semcoh, 3)),
+    hoverinfo = 'text'
+  )
+
+  p4 <- plotly::plot_ly(
+    data = stm_model$results,
+    x = ~K,
+    y = ~lbound,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Lower Bound:", round(lbound, 3)),
+    hoverinfo = 'text'
+  )
+
+  plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.1) %>%
+    plotly::layout(
+      title = list(
+        text = "Model Diagnostics by Number of Topics (K)",
+        font = list(size = 16)
+      ),
+      showlegend = FALSE,
+      margin = list(t = 100, b = 150, l = 50, r = 50),
+      annotations = list(
+        list(
+          x = 0.25, y = 1.05, text = "Held-out Likelihood", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.75, y = 1.05, text = "Residuals", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.25, y = 0.5, text = "Semantic Coherence", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.75, y = 0.5, text = "Lower Bound", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.5, y = -0.2, text = "Number of Topics (K)", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'top',
+          font = list(size = 14)
+        )
+      ),
+      yaxis = list(
+        title = list(
+          text = "Metric Value",
+          font = list(size = 14)
+        )
+      )
+    )
+}
+
+
+#' @title Plot Highest Word Probabilities for Each Topic
+#'
+#' @description
+#' This function provides a visualization of the top terms for each topic,
+#' ordered by their word probability distribution for each topic (beta).
+#'
+#' @param dfm_object A quanteda document-feature matrix (dfm).
+#' @param K_number The number of topics to display.
+#' @param max.em.its Maximum number of EM iterations (default: 75).
+#' @param categorical_var An optional character string for a categorical variable in the metadata.
+#' @param continuous_var An optional character string for a continuous variable in the metadata.
+#' @param verbose Logical; if \code{TRUE}, prints progress information (default: TRUE).
+#' @param top_n The number of top terms to display for each topic.
+#' @param ncol The number of columns in the facet plot.
+#' @param topic_names An optional character vector for labeling topics. If provided, must be the same length as the number of topics.
+#' @param height The height of the resulting Plotly plot, in pixels. Defaults to \code{1000}.
+#' @param width The width of the resulting Plotly plot, in pixels. Defaults to \code{1000}.
+#' @param ... Further arguments passed to \code{stm::searchK}.
+#'
+#' @return A \code{Plotly} object showing a facet-wrapped chart of top terms for each topic,
+#' ordered by their per-topic probability (beta). Each facet represents a topic.
+#'
+#' @details
+#' If \code{topic_names} is provided, it replaces the default "Topic \{n\}" labels with custom names.
 #'
 #' @export
 #'
@@ -131,122 +304,128 @@ plot_word_frequency <-
 #' if (interactive()) {
 #' df <- TextAnalysisR::SpecialEduTech
 #' dfm_object <- df %>%
-#'  preprocess_texts(text_field = "abstract") %>%
-#'  quanteda::dfm()
-#' out <- quanteda::convert(dfm_object, to = "stm")
-#' stm_model <- stm(out$documents,
-#'                 out$vocab,
-#'                 data = out$meta,
-#'                 prevalence = ~
-#'                   I((year >= 1980)*(year - 1980)) +
-#'                   I((year >= 1990)*(year - 1990)) +
-#'                   I((year >= 2000)*(year - 2000)) +
-#'                   I((year >= 2010)*(year - 2010)),
-#'                 max.em.its = 75,
-#'                 init.type = 'Spectral',
-#'                 K = 15,
-#'                 verbose = FALSE)
-#'
-#' beta_td <- tidytext::tidy(stm_model, matrix="beta")
-#' top_terms <- examine_top_terms(beta_td, top_n = 5)
-#' head(top_terms)
-#' }
-examine_top_terms <-
-  function(beta_td, top_n, ...) {
-    topic_term <- beta_td %>%
-      group_by(topic, ...) %>%
-      top_n(top_n, beta) %>%
-      ungroup()
-    return(topic_term)
-  }
-
-
-#' @title Plot Topic Per-term Per-topic Probabilities
-#'
-#' @description
-#' Given per-term per-topic probabilities (beta), this function creates a plot of the top terms in each topic.
-#'
-#' @param beta_td A tidy data frame from \code{tidytext::tidy(stm_model, matrix = "beta")},
-#'    where \code{stm_model} is a fitted Structural Topic Model created using \code{stm::stm()}.
-#' @param ncol The number of columns in the facet plot.
-#' @param topic_names An optional character vector for labeling topics. If provided, must be the same length as the number of topics.
-#' @param ... Further arguments passed to \code{dplyr::group_by}.
-#'
-#' @return A \code{ggplot} object showing a facet-wrapped chart of top terms for each topic,
-#' ordered by their per-topic probability (beta). Each facet represents a topic.
-#'
-#' @export
-#'
-#' @examples
-#' if (interactive()) {
-#'   # Assume stm_model is a fitted STM model.
-#'   beta_td <- tidytext::tidy(stm_model, matrix = "beta", log = FALSE)
-#'   plot <- plot_topic_term(beta_td, ncol = 3)
-#'   print(plot)
+#'   TextAnalysisR::preprocess_texts(text_field = "abstract") %>%
+#'   quanteda::dfm() %>%
+#'   quanteda::dfm_trim(min_termfreq = 1, min_docfreq = 1) %>%
+#'   .[quanteda::ntoken(.) > 0, ]
+#' TextAnalysisR::plot_word_probabilities(
+#'  dfm_object = dfm_object,
+#'  K_number = 15,
+#'  max.em.its = 75,
+#'  categorical_var = "reference_type",
+#'  continuous_var = "year",
+#'  top_n = 10,
+#'  ncol = 3,
+#'  height = 2000,
+#'  width = 1000,
+#'  verbose = TRUE)
 #' }
 #'
 #' @importFrom stats reorder
 #' @importFrom numform ff_num
-#'
-plot_topic_term <-
-  function(beta_td, ncol = 3, topic_names = NULL, ...) {
+#' @importFrom plotly ggplotly layout
+#' @importFrom tidytext reorder_within scale_x_reordered
+plot_word_probabilities <- function(dfm_object, K_number, max.em.its = 75, categorical_var = NULL, continuous_var = NULL,
+                            top_n = 10, ncol = 3, topic_names = NULL, height = 2000, width = 1000, verbose = TRUE, ...) {
 
-    topic_term <- beta_td %>%
-      mutate(
-        ord = factor(topic, levels = c(min(topic): max(topic))),
-        tt = as.numeric(topic),
-        topic = paste("Topic", topic),
-        term = tidytext::reorder_within(term, beta, topic)
-      ) %>%
-      arrange(ord)
-
-    levelt = paste("Topic", topic_term$ord) %>% unique()
-    topic_term$topic = factor(topic_term$topic, levels = levelt)
-
-    if(!is.null(topic_names)){
-      topic_term$topic = topic_names[topic_term$tt]
-      topic_term <- topic_term %>%
-        mutate(topic = as.character(topic)) %>%
-        mutate(topic = ifelse(!is.na(topic), topic, paste('Topic', tt)))
-      topic_term$topic = factor(topic_term$topic, levels = unique(topic_term$topic))
-    }
-
-    topic_term$tt = NULL
-
-    ggplot(topic_term, aes(term, beta, fill = topic)) +
-      geom_col(show.legend = FALSE, alpha = 0.8) +
-      facet_wrap(~ topic, scales = "free", ncol = ncol) +
-      tidytext::scale_x_reordered() +
-      scale_y_continuous(labels = ff_num(zero = 0, digits = 3)) +
-      coord_flip() +
-      xlab("") +
-      ylab("Word probability") +
-      theme_minimal(base_size = 10) +
-      theme(
-        legend.position = "none",
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
-        axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
-        strip.text.x = element_text(size = 10, color = "#3B3B3B"),
-        axis.text.x = element_text(size = 10, color = "#3B3B3B"),
-        axis.text.y = element_text(size = 10, color = "#3B3B3B"),
-        axis.title = element_text(size = 10, color = "#3B3B3B"),
-        axis.title.x = element_text(margin = margin(t = 9)),
-        axis.title.y = element_text(margin = margin(r = 9))
-      )
+  out <- quanteda::convert(dfm_object, to = "stm")
+  if (!all(c("meta", "documents", "vocab") %in% names(out))) {
+    stop("Conversion of dfm_outcome must result in 'meta', 'documents', and 'vocab'.")
   }
 
+  meta <- out$meta
+  documents <- out$documents
+  vocab <- out$vocab
 
-#' @title Plot Per-Document Per-Topic Probabilities
+  prevalence_formula <- NULL
+
+  if (!is.null(categorical_var) && !is.null(continuous_var)) {
+    prevalence_formula <- reformulate(c(categorical_var, sprintf("s(%s)", continuous_var)))
+  } else if (!is.null(categorical_var)) {
+    prevalence_formula <- reformulate(categorical_var)
+  } else if (!is.null(continuous_var)) {
+    prevalence_formula <- reformulate(sprintf("s(%s)", continuous_var))
+  }
+
+  stm_model <- stm::stm(
+    data = meta,
+    documents = documents,
+    vocab = vocab,
+    K = K_number,
+    prevalence = prevalence_formula,
+    max.em.its = max.em.its,
+    init.type = "Spectral",
+    verbose = verbose,
+    ...
+  )
+
+  beta_td <- tidytext::tidy(stm_model, matrix = "beta")
+
+  topic_term_plot <- beta_td %>%
+    group_by(topic) %>%
+    slice_max(order_by = beta, n = top_n) %>%
+    ungroup() %>%
+    mutate(
+      ord = factor(topic, levels = c(min(topic):max(topic))),
+      tt = as.numeric(topic),
+      topic = paste("Topic", topic),
+      term = reorder_within(term, beta, topic)
+    ) %>%
+    arrange(ord) %>%
+    ungroup()
+
+  levelt = paste("Topic", topic_term_plot$ord) %>% unique()
+  topic_term_plot$topic = factor(topic_term_plot$topic,
+                                 levels = levelt)
+
+  topic_term_plot_gg <- ggplot(
+    topic_term_plot,
+    aes(term, beta, fill = topic, text = paste("Topic:", topic, "<br>Beta:", sprintf("%.3f", beta)))
+  ) +
+    geom_col(show.legend = FALSE, alpha = 0.8) +
+    facet_wrap(~ topic, scales = "free", ncol = ncol, strip.position = "top") +
+    scale_x_reordered() +
+    scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
+    coord_flip() +
+    xlab("") +
+    ylab("Word probability") +
+    theme_minimal(base_size = 11) +
+    theme(
+      legend.position = "none",
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+      axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+      strip.text.x = element_text(size = 11, color = "#3B3B3B", margin = margin(b = 30, t = 15)),
+      axis.text.x = element_text(size = 11, color = "#3B3B3B", hjust = 1, margin = margin(t = 20)),
+      axis.text.y = element_text(size = 11, color = "#3B3B3B", margin = margin(r = 20)),
+      axis.title = element_text(size = 11, color = "#3B3B3B"),
+      axis.title.x = element_text(margin = margin(t = 25)),
+      axis.title.y = element_text(margin = margin(r = 25)),
+      plot.margin = margin(t = 40, b = 40)
+    )
+
+  plotly::ggplotly(topic_term_plot_gg, height = height, width = width, tooltip = "text") %>%
+    plotly::layout(
+      margin = list(t = 40, b = 40)
+    )
+}
+
+#' @title Plot Mean Topic Prevalence Across Documents
 #'
 #' @description
-#' Given a tidy data frame of per-document per-topic probabilities (gamma),
-#' this function calculates the mean topic prevalence across documents and plots the top topics.
+#' This function calculates the mean topic prevalence across documents and plots the top topics.
 #'
-#' @param gamma_td A tidy data frame derived from \code{tidytext::tidy(stm_model, matrix = "gamma")},
-#'   where \code{stm_model} is a fitted Structural Topic Model created using \code{stm::stm()}.
+#' @param dfm_object A quanteda document-feature matrix (dfm).
+#' @param K_number The number of topics to display.
+#' @param max.em.its Maximum number of EM iterations (default: 75).
+#' @param categorical_var An optional character string for a categorical variable in the metadata.
+#' @param continuous_var An optional character string for a continuous variable in the metadata.
 #' @param top_n The number of topics to display, ordered by their mean prevalence.
+#' @param height The height of the resulting Plotly plot, in pixels. Defaults to \code{500}.
+#' @param width The width of the resulting Plotly plot, in pixels. Defaults to \code{1000}.
+#' @param verbose Logical; if \code{TRUE}, prints progress information (default: TRUE).
+#' @param ... Further arguments passed to \code{stm::searchK}.
 #'
 #' @return A \code{ggplot} object showing a bar plot of topic prevalence. Topics are ordered by their
 #' mean gamma value (average prevalence across documents).
@@ -255,145 +434,185 @@ plot_topic_term <-
 #'
 #' @examples
 #' if (interactive()) {
-#'   # Assume stm_model is a fitted STM model.
-#'   gamma_td <- tidytext::tidy(stm_model, matrix="gamma")
-#'   plot <- topic_probability_plot(gamma_td, top_n = 10)
-#'   print(plot)
+#'  df <- TextAnalysisR::SpecialEduTech
+#'  dfm_object <- df %>%
+#'    TextAnalysisR::preprocess_texts(text_field = "abstract") %>%
+#'    quanteda::dfm() %>%
+#'    quanteda::dfm_trim(min_termfreq = 1, min_docfreq = 1) %>%
+#'    .[quanteda::ntoken(.) > 0, ]
+#' TextAnalysisR::plot_mean_topic_prevalence(
+#'   dfm_object = dfm_object,
+#'   K_number = 15,
+#'   max.em.its = 75,
+#'   categorical_var = "reference_type",
+#'   continuous_var = "year",
+#'   top_n = 15,
+#'   height = 500,
+#'   width = 1000,
+#'   verbose = TRUE)
 #' }
-topic_probability_plot <-
-  function(gamma_td, top_n = 10) {
+#'
+#' @importFrom stats reorder
+#' @importFrom numform ff_num
+#' @importFrom plotly ggplotly layout
+#' @importFrom tidytext reorder_within scale_x_reordered
+plot_mean_topic_prevalence <- function(dfm_object, K_number, max.em.its = 75, categorical_var = NULL, continuous_var = NULL,
+                                       top_n = 15, height = 500, width = 1000, verbose = TRUE, ...) {
 
-    gamma_terms <- gamma_td %>%
-      group_by(topic) %>%
-      summarise(gamma = mean(gamma)) %>%
-      arrange(desc(gamma)) %>%
-      mutate(topic = reorder(topic, gamma)) %>%
-      top_n(top_n, gamma)
-
-    ggplot(gamma_terms, aes(topic, gamma, fill = topic)) +
-      geom_col(alpha = 0.8) +
-      coord_flip() +
-      scale_y_continuous(labels = ff_num(zero = 0, digits = 2)) +
-      xlab("") +
-      ylab("Topic proportion") +
-      theme_minimal(base_size = 10) +
-      theme(
-        legend.position = "none",
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
-        axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
-        strip.text.x = element_text(size = 10, color = "#3B3B3B"),
-        axis.text.x = element_text(size = 10, color = "#3B3B3B"),
-        axis.text.y = element_text(size = 10, color = "#3B3B3B"),
-        axis.title = element_text(size = 10, color = "#3B3B3B"),
-        axis.title.x = element_text(margin = margin(t = 9)),
-        axis.title.y = element_text(margin = margin(r = 9))
-      )
+  out <- quanteda::convert(dfm_object, to = "stm")
+  if (!all(c("meta", "documents", "vocab") %in% names(out))) {
+    stop("Conversion of dfm_outcome must result in 'meta', 'documents', and 'vocab'.")
   }
 
+  meta <- out$meta
+  documents <- out$documents
+  vocab <- out$vocab
 
-#' @title Create a Table for Per-Document Per-Topic Probabilities
-#'
-#' @description
-#' Given a tidy data frame of per-document per-topic probabilities (gamma),
-#' this function calculates the mean prevalence of each topic and returns a table of the top topics.
-#'
-#' @param gamma_td A tidy data frame derived from \code{tidytext::tidy(stm_model, matrix = "gamma")},
-#'   where \code{stm_model} is a fitted Structural Topic Model created using \code{stm::stm()}.
-#' @param top_n The number of topics to display, ordered by their mean prevalence.
-#'
-#' @return A \code{tibble} containing columns \code{topic} and \code{gamma}, where \code{topic}
-#' is a factor representing each topic (relabeled with a "Topic X" format), and \code{gamma} is the
-#' mean topic prevalence across all documents. Numeric values are rounded to three decimal places.
-#'
-#' @export
-#'
-#' @examples
-#' if (interactive()) {
-#'   # Assume stm_model is a fitted STM model.
-#'   gamma_td <- tidytext::tidy(stm_model, matrix="gamma")
-#'   table <- topic_probability_table(gamma_td, top_n = 10)
-#'   print(table)
-#' }
-topic_probability_table <-
-  function(gamma_td, top_n = 10) {
+  prevalence_formula <- NULL
 
-    gamma_terms <- gamma_td %>%
-      group_by(topic) %>%
-      summarise(gamma = mean(gamma)) %>%
-      arrange(desc(gamma)) %>%
-      mutate(topic = reorder(topic, gamma)) %>%
-      top_n(top_n, gamma) %>%
-      mutate(tt = as.numeric(topic)) %>%
-      mutate(ord = topic) %>%
-      mutate(topic = paste('Topic', topic)) %>%
-      arrange(ord)
-
-    levelt = paste("Topic", gamma_terms$ord) %>% unique()
-    gamma_terms$topic = factor(gamma_terms$topic, levels = levelt)
-
-    gamma_terms %>%
-      select(topic, gamma) %>%
-      mutate_if(is.numeric, ~ round(., 3))
+  if (!is.null(categorical_var) && !is.null(continuous_var)) {
+    prevalence_formula <- reformulate(c(categorical_var, sprintf("s(%s)", continuous_var)))
+  } else if (!is.null(categorical_var)) {
+    prevalence_formula <- reformulate(categorical_var)
+  } else if (!is.null(continuous_var)) {
+    prevalence_formula <- reformulate(sprintf("s(%s)", continuous_var))
   }
 
+  stm_model <- stm::stm(
+    data = meta,
+    documents = documents,
+    vocab = vocab,
+    K = K_number,
+    prevalence = prevalence_formula,
+    max.em.its = max.em.its,
+    init.type = "Spectral",
+    verbose = verbose,
+    ...
+  )
+
+  gamma_td <- tidytext::tidy(stm_model, matrix = "gamma")
+  beta_td <- tidytext::tidy(stm_model, matrix = "beta")
+
+  # Get top terms for each topic
+  top_terms <- beta_td %>%
+    group_by(topic) %>%
+    slice_max(order_by = beta, n = top_n) %>%
+    summarise(terms = paste(term, collapse = ", "))
+
+  gamma_terms <- gamma_td %>%
+    group_by(topic) %>%
+    summarise(gamma = mean(gamma)) %>%
+    arrange(desc(gamma)) %>%
+    mutate(topic = reorder(topic, gamma)) %>%
+    top_n(top_n, gamma) %>%
+    left_join(top_terms, by = "topic")  # Join with top terms
+
+  gamma_term_gg <- ggplot(gamma_terms,
+                          aes(topic, gamma, label = terms,
+                              fill = topic,
+                              text = paste("Topic:",
+                                           topic, "<br>Terms:",
+                                           terms, "<br>Gamma:",
+                                           sprintf("%.3f", gamma)))) +
+    geom_col(alpha = 0.8) +
+    coord_flip() +
+    scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
+    xlab("") +
+    ylab("Topic proportion") +
+    theme_minimal(base_size = 11) +
+    theme(
+      legend.position = "none",
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+      axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+      strip.text.x = element_text(size = 11, color = "#3B3B3B"),
+      axis.text.x = element_text(size = 11, color = "#3B3B3B"),
+      axis.text.y = element_text(size = 11, color = "#3B3B3B"),
+      axis.title = element_text(size = 11, color = "#3B3B3B"),
+      axis.title.x = element_text(margin = margin(t = 9)),
+      axis.title.y = element_text(margin = margin(r = 9))
+    )
+
+  plotly::ggplotly(gamma_term_gg, tooltip = "text", height = height, width = width) %>%
+    plotly::layout(
+      margin = list(t = 40, b = 40)
+    )
+}
 
 #' @title Plot a Word Co-occurrence Network
 #'
 #' @description
 #' Visualize the co-occurrence relationships between terms in the corpus based on pairwise counts.
 #'
-#' @param dfm_td A tidy data frame of terms (output of \code{tidytext::tidy(dfm_object)}),
-#'   where \code{dfm_object} is a document-feature matrix created using \code{quanteda::dfm()}
-#'   after preprocessing text data.
+#' @param dfm_object A quanteda document-feature matrix (dfm).
 #' @param term_col The column name for terms (default is "term").
-#' @param doc_col The column name for document IDs (default is "document").
+#' @param document The column name for document IDs (default is "document").
 #' @param co_occur_n Minimum number of co-occurrences for filtering terms (default is 2).
+#' @param height The height of the resulting Plotly plot, in pixels. Defaults to \code{700}.
+#' @param width The width of the resulting Plotly plot, in pixels. Defaults to \code{1000}.
 #'
-#' @return A `ggraph` object visualizing the word co-occurrence network.
+#' @return A Plotly object visualizing the interactive word co-occurrence network.
 #' @export
 #'
 #' @examples
 #' if (interactive()) {
-#' df <- TextAnalysisR::SpecialEduTech
-#' dfm_object <- preprocess_texts(df, text_field = "text") %>%
-#'  quanteda::dfm()
-#' dfm_td <- tidytext::tidy(dfm_object)
-#' plot_word_co_occurrence_network(dfm_td,
+#'  df <- TextAnalysisR::SpecialEduTech
+#'  dfm_object <- df %>%
+#'    TextAnalysisR::preprocess_texts(text_field = "abstract") %>%
+#'    quanteda::dfm() %>%
+#'    quanteda::dfm_trim(min_termfreq = 1, min_docfreq = 1) %>%
+#'    .[quanteda::ntoken(.) > 0, ]
+#' TextAnalysisR::plot_word_co_occurrence_network(dfm_object,
 #'                                term_col = "abstract",
-#'                                doc_col = "document",
-#'                                co_occur_n = 5)
+#'                                document = "document",
+#'                                co_occur_n = 5,
+#'                                height = 700,
+#'                                width = 1000)
 #' }
 #'
 #'
-plot_word_co_occurrence_network <- function(dfm_td, term_col = "term", doc_col = "document", co_occur_n = 2) {
-  if (!all(c(term_col, doc_col) %in% colnames(dfm_td))) {
-    stop("The specified `term_col` or `doc_col` is not present in the data.")
-  }
+plot_word_co_occurrence_network <- function(dfm_object,
+                                            term_col = "term",
+                                            document = "document",
+                                            co_occur_n = 2,
+                                            height = 700,
+                                            width = 1000) {
+
+  dfm_td <- tidytext::tidy(dfm_object)
 
   term_co_occur <- dfm_td %>%
     tibble::as_tibble() %>%
-    widyr::pairwise_count(!!rlang::sym(term_col), !!rlang::sym(doc_col), sort = TRUE) %>%
+    widyr::pairwise_count(!!rlang::sym(term_col), !!rlang::sym(document), sort = TRUE) %>%
     dplyr::filter(n >= co_occur_n)
 
   co_occur_graph <- igraph::graph_from_data_frame(term_co_occur, directed = FALSE)
 
   igraph::V(co_occur_graph)$centrality <- igraph::degree(co_occur_graph, mode = "out") / (igraph::vcount(co_occur_graph) - 1)
 
-  layout <- ggraph::create_layout(co_occur_graph, layout = "fr")
-
-  layout %>%
+  ggraph_gg <- layout %>%
     ggraph() +
-    geom_edge_link(aes(edge_alpha = n), edge_colour = "#b0aeae", edge_width = 1.5) +
-    geom_node_point(aes(size = centrality, colour = centrality)) +
+    geom_edge_link(
+      aes(edge_alpha = n, text = paste("Co-occurrence:", n)),
+      edge_colour = "#b0aeae",
+      edge_width = 1.5
+    ) +
+    geom_node_point(
+      aes(size = centrality, colour = centrality, text = paste("Word:", name, "<br>Centrality:", round(centrality, 2))),
+      show.legend = TRUE
+    ) +
     geom_node_text(
       aes(label = name),
       repel = TRUE,
       check_overlap = FALSE,
       size = 5
     ) +
-    scale_color_continuous(name = "Centrality", guide = 'legend', high = "#47a0ed", low = "#deebf7") +
+    scale_color_continuous(
+      name = "Centrality",
+      guide = 'legend',
+      high = "#47a0ed",
+      low = "#deebf7"
+    ) +
     scale_size_continuous(
       name = "Centrality",
       guide = guide_legend(title.position = "top")
@@ -409,6 +628,8 @@ plot_word_co_occurrence_network <- function(dfm_td, term_col = "term", doc_col =
       panel.grid.minor = element_blank(),
       legend.text = element_text(size = 14)
     )
+
+  ggplotly(ggraph_gg, tooltip = "text", height = height, width = width)
 }
 
 
@@ -424,8 +645,10 @@ plot_word_co_occurrence_network <- function(dfm_td, term_col = "term", doc_col =
 #' @param doc_col The column name for document IDs (default is "document").
 #' @param co_occur_n Minimum number of co-occurrences for filtering terms (default is 2).
 #' @param correlation_threshold Minimum correlation value to include edges in the graph (default is 0.3).
+#' @param height The height of the resulting Plotly plot, in pixels. Defaults to \code{700}.
+#' @param width The width of the resulting Plotly plot, in pixels. Defaults to \code{1000}.
 #'
-#' @return A `ggraph` object visualizing the word correlation network.
+#' @return A Plotly object visualizing the interactive word correlation network.
 #' @export
 #'
 #' @examples
@@ -434,14 +657,19 @@ plot_word_co_occurrence_network <- function(dfm_td, term_col = "term", doc_col =
 #' dfm_object <- preprocess_texts(df, text_field = "text") %>%
 #'  quanteda::dfm()
 #' dfm_td <- tidytext::tidy(dfm_object)
-#' plot_word_correlation_network(dfm_td,
+#' TextAnalysisR::plot_word_correlation_network(dfm_td,
 #'                              term_col = "abstract",
 #'                              doc_col = "document",
-#'                              correlation_threshold = 0.3)
+#'                              correlation_threshold = 0.3,
+#'                              height = 700,
+#'                              width = 1000)
 #' }
 #'
 #'
-plot_word_correlation_network <- function(dfm_td, term_col = "term", doc_col = "document", co_occur_n = 2, correlation_threshold = 0.3) {
+plot_word_correlation_network <- function(dfm_td, term_col = "term",
+                                          doc_col = "document", co_occur_n = 2,
+                                          correlation_threshold = 0.3,
+                                          height = 700, width = 1000) {
   if (!all(c(term_col, doc_col) %in% colnames(dfm_td))) {
     stop("The specified `term_col` or `doc_col` is not present in the data.")
   }
@@ -459,16 +687,20 @@ plot_word_correlation_network <- function(dfm_td, term_col = "term", doc_col = "
 
   layout <- ggraph::create_layout(term_graph, layout = "fr")
 
-  layout %>%
+  ggraph_gg <- layout %>%
     ggraph() +
     geom_edge_link(
       aes(
         edge_alpha = correlation,
-        edge_width = correlation
+        edge_width = correlation,
+        text = paste("Correlation:", round(correlation, 2))
       ),
       edge_colour = "#47a0ed"
     ) +
-    geom_node_point(size = 3, color = "white") +
+    geom_node_point(
+      aes(size = centrality, text = paste("Term:", name, "<br>Centrality:", round(centrality, 2))),
+      color = "white"
+    ) +
     geom_node_text(
       aes(label = name),
       repel = TRUE,
@@ -489,35 +721,11 @@ plot_word_correlation_network <- function(dfm_td, term_col = "term", doc_col = "
       panel.grid.minor = element_blank(),
       legend.text = element_text(size = 14)
     )
+
+  ggplotly(ggraph_gg, tooltip = "text", height = height, width = width)
 }
 
 
-#' @title Visualize Word Frequency Trends Over Time
-#'
-#' @description
-#' Analyze and visualize the change in word frequencies over time or any continuous variable.
-#'
-#' @param dfm_object A document-feature matrix (\code{dfm}).
-#' @param gamma_td A tidy data frame derived from \code{tidytext::tidy(stm_model, matrix = "gamma")},
-#'   where \code{stm_model} is a fitted Structural Topic Model created using \code{stm::stm()}.
-#' @param time_variable The name of the continuous variable to group by.
-#' @param selected_terms A vector of selected terms to analyze.
-#'
-#' @return A ggplot2 line plot showing word frequency trends.
-#' @export
-#'
-#' @examples
-#' if (interactive()) {
-#' df <- TextAnalysisR::SpecialEduTech
-#' dfm_object <- preprocess_texts(df, text_field = "abstract") %>%
-#'  quanteda::dfm()
-#' word_frequency_trends(dfm_object, gamma_td,
-#'                      time_variable = "year",
-#'                      selected_terms = c("computer", "disability"))
-#'}
-#'
-#' @importFrom stats glm
-#'
 #' @title Word Frequency Trends Over Time
 #'
 #' @description Analyze and visualize word frequency trends over time for a fixed term column.
@@ -526,69 +734,101 @@ plot_word_correlation_network <- function(dfm_td, term_col = "term", doc_col = "
 #' @param gamma_td A tidy data frame of document-topic probabilities (gamma).
 #' @param time_variable The column name for the time variable (e.g., "year").
 #' @param selected_terms A vector of terms to analyze trends for.
+#' @param height The height of the resulting Plotly plot, in pixels. Defaults to \code{700}.
+#' @param width The width of the resulting Plotly plot, in pixels. Defaults to \code{1000}.
 #'
-#' @return A ggplot object showing word frequency trends over time.
+#' @return A Plotly object showing interactive word frequency trends over time.
 #' @export
 #'
 #' @examples
 #' if (interactive()) {
-#' # Assume stm_model is a fitted STM model.
 #' df <- TextAnalysisR::SpecialEduTech
 #' dfm_object <- preprocess_texts(df, text_field = "abstract") %>%
 #'  quanteda::dfm()
+#' out <- quanteda::convert(dfm_object, to = "stm")
+#' stm_15 <- stm::stm(out$documents,
+#'                   out$vocab,
+#'                   data = out$meta,
+#'                   prevalence = ~
+#'                     I((year >= 1980)*(year - 1980)) +
+#'                     I((year >= 1990)*(year - 1990)) +
+#'                     I((year >= 2000)*(year - 2000)) +
+#'                     I((year >= 2010)*(year - 2010)),
+#'                   max.em.its = 75,
+#'                   init.type = 'Spectral',
+#'                   K = 15,
+#'                   verbose = FALSE)
+#' stm_model <- stm_15
 #' gamma_td <- tidytext::tidy(stm_model, matrix = "gamma")
-#' word_frequency_trends(dfm_object,
-#'                      gamma_td, time_variable = "year",
-#'                      selected_terms = c("computer", "disability"))
+#' TextAnalysisR::word_frequency_trends(dfm_object,
+#'                                     gamma_td, time_variable = "year",
+#'                                     selected_terms = c("computer", "disability"),
+#'                                     height = 700, width = 1000)
 #' }
 #'
-#' @importFrom stats glm
-word_frequency_trends <- function(dfm_object, gamma_td, time_variable, selected_terms) {
+#' @importFrom stats glm reformulate
+#' @importFrom plotly ggplotly
+word_frequency_trends <- function(dfm_object, gamma_td, time_variable, selected_terms, height = 700, width = 1000) {
 
   dfm_object@docvars$document <- dfm_object@docvars$docname_
 
   dfm_td <- tidytext::tidy(dfm_object)
 
   dfm_gamma_td <- gamma_td %>%
-    left_join(dfm_object@docvars,
-              by = c("document" = "document")) %>%
+    left_join(dfm_object@docvars, by = c("document" = "document")) %>%
     left_join(dfm_td, by = c("document" = "document"))
 
   word_trends <- dfm_gamma_td %>%
     tibble::as_tibble() %>%
     dplyr::group_by(!!rlang::sym(time_variable)) %>%
-    dplyr::mutate(total_count = sum(count), percent = count / total_count) %>%
+    dplyr::mutate(
+      total_count = sum(count),
+      term_proportion = count / total_count
+    ) %>%
     dplyr::ungroup()
 
   trend_data <- word_trends %>%
+    mutate(across(where(is.numeric), ~ round(., 3))) %>%
     dplyr::filter(term %in% selected_terms)
 
   significance <- trend_data %>%
     dplyr::group_by(term) %>%
     dplyr::do(tidy(glm(
-      cbind(count, total_count - count) ~ eval(parse(text = time_variable)),
-      .,
+      cbind(count, total_count - count) ~ !!rlang::sym(time_variable),
+      data = .,
       family = "binomial"
     ))) %>%
-    dplyr::ungroup()
+    dplyr::ungroup() %>%
+    dplyr::mutate(across(where(is.numeric), ~ round(., 3))) %>%
+    dplyr::arrange(desc(abs(estimate)))
 
-  ggplot(trend_data, aes(x = !!rlang::sym(time_variable), y = percent, color = term)) +
-    geom_point(size = 2) +
-    geom_smooth(method = "loess", se = FALSE) +
+  year_term_gg <- ggplot(trend_data, aes(
+    x = !!rlang::sym(time_variable),
+    y = term_proportion,
+    group = term
+  )) +
+    geom_point(size = 1, alpha = 0.6, color = "#636363") +
+    geom_smooth(method = "loess", se = TRUE, color = "#337ab7", linewidth = 0.5, formula = y ~ x) +
     facet_wrap(~ term, scales = "free_y") +
     scale_y_continuous(labels = scales::percent_format()) +
     labs(x = "", y = "") +
-    theme_minimal(base_size = 14) +
+    theme_minimal(base_size = 11) +
     theme(
       legend.position = "none",
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
-      strip.text = element_text(size = 14, color = "#3B3B3B"),
-      axis.text = element_text(size = 14, color = "#3B3B3B"),
-      axis.title = element_text(size = 14, color = "#3B3B3B"),
+      axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+      strip.text.x = element_text(size = 11, color = "#3B3B3B"),
+      axis.text.x = element_text(size = 11, color = "#3B3B3B"),
+      axis.text.y = element_text(size = 11, color = "#3B3B3B"),
+      axis.title = element_text(size = 11, color = "#3B3B3B"),
       axis.title.x = element_text(margin = margin(t = 9)),
       axis.title.y = element_text(margin = margin(r = 9))
     )
-}
 
+  plotly::ggplotly(year_term_gg, height = height, width = width) %>%
+    plotly::layout(
+      margin = list(l = 40, r = 150, t = 60, b = 40)
+    )
+}
