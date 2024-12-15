@@ -43,11 +43,17 @@ ui <- fluidPage(
                      sidebarPanel(
                          width = 3,
                          selectInput(
-                             "dataset_choice",
-                             "Upload a file or use the dataset",
-                             selected = " ",
-                             choices = c(" ", "Upload an Example Dataset", "Upload Your File")
-
+                           "dataset_choice",
+                           helpText(
+                             strong("Upload a file or use the dataset."),
+                             br(),
+                             tags$ul(
+                               tags$li("When uploading an Excel file, please upload one sheet."),
+                               tags$li("Wait until your file is fully processed and displayed on the right.")
+                             )
+                           ),
+                           selected = " ",
+                           choices = c(" ", "Upload an Example Dataset", "Upload Your File")
                          ),
                          fileInput(
                              "file",
@@ -56,7 +62,6 @@ ui <- fluidPage(
                              accept = c(".xlsx, .xls, .xlsm, .csv")
                          )
                      ),
-
                      mainPanel(width = 9,
                                DT::dataTableOutput("data_table"))
                  )),

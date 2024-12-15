@@ -45,7 +45,6 @@ server <- shinyServer(function(input, output, session) {
         return(data)
     })
 
-
     output$data_table <-
         DT::renderDataTable(mydata(), rownames = FALSE)
 
