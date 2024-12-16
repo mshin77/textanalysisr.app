@@ -45,17 +45,15 @@ ui <- fluidPage(
                          selectInput(
                            "dataset_choice",
                            helpText(
-                             strong("Upload a file or use the dataset."),
+                             strong("Upload an Excel file or use the dataset."),
                              br(),
-                             tags$ul(
-                               tags$li("When uploading an Excel file, please upload one sheet."),
-                               tags$li("Wait until your file is fully processed and displayed on the right.")
-                             )
+                             br(),
+                             "When uploading an Excel file, please upload one sheet."
+                             ),
+                             selected = " ",
+                             choices = c(" ", "Upload an Example Dataset", "Upload Your File")
                            ),
-                           selected = " ",
-                           choices = c(" ", "Upload an Example Dataset", "Upload Your File")
-                         ),
-                         fileInput(
+                           fileInput(
                              "file",
                              "Upload a file",
                              multiple = TRUE,
@@ -63,7 +61,7 @@ ui <- fluidPage(
                          )
                      ),
                      mainPanel(width = 9,
-                               DT::dataTableOutput("data_table"))
+                               shinycssloaders::withSpinner(DT::dataTableOutput("data_table")))
                  )),
         tabPanel("Preprocess",
                  sidebarLayout(
@@ -122,53 +120,54 @@ ui <- fluidPage(
                      mainPanel(
                          width = 9,
                          tabsetPanel(
-                             id = "conditioned",
-                             tabPanel("1. Unite texts", value = 1,
-                                      DT::dataTableOutput("step1_table")),
-                             tabPanel(
-                                 "2. Preprocess",
-                                 value = 2,
-                                 shiny::verbatimTextOutput("step2_print_preprocess")
-                             ),
-                             tabPanel(
-                                 "3. Dictionary",
-                                 value = 3,
-                                 shiny::verbatimTextOutput("step2_print_dictionary")
-                             ),
-                             tabPanel(
-                                 "4. Stopword",
-                                 value = 4,
-                                 shiny::verbatimTextOutput("step2_print_stopword")
-                             ),
-                             tabPanel(
-                               "5. Document-feature matrix",
-                               value = 5,
-                               plotly::plotlyOutput("step3_plot", height = 500, width = 1000),
-                               br(),
-                               DT::dataTableOutput("step3_table")
-                             ),
-                             tabPanel(
-                                 "6. Remove common words",
-                                 value = 6,
-                                 plotly::plotlyOutput("step4_plot", height = 500, width = 1000),
-                                 br(),
-                                 DT::dataTableOutput("step4_table")
-                             )
+                           id = "conditioned",
+                           tabPanel("1. Unite texts", value = 1,
+                                    shinycssloaders::withSpinner(DT::dataTableOutput("step1_table"))),
+                           tabPanel(
+                             "2. Preprocess",
+                             value = 2,
+                             shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_preprocess")
+                             )),
+                           tabPanel(
+                             "3. Dictionary",
+                             value = 3,
+                             shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_dictionary"))
+                           ),
+                           tabPanel(
+                             "4. Stopword",
+                             value = 4,
+                             shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_stopword"))
+                           ),
+                           tabPanel(
+                             "5. Document-feature matrix",
+                             value = 5,
+                             shinycssloaders::withSpinner(plotly::plotlyOutput("step3_plot", height = 500, width = 1000)),
+                             br(),
+                             shinycssloaders::withSpinner(DT::dataTableOutput("step3_table"))
+                           ),
+                           tabPanel(
+                             "6. Remove common words",
+                             value = 6,
+                             condition = "input.remove > 0",
+                             shinycssloaders::withSpinner(plotly::plotlyOutput("step4_plot", height = 500, width = 1000)),
+                             br(),
+                             DT::dataTableOutput("step4_table")
+                           )
                          )
                      )
                  )),
-        tabPanel(
-            "Structural Topic Model",
-            sidebarLayout(
-                sidebarPanel(
-                    width = 3,
-                    # Step 1
-                    conditionalPanel(
-                        condition = "input.conditioned2 == 1",
-                        helpText(strong(
-                            "Please don't close your screen while running the model."
-                        )),
-                        sliderInput(
+      tabPanel(
+        "Structural Topic Model",
+        sidebarLayout(
+          sidebarPanel(
+            width = 3,
+            # Step 1
+            conditionalPanel(
+              condition = "input.conditioned2 == 1",
+              helpText(strong(
+                "Please don't close your screen while running the model."
+              )),
+              sliderInput(
                             "K_range_1",
                             "Range of topic numbers",
                             value = c(5, 20),

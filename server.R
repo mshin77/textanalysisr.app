@@ -1,5 +1,4 @@
 
-
 suppressPackageStartupMessages({
     library(dplyr)
     library(ggplot2)
@@ -45,8 +44,9 @@ server <- shinyServer(function(input, output, session) {
         return(data)
     })
 
-    output$data_table <-
-        DT::renderDataTable(mydata(), rownames = FALSE)
+    output$data_table <- DT::renderDataTable({
+      mydata()
+    }, rownames = FALSE)
 
     # "Preprocess" page
     # Step 1: Unite texts
@@ -61,23 +61,29 @@ server <- shinyServer(function(input, output, session) {
     })
 
     listed_vars <- eventReactive(input$show_vars, {
-        print(input$show_vars)
+        input$show_vars
     })
 
     # Select one or multiple columns for text data pre-processing
     united_tbl <- eventReactive(input$apply, {
-        united_texts_tbl <- mydata() %>%
-            select(listed_vars()) %>%
-            tidyr::unite(col = united_texts,
-                         sep = " ",
-                         remove = FALSE)
-        docvar_tbl <- mydata()
-        united_texts_tbl %>% dplyr::left_join(docvar_tbl)
 
+      req(listed_vars())
+
+      united_texts_tbl <- mydata() %>%
+        dplyr::select(all_of(unname(listed_vars()))) %>%
+        tidyr::unite(col = "united_texts", sep = " ", remove = FALSE)
+
+      docvar_tbl <- mydata()
+
+      dplyr::bind_cols(united_texts_tbl, docvar_tbl)
     })
 
-    output$step1_table <- DT::renderDataTable(united_tbl(),
-                                              rownames = FALSE)
+
+    output$step1_table <- DT::renderDataTable({
+      req(input$apply)
+      united_tbl()
+    },
+    rownames = FALSE)
 
     output$download_table <- downloadHandler(
       filename = function() {
@@ -96,7 +102,8 @@ server <- shinyServer(function(input, output, session) {
         })
 
     output$step2_print_preprocess <- renderPrint({
-        processed_tokens() %>% glimpse()
+      req(input$preprocess)
+      processed_tokens() %>% glimpse()
     })
 
     # Step 3
@@ -137,7 +144,8 @@ server <- shinyServer(function(input, output, session) {
     })
 
     output$step2_print_stopword <- renderPrint({
-        tokens_dict_no_stop() %>% glimpse()
+      req(input$stopword)
+      tokens_dict_no_stop() %>% glimpse()
     })
 
     # Step 5
@@ -158,76 +166,95 @@ server <- shinyServer(function(input, output, session) {
     # Step 6
     # Display the most frequent words (top 20)
     top_frequent_word  <- reactive({
-        tstat_freq <- quanteda.textstats::textstat_frequency(dfm_init())
-        tstat_freq_n_20 <- utils::head(tstat_freq, 20)
-        top_frequent_word <- tstat_freq_n_20$feature
+      tstat_freq <- quanteda.textstats::textstat_frequency(dfm_init())
+      tstat_freq_n_20 <- utils::head(tstat_freq, 20)
+      top_frequent_word <- tstat_freq_n_20$feature
     })
 
     observe({
-        updateSelectizeInput(
-            session,
-            "remove.var",
-            choices = top_frequent_word(),
-            options = list(create = TRUE),
-            selected = ""
-        )
+      updateSelectizeInput(
+        session,
+        "remove.var",
+        choices = top_frequent_word(),
+        options = list(create = TRUE),
+        selected = ""
+      )
     })
 
     # Remove common words across documents
     dfm_outcome <- reactive({
-        dictionary_list_1 <- TextAnalysisR::dictionary_list_1
-        dictionary_list_2 <- TextAnalysisR::dictionary_list_2
+      dictionary_list_1 <- TextAnalysisR::dictionary_list_1
+      dictionary_list_2 <- TextAnalysisR::dictionary_list_2
 
-        print(input$remove)
+      print(input$remove)
 
-        rm <- isolate(input$remove.var)
+      rm <- isolate(input$remove.var)
 
-        if (!is.null(rm)) {
-            removed_processed_tokens <-
-                quanteda::tokens_remove(tokens_dict_no_stop(), rm)
+      if (!is.null(rm)) {
+        removed_processed_tokens <-
+          quanteda::tokens_remove(tokens_dict_no_stop(), rm)
 
-            removed_tokens_dict_int <- removed_processed_tokens %>%
-                quanteda::tokens_lookup(
-                    dictionary = dictionary(dictionary_list_1),
-                    valuetype = "glob",
-                    verbose = TRUE,
-                    exclusive = FALSE,
-                    capkeys = FALSE
-                )
+        removed_tokens_dict_int <- removed_processed_tokens %>%
+          quanteda::tokens_lookup(
+            dictionary = dictionary(dictionary_list_1),
+            valuetype = "glob",
+            verbose = TRUE,
+            exclusive = FALSE,
+            capkeys = FALSE
+          )
 
-            removed_tokens_dict <- removed_tokens_dict_int %>%
-                quanteda::tokens_lookup(
-                    dictionary = dictionary(dictionary_list_2),
-                    valuetype = "glob",
-                    verbose = TRUE,
-                    exclusive = FALSE,
-                    capkeys = FALSE
-                )
+        removed_tokens_dict <- removed_tokens_dict_int %>%
+          quanteda::tokens_lookup(
+            dictionary = dictionary(dictionary_list_2),
+            valuetype = "glob",
+            verbose = TRUE,
+            exclusive = FALSE,
+            capkeys = FALSE
+          )
 
-            removed_tokens_dict %>% quanteda::dfm()
+        removed_tokens_dict %>% quanteda::dfm()
 
-        } else{
-            dfm_init()
-        }
+      } else{
+        dfm_init()
+      }
     })
 
-    observeEvent(input$remove, {
-        if (!is.null(input$remove.var)) {
-            output$step4_plot <- plotly::renderPlotly({
+    output$step4_plot <- plotly::renderPlotly({
 
-                dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
+      req(input$remove)
+      req(input$remove.var)
 
-              })
-        }
+      dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
+
     })
 
-    observeEvent(input$remove, {
-        if (!is.null(input$remove.var)) {
-            output$step4_table <- DT::renderDataTable({
-                quanteda.textstats::textstat_frequency(dfm_outcome())
-            })
-        }
+    output$step4_table <- DT::renderDataTable({
+
+      req(input$remove)
+      req(input$remove.var)
+
+      quanteda.textstats::textstat_frequency(dfm_outcome())
     })
+
+
+    # observeEvent(input$remove, {
+    #   if (!is.null(input$remove.var)) {
+    #     output$step4_plot <- plotly::renderPlotly({
+    #
+    #       dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
+    #
+    #     })
+    #   }
+    # })
+    #
+    # observeEvent(input$remove, {
+    #   if (!is.null(input$remove.var)) {
+    #     output$step4_table <- DT::renderDataTable({
+    #       quanteda.textstats::textstat_frequency(dfm_outcome())
+    #     })
+    #   }
+    # })
+
 
     # "Structural Topic Model" page
 
@@ -470,7 +497,7 @@ server <- shinyServer(function(input, output, session) {
         updateSelectInput(session,
                           "continuous_var_2",
                           choices = colnames_con(),
-                          selected = "")
+                          selected = " ")
     })
 
     observeEvent(eventExpr = input$categorical_var_2, {
@@ -597,7 +624,7 @@ server <- shinyServer(function(input, output, session) {
         scale_x_reordered() +
         scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
         coord_flip() +
-        xlab("") +
+        xlab(" ") +
         ylab("Word probability") +
         theme_minimal(base_size = 11) +
         theme(
@@ -711,7 +738,7 @@ server <- shinyServer(function(input, output, session) {
                 geom_col(alpha = 0.8) +
                 coord_flip() +
                 scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 2)) +
-                xlab("") +
+                xlab(" ") +
                 ylab("Topic proportion") +
                 theme_minimal(base_size = 10) +
                 theme(
@@ -801,7 +828,7 @@ server <- shinyServer(function(input, output, session) {
             "topic_number_quote",
             "Topic number",
             choices = print_K_number_from_1(),
-            selected = ""
+            selected = " "
         )
     })
 
@@ -818,7 +845,7 @@ server <- shinyServer(function(input, output, session) {
         updateSelectizeInput(session,
                              "topic_texts",
                              choices = colnames_cat_3(),
-                             selected = "")
+                             selected = " ")
     })
 
     observeEvent(eventExpr = input$topic_texts, {
