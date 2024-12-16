@@ -19,46 +19,50 @@ suppressPackageStartupMessages({
 
 server <- shinyServer(function(input, output, session) {
 
-    observe({
-        if (input$dataset_choice == "Upload an Example Dataset") {
-            shinyjs::disable("file")
-        } else {
-            shinyjs::enable("file")
+  observeEvent(input$dataset_choice, {
+    if (input$dataset_choice == "Upload an Example Dataset") {
+      shinyjs::disable("file")
+    } else {
+      shinyjs::enable("file")
+    }
+  })
+
+  mydata <- reactive({
+    if (input$dataset_choice == "Upload an Example Dataset") {
+      data <- TextAnalysisR::SpecialEduTech
+    } else {
+      req(input$file)
+      filename <- input$file$datapath
+      tryCatch({
+        if (grepl("*[.]xlsx$|[.]xls$|[.]xlsm$", filename)) {
+          data <- as.data.frame(readxl::read_excel(filename))
+        } else if (grepl("*[.]csv$|*", filename)) {
+          data <- read.csv(filename)
         }
-    })
+      })
+    }
+    return(data)
+  })
 
-    mydata <- reactive({
-        if (input$dataset_choice == "Upload an Example Dataset") {
-            data <- TextAnalysisR::SpecialEduTech
-        } else {
-            req(input$file)
-            filename <- input$file$datapath
-            tryCatch({
-                if (grepl("*[.]xlsx$|[.]xls$|[.]xlsm$", filename)) {
-                    data <- as.data.frame(readxl::read_excel(filename))
-                } else if (grepl("*[.]csv$|*", filename)) {
-                    data <- read.csv(filename)
-                }
-            })
-        }
-        return(data)
-    })
+  output$data_table <- DT::renderDataTable({
+    req(mydata())
+    DT::datatable(mydata(), rownames = FALSE)
+  })
 
-    output$data_table <- DT::renderDataTable({
-      req(input$dataset_choice)
-      mydata()
-    }, rownames = FALSE)
+  # "Preprocess" page
+  # Step 1: Unite texts
+  # Display checkbox
+  colnames <- reactive(names(mydata()))
 
-    # "Preprocess" page
-    # Step 1: Unite texts
-    # Display checkbox
-    colnames <- reactive(names(mydata()))
+    observeEvent(mydata(), {
+      req(mydata())
 
-    observe({
-        updateCheckboxGroupInput(session,
-                                 "show_vars",
-                                 choices = colnames(),
-                                 selected = "")
+      updateCheckboxGroupInput(
+        session,
+        "show_vars",
+        choices = colnames(),
+        selected = ""
+      )
     })
 
     listed_vars <- eventReactive(input$show_vars, {
@@ -69,6 +73,7 @@ server <- shinyServer(function(input, output, session) {
     united_tbl <- eventReactive(input$apply, {
 
       req(listed_vars())
+      req(mydata())
 
       united_texts_tbl <- mydata() %>%
         dplyr::select(all_of(unname(listed_vars()))) %>%
@@ -79,7 +84,6 @@ server <- shinyServer(function(input, output, session) {
       dplyr::bind_cols(united_texts_tbl, docvar_tbl)
     })
 
-
     output$step1_table <- DT::renderDataTable({
       req(input$apply)
       united_tbl()
@@ -88,7 +92,11 @@ server <- shinyServer(function(input, output, session) {
 
     output$download_table <- downloadHandler(
       filename = function() {
-        paste0(ifelse(is.null(input$file) || input$file == "", "combined data", input$file), ".xlsx")
+        if (is.null(input$file)) {
+          "combined_data.xlsx"
+        } else {
+          paste0(tools::file_path_sans_ext(input$file$name), ".xlsx")
+        }
       },
       content = function(file) {
         openxlsx::write.xlsx(united_tbl(), file)
