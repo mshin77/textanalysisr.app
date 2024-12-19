@@ -77,7 +77,7 @@ server <- shinyServer(function(input, output, session) {
 
       united_texts_tbl <- mydata() %>%
         dplyr::select(all_of(unname(listed_vars()))) %>%
-        tidyr::unite(col = "united_texts", sep = " ", remove = FALSE)
+        tidyr::unite(col = "united_texts", sep = " ", remove = TRUE)
 
       docvar_tbl <- mydata()
 
@@ -246,25 +246,6 @@ server <- shinyServer(function(input, output, session) {
     })
 
 
-    # observeEvent(input$remove, {
-    #   if (!is.null(input$remove.var)) {
-    #     output$step4_plot <- plotly::renderPlotly({
-    #
-    #       dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
-    #
-    #     })
-    #   }
-    # })
-    #
-    # observeEvent(input$remove, {
-    #   if (!is.null(input$remove.var)) {
-    #     output$step4_table <- DT::renderDataTable({
-    #       quanteda.textstats::textstat_frequency(dfm_outcome())
-    #     })
-    #   }
-    # })
-
-
     # "Structural Topic Model" page
 
     # 1. Search K
@@ -423,33 +404,33 @@ server <- shinyServer(function(input, output, session) {
         hoverinfo = 'text'
       )
 
-      plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.15) %>%
+      plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.1) %>%
         plotly::layout(
           title = list(
-            text = "Model Metrics by Number of Topics (K)",
+            text = "Model Diagnostics by Number of Topics (K)",
             font = list(size = 16)
           ),
           showlegend = FALSE,
-          margin = list(t = 100, b = 100, l = 50, r = 50),
+          margin = list(t = 100, b = 150, l = 50, r = 50),
           annotations = list(
             list(
-              x = 0.5, y = 1.1, text = "Held-out Likelihood", showarrow = FALSE,
-              xref = 'x domain', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+              x = 0.25, y = 1.05, text = "Held-out Likelihood", showarrow = FALSE,
+              xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
               font = list(size = 14)
             ),
             list(
-              x = 0.5, y = 1.1, text = "Residuals", showarrow = FALSE,
-              xref = 'x2 domain', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+              x = 0.75, y = 1.05, text = "Residuals", showarrow = FALSE,
+              xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
               font = list(size = 14)
             ),
             list(
-              x = 0.5, y = 0.5, text = "Semantic Coherence", showarrow = FALSE,
-              xref = 'x3 domain', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+              x = 0.25, y = 0.5, text = "Semantic Coherence", showarrow = FALSE,
+              xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
               font = list(size = 14)
             ),
             list(
-              x = 0.5, y = 0.5, text = "Lower Bound", showarrow = FALSE,
-              xref = 'x4 domain', yanchor = 'bottom', xanchor = 'center', yref = 'paper',
+              x = 0.75, y = 0.5, text = "Lower Bound", showarrow = FALSE,
+              xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
               font = list(size = 14)
             ),
             list(
