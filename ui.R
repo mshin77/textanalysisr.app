@@ -489,7 +489,7 @@ ui <- fluidPage(
                    # Step 1
                    conditionalPanel(
                      condition = "input.conditioned3 == 10",
-                     helpText(strong("Visualize word co-occurrence network.")),
+                     helpText(strong("Visualize word co-occurrence networks.")),
                      sliderInput(
                        "co_occurence_number_init",
                        "Minimum co-occurrence numbers",
@@ -502,7 +502,7 @@ ui <- fluidPage(
                    # Step 2
                    conditionalPanel(
                      condition = "input.conditioned3 == 11",
-                     helpText(strong("Visualize word correlation network.")),
+                     helpText(strong("Visualize word correlation networks.")),
                      sliderInput(
                        "co_occurence_number",
                        "Minimum co-occurence numbers",
@@ -523,7 +523,7 @@ ui <- fluidPage(
                    # Step 3
                    conditionalPanel(
                      condition = "input.conditioned3 == 12",
-                     helpText(strong("Display changes in frequency over a continuous variable. If you haven't already, run the Structural Topic Model first to extract topic-document probabilities.")),
+                     helpText(strong("Display word frequency trends over a continuous variable. If you haven't already, run the Structural Topic Model first.")),
                      selectizeInput(
                        "continuous_var_3",
                        "Select a continuous variable.",
@@ -545,7 +545,7 @@ ui <- fluidPage(
                    tabsetPanel(
                      id = "conditioned3",
                      tabPanel(
-                       "1. Word Co-Occurrence",
+                       "1. Word Co-Occurrence Networks",
                        value = 10,
                        bsCollapse(
                          open = 0,
@@ -592,7 +592,7 @@ ui <- fluidPage(
                        shinycssloaders::withSpinner(uiOutput("word_co_occurrence_network_plot_uiOutput"))
                      ),
                      tabPanel(
-                       "2. Word Correlation Network",
+                       "2. Word Correlation Networks",
                        value = 11,
                        bsCollapse(
                          open = 0,
@@ -639,7 +639,7 @@ ui <- fluidPage(
                        shinycssloaders::withSpinner(uiOutput("word_correlation_network_plot_uiOutput"))
                      ),
                      tabPanel(
-                       "3. Word Frequency Across a Continuous Variable",
+                       "3. Word Frequency Trends",
                        value = 12,
                        bsCollapse(
                          open = 0,
