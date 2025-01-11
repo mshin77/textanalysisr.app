@@ -294,64 +294,46 @@ server <- shinyServer(function(input, output, session) {
 
     K_search <- eventReactive(eventExpr = input$search, {
 
-        if (!is.null(input$categorical_var) &&
-            !is.null(input$continuous_var)) {
-            stm::searchK(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_range_1(),
-                prevalence =  ~ eval(parse(text = input$categorical_var)) +
-                    stm::s(eval(
-                        parse(text = input$continuous_var)
-                    )),
-                verbose = TRUE
-            )
+      categorical_var <- if (!is.null(input$categorical_var)) as.character(input$categorical_var) else NULL
+      continuous_var <- if (!is.null(input$continuous_var)) as.character(input$continuous_var) else NULL
 
-        } else if (!is.null(input$categorical_var) &&
-                   is.null(input$continuous_var)) {
-            stm::searchK(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_range_1(),
-                prevalence =  ~ eval(parse(text = input$categorical_var)),
-                verbose = TRUE
-            )
+      if (!is.null(categorical_var)) {
+        categorical_var <- unlist(strsplit(categorical_var, ",\\s*"))
+      }
+      if (!is.null(continuous_var)) {
+        continuous_var <- unlist(strsplit(continuous_var, ",\\s*"))
+      }
 
-        } else if (is.null(input$categorical_var) &&
-                   !is.null(input$continuous_var)) {
-            stm::searchK(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_range_1(),
-                prevalence =  ~ stm::s(eval(
-                    parse(text = input$continuous_var)
-                )),
-                verbose = TRUE
-            )
-
-        } else {
-            stm::searchK(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_range_1(),
-                prevalence = NULL,
-                verbose = TRUE
-            )
-
+      terms <- c()
+      if (!is.null(categorical_var) && length(categorical_var) > 0) {
+        terms <- c(terms, categorical_var)
+      }
+      if (!is.null(continuous_var) && length(continuous_var) > 0) {
+        for (var in continuous_var) {
+          unique_values <- length(unique(out()$meta[[var]]))
+          df <- max(3, min(4, unique_values - 1))
+          terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
         }
+      }
+
+      prevalence_formula <- if (length(terms) > 0) {
+        as.formula(paste("~", paste(terms, collapse = " + ")))
+      } else {
+        NULL
+      }
+
+      stm::searchK(
+        data = out()$meta,
+        documents = out()$documents,
+        vocab = out()$vocab,
+        max.em.its = 75,
+        init.type = "Spectral",
+        K = print_K_range_1(),
+        prevalence = prevalence_formula,
+        verbose = TRUE
+      )
     })
+
 
     output$search_K_plot <- plotly::renderPlotly({
 
@@ -371,7 +353,9 @@ server <- shinyServer(function(input, output, session) {
         type = 'scatter',
         mode = 'lines+markers',
         text = ~paste("K:", K, "<br>Held-out Likelihood:", round(heldout, 3)),
-        hoverinfo = 'text'
+        hoverinfo = 'text',
+        width = 800,
+        height = 600
       )
 
       p2 <- plotly::plot_ly(
@@ -381,7 +365,9 @@ server <- shinyServer(function(input, output, session) {
         type = 'scatter',
         mode = 'lines+markers',
         text = ~paste("K:", K, "<br>Residuals:", round(residual, 3)),
-        hoverinfo = 'text'
+        hoverinfo = 'text',
+        width = 800,
+        height = 600
       )
 
       p3 <- plotly::plot_ly(
@@ -391,7 +377,9 @@ server <- shinyServer(function(input, output, session) {
         type = 'scatter',
         mode = 'lines+markers',
         text = ~paste("K:", K, "<br>Semantic Coherence:", round(semcoh, 3)),
-        hoverinfo = 'text'
+        hoverinfo = 'text',
+        width = 800,
+        height = 600
       )
 
       p4 <- plotly::plot_ly(
@@ -401,7 +389,9 @@ server <- shinyServer(function(input, output, session) {
         type = 'scatter',
         mode = 'lines+markers',
         text = ~paste("K:", K, "<br>Lower Bound:", round(lbound, 3)),
-        hoverinfo = 'text'
+        hoverinfo = 'text',
+        width = 800,
+        height = 600
       )
 
       plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.1) %>%
@@ -499,65 +489,40 @@ server <- shinyServer(function(input, output, session) {
     })
 
     stm_K_number <- eventReactive(eventExpr = input$run, {
-        if (!is.null(input$categorical_var_2) &&
-            !is.null(input$continuous_var_2)) {
-            stm::stm(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_number(),
-                prevalence =  ~ eval(parse(text = input$categorical_var_2)) +
-                    stm::s(eval(
-                        parse(text = input$continuous_var_2)
-                    )),
-                verbose = TRUE
-            )
 
-        } else if (!is.null(input$categorical_var_2) &&
-                   is.null(input$continuous_var_2)) {
-            stm::stm(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_number(),
-                prevalence =  ~ eval(parse(text = input$categorical_var_2)),
-                verbose = TRUE
-            )
+      categorical_var <- if (!is.null(input$categorical_var_2)) unlist(strsplit(as.character(input$categorical_var_2), ",\\s*")) else NULL
+      continuous_var <- if (!is.null(input$continuous_var_2)) unlist(strsplit(as.character(input$continuous_var_2), ",\\s*")) else NULL
 
-        } else if (is.null(input$categorical_var_2) &&
-                   !is.null(input$continuous_var_2)) {
-            stm::stm(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_number(),
-                prevalence =  ~ stm::s(eval(
-                    parse(text = input$continuous_var_2)
-                )),
-                verbose = TRUE
-            )
-
-        } else {
-            stm::stm(
-                data = out()$meta,
-                documents = out()$documents,
-                vocab = out()$vocab,
-                max.em.its = 75,
-                init.type = "Spectral",
-                K = print_K_number(),
-                prevalence = NULL,
-                verbose = TRUE
-            )
-
+      terms <- c()
+      if (!is.null(categorical_var) && length(categorical_var) > 0) {
+        terms <- c(terms, categorical_var)
+      }
+      if (!is.null(continuous_var) && length(continuous_var) > 0) {
+        for (var in continuous_var) {
+          unique_values <- length(unique(out()$meta[[var]]))
+          df <- max(3, min(4, unique_values - 1))
+          terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
         }
+      }
 
+      prevalence_formula <- if (length(terms) > 0) {
+        as.formula(paste("~", paste(terms, collapse = " + ")))
+      } else {
+        NULL
+      }
+
+      stm::stm(
+        data = out()$meta,
+        documents = out()$documents,
+        vocab = out()$vocab,
+        max.em.its = 75,
+        init.type = "Spectral",
+        K = print_K_number(),
+        prevalence = prevalence_formula,
+        verbose = TRUE
+      )
     })
+
 
 
     # Display highest word probabilities for each topic
