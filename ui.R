@@ -523,12 +523,12 @@ ui <- fluidPage(
                    # Step 3
                    conditionalPanel(
                      condition = "input.conditioned3 == 12",
-                     helpText(strong("Display changes in frequency over time. If you haven't already, run the Structural Topic Model first to extract topic-document probabilities.")),
+                     helpText(strong("Display changes in frequency over a continuous variable. If you haven't already, run the Structural Topic Model first to extract topic-document probabilities.")),
                      selectizeInput(
                        "continuous_var_3",
-                       "Select a time-related variable.",
+                       "Select a continuous variable.",
                        choices = NULL,
-                       multiple = TRUE
+                       multiple = FALSE
                      ),
                      selectizeInput(
                        "type_terms",
@@ -639,7 +639,7 @@ ui <- fluidPage(
                        shinycssloaders::withSpinner(uiOutput("word_correlation_network_plot_uiOutput"))
                      ),
                      tabPanel(
-                       "3. Term Frequency Over Time",
+                       "3. Word Frequency Across a Continuous Variable",
                        value = 12,
                        bsCollapse(
                          open = 0,
@@ -652,7 +652,7 @@ ui <- fluidPage(
                            div(
                              style = "display:inline-block",
                              sliderInput(
-                               inputId = "height_line_year_plot,",
+                               inputId = "height_line_con_var_plot,",
                                post = " px",
                                label = "height",
                                min = 200,
@@ -664,7 +664,7 @@ ui <- fluidPage(
                            div(
                              style = "display:inline-block",
                              sliderInput(
-                               inputId = "width_line_year_plot,",
+                               inputId = "width_line_con_var_plot,",
                                post = " px",
                                label = "width",
                                min = 500,
@@ -683,7 +683,7 @@ ui <- fluidPage(
                                 overflow: auto; }"
                          )
                        ),
-                       shinycssloaders::withSpinner(uiOutput("line_year_plot_uiOutput"))
+                       shinycssloaders::withSpinner(uiOutput("line_con_var_plot_uiOutput"))
                      )
                    )
                  )

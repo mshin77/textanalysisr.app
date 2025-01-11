@@ -1464,16 +1464,17 @@ server <- shinyServer(function(input, output, session) {
       )
     })
 
-    # 3. Display selected terms that have changed in frequency over time
+    # 3. Display selected terms
 
     observe({
-      updateSelectizeInput(session,
-                           "continuous_var_3",
-                           choices = colnames_con_2(),
-                           selected = "")
+      selected_con <- input$continuous_var_2
+      updateSelectInput(session,
+                        "continuous_var_3",
+                        choices = selected_con,
+                        selected = if (!is.null(selected_con) && length(selected_con) > 0) selected_con[1] else NULL)
     })
 
-    top_frequent_over_time <- reactive({
+    top_frequent_over_con_var <- reactive({
       tstat_freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
       tstat_freq_n_20 <- head(tstat_freq, 20)
       tstat_freq_n_20$feature
@@ -1483,7 +1484,7 @@ server <- shinyServer(function(input, output, session) {
       updateSelectizeInput(
         session,
         "type_terms",
-        choices = top_frequent_over_time(),
+        choices = top_frequent_over_con_var(),
         options = list(create = TRUE),
         selected = ""
       )
@@ -1515,7 +1516,7 @@ server <- shinyServer(function(input, output, session) {
                     by = c("document" = "document")) %>%
           left_join(dfm_td, by = c("document" = "document"), relationship = "many-to-many")
 
-        year_term_counts <- dfm_gamma_td %>%
+        con_var_term_counts <- dfm_gamma_td %>%
           tibble::as_tibble() %>%
           group_by(!!rlang::sym(input$continuous_var_3)) %>%
           mutate(
@@ -1524,11 +1525,11 @@ server <- shinyServer(function(input, output, session) {
           ) %>%
           ungroup()
 
-        output$line_year_plot <- plotly::renderPlotly({
+        output$line_con_var_plot <- plotly::renderPlotly({
           req(input$continuous_var_3)
           req(vm)
 
-          year_term_gg <- year_term_counts %>%
+          con_var_term_gg <- con_var_term_counts %>%
             mutate(across(where(is.numeric), ~ round(., 3))) %>%
             filter(term %in% vm) %>%
             ggplot(aes(
@@ -1537,8 +1538,8 @@ server <- shinyServer(function(input, output, session) {
               group = term
             )) +
             geom_point(color = "#636363", alpha = 0.6, size = 1) +
-            geom_smooth(color = "#337ab7", se = TRUE, method = "loess", linewidth = 0.5, formula = y ~ x) +
-            facet_wrap(~ term, scales = "free_y") +
+            geom_smooth(color = "#337ab7", se = TRUE, method = "gam", linewidth = 0.5, formula = y ~ x) +
+            facet_wrap(~ term, scales = "free") +
             scale_y_continuous(labels = scales::percent_format()) +
             labs(x = "", y = "") +
             theme_minimal(base_size = 11) +
@@ -1557,16 +1558,16 @@ server <- shinyServer(function(input, output, session) {
             )
 
           plotly::ggplotly(
-            year_term_gg,
-            height = input$height_line_year_plot,
-            width = input$width_line_year_plot
+            con_var_term_gg,
+            height = input$height_line_con_var_plot,
+            width = input$width_line_con_var_plot
           ) %>%
             plotly::layout(
               margin = list(l = 40, r = 150, t = 60, b = 40)
             )
         })
 
-        significance_results <- year_term_counts %>%
+        significance_results <- con_var_term_counts %>%
           mutate(word = term) %>%
           filter(word %in% vm) %>%
           group_by(word) %>%
@@ -1604,15 +1605,13 @@ server <- shinyServer(function(input, output, session) {
       }
     })
 
-    output$line_year_plot_uiOutput <- renderUI({
+    output$line_con_var_plot_uiOutput <- renderUI({
       req(input$plot_term > 0, input$continuous_var_3, input$type_terms)
       tagList(
-        shinycssloaders::withSpinner(
           plotly::plotlyOutput(
-            "line_year_plot",
-            height = input$height_line_year_plot,
-            width = input$width_line_year_plot
-          )
+            "line_con_var_plot",
+            height = input$height_line_con_var_plot,
+            width = input$width_line_con_var_plot
         ),
         tags$div(
           style = "margin-top: 20px;",
