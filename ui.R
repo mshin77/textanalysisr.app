@@ -134,7 +134,7 @@ ui <- fluidPage(
                              shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_dictionary"))
                            ),
                            tabPanel(
-                             "4. Stopword",
+                             "4.Stopword",
                              value = 4,
                              shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_stopword"))
                            ),
@@ -278,7 +278,7 @@ ui <- fluidPage(
                         "effect_cat_btn",
                         "Select a categorical covariate.",
                         choices = NULL,
-                        multiple = TRUE
+                        multiple = FALSE
                       ),
                       actionButton("display_cat", "Display", icon = icon("file-alt"))
                     ),
@@ -299,7 +299,7 @@ ui <- fluidPage(
                         "effect_con_btn",
                         "Select a continuous covariate.",
                         choices = NULL,
-                        multiple = TRUE
+                        multiple = FALSE
                       ),
                       actionButton("display_con", "Display", icon = icon("file-alt"))
                     )

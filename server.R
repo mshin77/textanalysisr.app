@@ -824,65 +824,46 @@ server <- shinyServer(function(input, output, session) {
     })
 
     # Step 5: Display estimates regressions based on a STM object.
-
     effect_stm_K_number <- eventReactive(eventExpr = input$effect, {
-        if (!is.null(input$categorical_var_2) &&
-            !is.null(input$continuous_var_2)) {
-            ff = paste0(
-                '1:',
-                input$K_number,
-                ' ~ ',
-                input$categorical_var_2,
-                ' +',
-                ' stm::s(',
-                input$continuous_var_2,
-                ')'
-            )
+      categorical_var <- if (!is.null(input$categorical_var_2)) unlist(strsplit(as.character(input$categorical_var_2), ",\\s*")) else NULL
+      continuous_var <- if (!is.null(input$continuous_var_2)) unlist(strsplit(as.character(input$continuous_var_2), ",\\s*")) else NULL
 
-            stmm = stm::estimateEffect(
-                formula = eval(parse(text = ff)),
-                stmobj = stm_K_number(),
-                metadata = out()$meta,
-                documents = out()$documents,
-                uncertainty = "Global"
-            )
-
-        } else if (!is.null(input$categorical_var_2) &&
-                   is.null(input$continuous_var_2)) {
-            ff = paste0('1:',
-                        input$K_number,
-                        ' ~ ',
-                        input$categorical_var_2)
-
-            stmm = stm::estimateEffect(
-                formula = eval(parse(text = ff)),
-                stmobj = stm_K_number(),
-                metadata = out()$meta,
-                documents = out()$documents,
-                uncertainty = "Global"
-            )
-
-        } else if (is.null(input$categorical_var_2) &&
-                   !is.null(input$continuous_var_2)) {
-            ff = paste0('1:',
-                        input$K_number,
-                        ' ~ ',
-                        'stm::s(',
-                        input$continuous_var_2,
-                        ')')
-
-            stmm = stm::estimateEffect(
-                formula = eval(parse(text = ff)),
-                stmobj = stm_K_number(),
-                metadata = out()$meta,
-                documents = out()$documents,
-                uncertainty = "Global"
-            )
-        } else {
-            stmm = NULL
+      terms <- c()
+      if (!is.null(categorical_var) && length(categorical_var) > 0) {
+        terms <- c(terms, categorical_var)
+      }
+      if (!is.null(continuous_var) && length(continuous_var) > 0) {
+        for (var in continuous_var) {
+          if (var %in% names(out()$meta)) {
+            unique_values <- length(unique(out()$meta[[var]]))
+            df <- max(3, min(4, unique_values - 1))
+            terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
+          } else {
+            warning("Variable not found in metadata: ", var)
+          }
         }
+      }
 
+      prevalence_formula <- if (length(terms) > 0) {
+        as.formula(paste("~", paste(terms, collapse = " + ")))
+      } else {
+        NULL
+      }
 
+      if (!is.null(prevalence_formula) && length(terms) > 0) {
+        print("Prevalence formula:")
+        print(prevalence_formula)
+        stmm <- stm::estimateEffect(
+          formula = prevalence_formula,
+          stmobj = stm_K_number(),
+          metadata = out()$meta,
+          documents = out()$documents,
+          uncertainty = "Global",
+          prior = 1e-5
+        )
+      } else {
+        stmm <- NULL
+      }
     })
 
     observe({
@@ -908,14 +889,15 @@ server <- shinyServer(function(input, output, session) {
 
     # Step 6: Plot topic prevalence effects by a categorical variable.
     observe({
-      updateSelectizeInput(session,
-                           "effect_cat_btn",
-                           choices = colnames_cat_2(),
-                           selected = "")
+      selected_cat <- input$categorical_var_2
+      updateSelectInput(session,
+                        "effect_cat_btn",
+                        choices = selected_cat,
+                        selected = if (!is.null(selected_cat) && length(selected_cat) > 0) selected_cat[1] else NULL)
     })
 
     observeEvent(eventExpr = input$effect_cat_btn, {
-      print(input$effect_cat_btn)
+      # print(input$effect_cat_btn)
     })
 
     effects_categorical_var <- reactive({
@@ -1007,14 +989,15 @@ server <- shinyServer(function(input, output, session) {
     # Step 7: Plot topic prevalence effects by a continuous variable.
 
     observe({
-      updateSelectizeInput(session,
-                           "effect_con_btn",
-                           choices = colnames_con_2(),
-                           selected = "")
+      selected_con <- input$continuous_var_2
+      updateSelectInput(session,
+                        "effect_con_btn",
+                        choices = selected_con,
+                        selected = if (!is.null(selected_con) && length(selected_con) > 0) selected_con[1] else NULL)
     })
 
     observeEvent(input$effect_con_btn, {
-      print(input$effect_con_btn)
+      # print(input$effect_con_btn)
     })
 
     effects_continuous_var <- reactive({
