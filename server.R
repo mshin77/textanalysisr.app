@@ -1110,14 +1110,19 @@ server <- shinyServer(function(input, output, session) {
       V(co_occur_graph)$closeness <- igraph::closeness(co_occur_graph)
       V(co_occur_graph)$eigenvector <- igraph::eigen_centrality(co_occur_graph)$vector
 
+      leiden_clusters <- igraph::cluster_leiden(co_occur_graph)
+      igraph::V(co_occur_graph)$community <- leiden_clusters$membership
+
       layout <- igraph::layout_with_fr(co_occur_graph)
       layout_df <- as.data.frame(layout)
       colnames(layout_df) <- c("x", "y")
+
       layout_df$label <- V(co_occur_graph)$name
       layout_df$degree <- V(co_occur_graph)$degree
       layout_df$betweenness <- V(co_occur_graph)$betweenness
       layout_df$closeness <- V(co_occur_graph)$closeness
       layout_df$eigenvector <- V(co_occur_graph)$eigenvector
+      layout_df$community <- igraph::V(co_occur_graph)$community
 
       edge_data <- igraph::as_data_frame(co_occur_graph, what = "edges") %>%
         mutate(
@@ -1154,17 +1159,16 @@ server <- shinyServer(function(input, output, session) {
           degree_log = log1p(degree),
           size = scales::rescale(degree_log, to = c(12, 30)),
           text_size = scales::rescale(degree_log, to = c(14, 20)),
-          alpha = scales::rescale(degree_log, to = c(0.2, 0.9)),
+          alpha = scales::rescale(degree_log, to = c(0.2, 1)),
           hover_text = paste(
             "Word:", label,
             "<br>Degree:", degree,
             "<br>Betweenness:", round(betweenness, 2),
             "<br>Closeness:", round(closeness, 2),
-            "<br>Eigenvector:", round(eigenvector, 2)
+            "<br>Eigenvector:", round(eigenvector, 2),
+            "<br>Community:", community
           )
         )
-
-      color_scale <- 'Viridis'
 
       plot <- plot_ly(
         type = 'scatter',
@@ -1208,30 +1212,44 @@ server <- shinyServer(function(input, output, session) {
           )
         )
 
+      node_data$community <- as.factor(node_data$community)
+
+      combined_colors <- c(
+        "#CAB2D6", "#4DAF4A", "#FFD92F", "#D9D9D9", "#8AEA3C", "#FFFFB3", "#E5C494", "#FDBF6F",
+        "#FFFF99", "#8C3150", "#7E7304", "#6A3D9A", "#A6CEE3", "#BC80BD", "#377EB8", "#8DA0CB",
+        "#0139F7", "#8DD3C7", "#33E1EB", "#B3B3B3", "#E41A1C", "#0D4F15", "#FC8D62", "#B4BFCC",
+        "#BEBADA", "#E31A1C", "#FDB462", "#FCCDE5", "#7A46E2", "#B2DF8A", "#499CD8", "#66C2A5",
+        "#B15928", "#6F8DD0", "#FB9A99", "#ADEE4C", "#33A02C", "#B3DE69", "#4A2333", "#984EA3",
+        "#B43FD8", "#E78AC3", "#5DA45C", "#80B1D3", "#FF7F00", "#B872A8", "#1F78B4", "#A6D854",
+        "#2F4F4F", "#7FFF00"
+      )
+
+      combined_colors <- unique(combined_colors)
+
+      number_communities <- length(unique(node_data$community))
+
+      if (number_communities > length(combined_colors)) {
+        extra_colors <- randomcoloR::distinctColorPalette(number_communities - length(combined_colors))
+        combined_colors <- c(combined_colors, extra_colors)
+      }
+
       marker_params <- list(
         size = ~size,
-        color = ~degree,
-        colorscale = color_scale,
-        showscale = TRUE,
-        colorbar = list(
-          title = "Degree Centrality",
-          len = 0.25,
-          x = 1.1,
-          y = 0.6
-        ),
-        line = list(width = 2, color = '#FFFFFF'),
-        opacity = ~alpha
+        showscale = FALSE,
+        line = list(width = 2, color = '#FFFFFF')
       )
 
       plot <- plot %>%
-        add_markers(
+        plotly::add_markers(
           data = node_data,
           x = ~x,
           y = ~y,
           marker = marker_params,
+          color = ~community,
+          colors = combined_colors,
           hoverinfo = 'text',
           text = ~hover_text,
-          showlegend = FALSE
+          showlegend = TRUE
         )
 
       annotations <- lapply(1:nrow(node_data), function(i) {
@@ -1278,7 +1296,7 @@ server <- shinyServer(function(input, output, session) {
 
       dfm_td <- tidytext::tidy(dfm_outcome())
 
-      co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
+      co_occur_n <- floor(as.numeric(input$co_occurence_number))
       corr_n <- as.numeric(input$correlation_value)
 
       term_cor <- dfm_td %>%
@@ -1301,14 +1319,19 @@ server <- shinyServer(function(input, output, session) {
       igraph::V(term_cor_graph)$closeness <- igraph::closeness(term_cor_graph)
       igraph::V(term_cor_graph)$eigenvector <- igraph::eigen_centrality(term_cor_graph)$vector
 
+      leiden_clusters <- igraph::cluster_leiden(term_cor_graph)
+      igraph::V(term_cor_graph)$community <- leiden_clusters$membership
+
       layout <- igraph::layout_with_fr(term_cor_graph)
       layout_df <- as.data.frame(layout)
       colnames(layout_df) <- c("x", "y")
+
       layout_df$label <- igraph::V(term_cor_graph)$name
       layout_df$degree <- igraph::V(term_cor_graph)$degree
       layout_df$betweenness <- igraph::V(term_cor_graph)$betweenness
       layout_df$closeness <- igraph::V(term_cor_graph)$closeness
       layout_df$eigenvector <- igraph::V(term_cor_graph)$eigenvector
+      layout_df$community <- igraph::V(term_cor_graph)$community
 
       edge_data <- igraph::as_data_frame(term_cor_graph, what = "edges") %>%
         mutate(
@@ -1346,17 +1369,16 @@ server <- shinyServer(function(input, output, session) {
           degree_log = log1p(degree),
           size = scales::rescale(degree_log, to = c(12, 30)),
           text_size = scales::rescale(degree_log, to = c(14, 20)),
-          alpha = scales::rescale(degree_log, to = c(0.2, 0.9)),
+          alpha = scales::rescale(degree_log, to = c(0.2, 1)),
           hover_text = paste(
             "Word:", label,
             "<br>Degree:", degree,
             "<br>Betweenness:", round(betweenness, 2),
             "<br>Closeness:", round(closeness, 2),
-            "<br>Eigenvector:", round(eigenvector, 2)
+            "<br>Eigenvector:", round(eigenvector, 2),
+            "<br>Community:", community
           )
         )
-
-      color_scale <- 'Viridis'
 
       plot <- plot_ly(
         type = 'scatter',
@@ -1400,30 +1422,45 @@ server <- shinyServer(function(input, output, session) {
           )
         )
 
+      node_data$community <- as.factor(node_data$community)
+
+      combined_colors <- c(
+        "#CAB2D6", "#4DAF4A", "#FFD92F", "#D9D9D9", "#8AEA3C", "#FFFFB3", "#E5C494", "#FDBF6F",
+        "#FFFF99", "#8C3150", "#7E7304", "#6A3D9A", "#A6CEE3", "#BC80BD", "#377EB8", "#8DA0CB",
+        "#0139F7", "#8DD3C7", "#33E1EB", "#B3B3B3", "#E41A1C", "#0D4F15", "#FC8D62", "#B4BFCC",
+        "#BEBADA", "#E31A1C", "#FDB462", "#FCCDE5", "#7A46E2", "#B2DF8A", "#499CD8", "#66C2A5",
+        "#B15928", "#6F8DD0", "#FB9A99", "#ADEE4C", "#33A02C", "#B3DE69", "#4A2333", "#984EA3",
+        "#B43FD8", "#E78AC3", "#5DA45C", "#80B1D3", "#FF7F00", "#B872A8", "#1F78B4", "#A6D854",
+        "#2F4F4F", "#7FFF00"
+      )
+
+      combined_colors <- unique(combined_colors)
+
+      number_communities <- length(unique(node_data$community))
+
+
+      if (number_communities > length(combined_colors)) {
+        extra_colors <- randomcoloR::distinctColorPalette(number_communities - length(combined_colors))
+        combined_colors <- c(combined_colors, extra_colors)
+      }
+
       marker_params <- list(
         size = ~size,
-        color = ~degree,
-        colorscale = color_scale,
-        showscale = TRUE,
-        colorbar = list(
-          title = "Degree Centrality",
-          len = 0.25,
-          x = 1.1,
-          y = 0.6
-        ),
-        line = list(width = 2, color = '#FFFFFF'),
-        opacity = ~alpha
+        showscale = FALSE,
+        line = list(width = 2, color = '#FFFFFF')
       )
 
       plot <- plot %>%
-        add_markers(
+        plotly::add_markers(
           data = node_data,
           x = ~x,
           y = ~y,
           marker = marker_params,
+          color = ~community,
+          colors = combined_colors,
           hoverinfo = 'text',
           text = ~hover_text,
-          showlegend = FALSE
+          showlegend = TRUE
         )
 
       annotations <- lapply(1:nrow(node_data), function(i) {
