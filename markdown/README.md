@@ -26,18 +26,17 @@ The development version from
     install.packages("devtools")
     devtools::install_github("mshin77/TextAnalysisR")
 
-## Launch and Browse the Shiny App
+## Load the TextAnalysisR Package
+
+    library(TextAnalysisR)
+
+## Alternatively, Launch and Browse the Shiny App
 
 Access the web app at <https://www.textanalysisr.org>.
 
 Launch and browser the TextAnalysisR.app on the local computer:
 
-    library(TextAnalysisR)
     TextAnalysisR.app()
-
-## Alternatively, Load the TextAnalysisR Package
-
-    library(TextAnalysisR)
 
 ## Citation
 
