@@ -497,6 +497,13 @@ ui <- fluidPage(
                        min = 0,
                        max = 100
                      ),
+                     sliderInput(
+                       "top_node_n_co_occurrence",
+                       "Select top N nodes",
+                       value = 30,
+                       min = 0,
+                       max = 100
+                     ),
                      actionButton("plot_word_co_occurrence_network", "Plot", icon = icon("search"))
                    ),
                    # Step 2
@@ -517,6 +524,13 @@ ui <- fluidPage(
                        min = 0,
                        max = 1,
                        step = 0.1
+                     ),
+                     sliderInput(
+                       "top_node_n_correlation",
+                       "Select top N nodes",
+                       value = 30,
+                       min = 0,
+                       max = 100
                      ),
                      actionButton("plot_word_correlation_network", "Plot", icon = icon("search"))
                    ),
@@ -545,7 +559,7 @@ ui <- fluidPage(
                    tabsetPanel(
                      id = "conditioned3",
                      tabPanel(
-                       "1. Word Co-Occurrence Networks",
+                       "1. Word Co-occurrence Networks",
                        value = 10,
                        bsCollapse(
                          open = 0,

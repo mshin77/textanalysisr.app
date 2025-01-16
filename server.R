@@ -1089,6 +1089,9 @@ server <- shinyServer(function(input, output, session) {
 
     output$word_co_occurrence_network_plot <- renderPlotly({
       req(input$plot_word_co_occurrence_network, dfm_outcome())
+      req(input$top_node_n_co_occurrence)
+
+      top_node_n <- as.numeric(input$top_node_n_co_occurrence)
 
       dfm_td <- tidytext::tidy(dfm_outcome())
       co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
@@ -1105,23 +1108,22 @@ server <- shinyServer(function(input, output, session) {
         return(NULL)
       }
 
-      V(co_occur_graph)$degree <- igraph::degree(co_occur_graph)
-      V(co_occur_graph)$betweenness <- igraph::betweenness(co_occur_graph)
-      V(co_occur_graph)$closeness <- igraph::closeness(co_occur_graph)
-      V(co_occur_graph)$eigenvector <- igraph::eigen_centrality(co_occur_graph)$vector
 
-      leiden_clusters <- igraph::cluster_leiden(co_occur_graph)
-      igraph::V(co_occur_graph)$community <- leiden_clusters$membership
+      igraph::V(co_occur_graph)$degree <- igraph::degree(co_occur_graph)
+      igraph::V(co_occur_graph)$betweenness <- igraph::betweenness(co_occur_graph)
+      igraph::V(co_occur_graph)$closeness <- igraph::closeness(co_occur_graph)
+      igraph::V(co_occur_graph)$eigenvector <- igraph::eigen_centrality(co_occur_graph)$vector
+      igraph::V(co_occur_graph)$community <- igraph::cluster_leiden(co_occur_graph)$membership
 
       layout <- igraph::layout_with_fr(co_occur_graph)
       layout_df <- as.data.frame(layout)
       colnames(layout_df) <- c("x", "y")
 
-      layout_df$label <- V(co_occur_graph)$name
-      layout_df$degree <- V(co_occur_graph)$degree
-      layout_df$betweenness <- V(co_occur_graph)$betweenness
-      layout_df$closeness <- V(co_occur_graph)$closeness
-      layout_df$eigenvector <- V(co_occur_graph)$eigenvector
+      layout_df$label <- igraph::V(co_occur_graph)$name
+      layout_df$degree <- igraph::V(co_occur_graph)$degree
+      layout_df$betweenness <- igraph::V(co_occur_graph)$betweenness
+      layout_df$closeness <- igraph::V(co_occur_graph)$closeness
+      layout_df$eigenvector <- igraph::V(co_occur_graph)$eigenvector
       layout_df$community <- igraph::V(co_occur_graph)$community
 
       edge_data <- igraph::as_data_frame(co_occur_graph, what = "edges") %>%
@@ -1132,7 +1134,7 @@ server <- shinyServer(function(input, output, session) {
           yend = layout_df$y[match(to, layout_df$label)],
           cooccur_count = n
         ) %>%
-        select(x, y, xend, yend, cooccur_count)
+        select(from, to, x, y, xend, yend, cooccur_count)
 
       edge_data <- edge_data %>%
         mutate(
@@ -1141,8 +1143,8 @@ server <- shinyServer(function(input, output, session) {
             breaks = unique(quantile(cooccur_count, probs = seq(0, 1, length.out = 6), na.rm = TRUE)),
             include.lowest = TRUE
           )),
-          line_width = scales::rescale(line_group, to = c(2, 10)),
-          alpha = scales::rescale(line_group, to = c(0.2, 0.6))
+          line_width = scales::rescale(line_group, to = c(1, 5)),
+          alpha = scales::rescale(line_group, to = c(0.2, 0.4))
         )
 
       edge_group_labels <- edge_data %>%
@@ -1170,7 +1172,7 @@ server <- shinyServer(function(input, output, session) {
           )
         )
 
-      plot <- plot_ly(
+      plot <- plotly::plot_ly(
         type = 'scatter',
         mode = 'markers',
         width = input$width_word_co_occurrence_network_plot,
@@ -1178,30 +1180,55 @@ server <- shinyServer(function(input, output, session) {
       )
 
       for (i in unique(edge_data$line_group)) {
+
         edge_subset <- edge_data %>% filter(line_group == i)
         edge_label <- edge_group_labels[i]
 
+        edge_subset <- edge_subset %>%
+          mutate(
+            mid_x = (x + xend) / 2,
+            mid_y = (y + yend) / 2
+          )
+
         if (nrow(edge_subset) > 0) {
           plot <- plot %>%
-            add_segments(
+            plotly::add_segments(
               data = edge_subset,
               x = ~x,
               y = ~y,
               xend = ~xend,
               yend = ~yend,
-              line = list(color = 'rgba(0, 0, 255, 0.6)', width = ~line_width),
-              hoverinfo = 'text',
-              text = ~paste("Co-occurrence:", cooccur_count),
+              line = list(
+                color = '#5C5CFF',
+                width = ~line_width
+              ),
+              hoverinfo = 'none',
               opacity = ~alpha,
               showlegend = TRUE,
               name = edge_label,
               legendgroup = "Edges"
+            ) %>%
+
+            plotly::add_trace(
+              data = edge_subset,
+              x = ~mid_x,
+              y = ~mid_y,
+              type = 'scatter',
+              mode = 'markers',
+              marker = list(size = 0.1, color = '#e0f7ff', opacity = 0),
+              text = ~paste0(
+                "Co-occurrence: ", cooccur_count,
+                "<br>Source: ", from,
+                "<br>Target: ", to
+              ),
+              hoverinfo = 'text',
+              showlegend = FALSE
             )
         }
       }
 
       plot <- plot %>%
-        layout(
+        plotly::layout(
           legend = list(
             title = list(text = "Co-occurrence"),
             orientation = "v",
@@ -1215,28 +1242,25 @@ server <- shinyServer(function(input, output, session) {
       node_data$community <- as.factor(node_data$community)
 
       combined_colors <- c(
-        "#CAB2D6", "#4DAF4A", "#FFD92F", "#D9D9D9", "#8AEA3C", "#FFFFB3", "#E5C494", "#FDBF6F",
-        "#FFFF99", "#8C3150", "#7E7304", "#6A3D9A", "#A6CEE3", "#BC80BD", "#377EB8", "#8DA0CB",
-        "#0139F7", "#8DD3C7", "#33E1EB", "#B3B3B3", "#E41A1C", "#0D4F15", "#FC8D62", "#B4BFCC",
-        "#BEBADA", "#E31A1C", "#FDB462", "#FCCDE5", "#7A46E2", "#B2DF8A", "#499CD8", "#66C2A5",
-        "#B15928", "#6F8DD0", "#FB9A99", "#ADEE4C", "#33A02C", "#B3DE69", "#4A2333", "#984EA3",
-        "#B43FD8", "#E78AC3", "#5DA45C", "#80B1D3", "#FF7F00", "#B872A8", "#1F78B4", "#A6D854",
-        "#2F4F4F", "#7FFF00"
+        "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5", "#D9D9D9", "#BC80BD",
+        "#CCEBC5", "#FFED6F", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3",
+        "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999", "#B3E2CD",
+        "#FDCDAC", "#CBD5E8", "#F4CAE4", "#E6F5C9", "#FFF2AE", "#F1E2CC", "#CCCCCC", "#FBB4AE", "#B3CDE3", "#DECBE4",
+        "#FED9A6", "#FFFFCC", "#FDDAEC", "#F2F2F2", "#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#E31A1C",
+        "#FDBF6F", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E",
+        "#E6AB02", "#A6761D", "#0A2B9D", "#B14232", "#8889BB", "#467213", "#57FDA6", "#1E90FF", "#FF1493", "#00FA9A",
+        "#FF4500", "#DA70D6", "#32CD32", "#FFD700", "#00CED1", "#BA55D3", "#FF6347", "#ADFF2F", "#FF00FF", "#7B68EE",
+        "#FF69B4", "#40E0D0", "#FFB6C1", "#DB7093", "#00BFFF", "#D2691E", "#8B4513", "#FF7F50", "#C71585", "#4682B4",
+        "#008080", "#800000", "#008000", "#C0C0C0", "#808000", "#000080", "#800080", "#696969", "#FFFAFA", "#F5DEB3"
       )
 
-      combined_colors <- unique(combined_colors)
-
-      number_communities <- length(unique(node_data$community))
-
-      if (number_communities > length(combined_colors)) {
-        extra_colors <- randomcoloR::distinctColorPalette(number_communities - length(combined_colors))
-        combined_colors <- c(combined_colors, extra_colors)
-      }
+      node_data$color <- combined_colors[as.integer(node_data$community)]
 
       marker_params <- list(
         size = ~size,
         showscale = FALSE,
-        line = list(width = 2, color = '#FFFFFF')
+        line = list(width = 2, color = '#FFFFFF'),
+        color = ~color
       )
 
       plot <- plot %>%
@@ -1252,20 +1276,31 @@ server <- shinyServer(function(input, output, session) {
           showlegend = TRUE
         )
 
-      annotations <- lapply(1:nrow(node_data), function(i) {
-        list(
-          x = node_data$x[i],
-          y = node_data$y[i],
-          text = node_data$label[i],
-          xanchor = "center",
-          yanchor = "bottom",
-          showarrow = FALSE,
-          font = list(size = node_data$text_size[i], color = 'black')
-        )
-      })
+      top_nodes <- head(node_data[order(-node_data$degree), ], top_node_n)
 
-      plot <- plot %>%
-        layout(
+      annotations <- if (nrow(top_nodes) > 0) {
+        lapply(1:nrow(top_nodes), function(i) {
+          label <- top_nodes$label[i]
+          text <- ifelse(!is.na(label) & label != "", label, "")
+
+          list(
+            x = top_nodes$x[i],
+            y = top_nodes$y[i],
+            text = text,
+            xanchor = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, "left", "right"),
+            yanchor = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, "bottom", "top"),
+            xshift = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, 5, -5),
+            yshift = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, 3, -3),
+            showarrow = FALSE,
+            font = list(size = top_nodes$text_size[i], color = 'black')
+          )
+        })
+      } else {
+        list()
+      }
+
+      word_co_occurrence_plotly <- plot %>%
+        plotly::layout(
           dragmode = "pan",
           title = list(text = "Word Co-occurrence Network", font = list(size = 16)),
           showlegend = TRUE,
@@ -1275,7 +1310,7 @@ server <- shinyServer(function(input, output, session) {
           annotations = annotations
         )
 
-      plot
+      word_co_occurrence_plotly
     })
 
     output$word_co_occurrence_network_plot_uiOutput <- renderUI({
@@ -1293,6 +1328,9 @@ server <- shinyServer(function(input, output, session) {
 
     output$word_correlation_network_plot <- renderPlotly({
       req(input$plot_word_correlation_network, dfm_outcome())
+      req(input$top_node_n_correlation)
+
+      top_node_n <- as.numeric(input$top_node_n_correlation)
 
       dfm_td <- tidytext::tidy(dfm_outcome())
 
@@ -1318,9 +1356,7 @@ server <- shinyServer(function(input, output, session) {
       igraph::V(term_cor_graph)$betweenness <- igraph::betweenness(term_cor_graph)
       igraph::V(term_cor_graph)$closeness <- igraph::closeness(term_cor_graph)
       igraph::V(term_cor_graph)$eigenvector <- igraph::eigen_centrality(term_cor_graph)$vector
-
-      leiden_clusters <- igraph::cluster_leiden(term_cor_graph)
-      igraph::V(term_cor_graph)$community <- leiden_clusters$membership
+      igraph::V(term_cor_graph)$community <- igraph::cluster_leiden(term_cor_graph)$membership
 
       layout <- igraph::layout_with_fr(term_cor_graph)
       layout_df <- as.data.frame(layout)
@@ -1341,7 +1377,7 @@ server <- shinyServer(function(input, output, session) {
           yend = layout_df$y[match(to, layout_df$label)],
           correlation = correlation
         ) %>%
-        select(x, y, xend, yend, correlation)
+        select(from, to, x, y, xend, yend, correlation)
 
       edge_data <- edge_data %>%
         mutate(
@@ -1350,8 +1386,8 @@ server <- shinyServer(function(input, output, session) {
             breaks = unique(quantile(correlation, probs = seq(0, 1, length.out = 6), na.rm = TRUE)),
             include.lowest = TRUE
           )),
-          line_width = scales::rescale(line_group, to = c(2, 10)),
-          alpha = scales::rescale(line_group, to = c(0.2, 0.6))
+          line_width = scales::rescale(line_group, to = c(1, 5)),
+          alpha = scales::rescale(line_group, to = c(0.2, 0.4))
         )
 
       edge_group_labels <- edge_data %>%
@@ -1380,7 +1416,7 @@ server <- shinyServer(function(input, output, session) {
           )
         )
 
-      plot <- plot_ly(
+      plot <- plotly::plot_ly(
         type = 'scatter',
         mode = 'markers',
         width = input$width_word_correlation_network_plot,
@@ -1388,30 +1424,53 @@ server <- shinyServer(function(input, output, session) {
       )
 
       for (i in unique(edge_data$line_group)) {
+
         edge_subset <- edge_data %>% filter(line_group == i)
         edge_label <- edge_group_labels[i]
 
+        edge_subset <- edge_subset %>%
+          mutate(
+            mid_x = (x + xend) / 2,
+            mid_y = (y + yend) / 2
+          )
+
         if (nrow(edge_subset) > 0) {
           plot <- plot %>%
-            add_segments(
+            plotly::add_segments(
               data = edge_subset,
               x = ~x,
               y = ~y,
               xend = ~xend,
               yend = ~yend,
-              line = list(color = 'rgba(0, 0, 255, 0.6)', width = ~line_width),
-              hoverinfo = 'text',
-              text = ~paste("Correlation:", round(correlation, 2)),
+              line = list(
+                color = '#5C5CFF',
+                width = ~line_width
+              ),
+              hoverinfo = 'none',
               opacity = ~alpha,
               showlegend = TRUE,
               name = edge_label,
               legendgroup = "Edges"
+            ) %>%
+
+            plotly::add_trace(
+              data = edge_subset,
+              x = ~mid_x,
+              y = ~mid_y,
+              type = 'scatter',
+              mode = 'markers',
+              marker = list(size = 0.1, color = '#e0f7ff', opacity = 0),
+              text = ~paste("Correlation:", round(correlation, 2),
+                            "<br>Source:", from,
+                            "<br>Target:", to),
+              hoverinfo = 'text',
+              showlegend = FALSE
             )
         }
       }
 
       plot <- plot %>%
-        layout(
+        plotly::layout(
           legend = list(
             title = list(text = "Correlation"),
             orientation = "v",
@@ -1425,24 +1484,19 @@ server <- shinyServer(function(input, output, session) {
       node_data$community <- as.factor(node_data$community)
 
       combined_colors <- c(
-        "#CAB2D6", "#4DAF4A", "#FFD92F", "#D9D9D9", "#8AEA3C", "#FFFFB3", "#E5C494", "#FDBF6F",
-        "#FFFF99", "#8C3150", "#7E7304", "#6A3D9A", "#A6CEE3", "#BC80BD", "#377EB8", "#8DA0CB",
-        "#0139F7", "#8DD3C7", "#33E1EB", "#B3B3B3", "#E41A1C", "#0D4F15", "#FC8D62", "#B4BFCC",
-        "#BEBADA", "#E31A1C", "#FDB462", "#FCCDE5", "#7A46E2", "#B2DF8A", "#499CD8", "#66C2A5",
-        "#B15928", "#6F8DD0", "#FB9A99", "#ADEE4C", "#33A02C", "#B3DE69", "#4A2333", "#984EA3",
-        "#B43FD8", "#E78AC3", "#5DA45C", "#80B1D3", "#FF7F00", "#B872A8", "#1F78B4", "#A6D854",
-        "#2F4F4F", "#7FFF00"
+        "#8DD3C7", "#FFFFB3", "#BEBADA", "#FB8072", "#80B1D3", "#FDB462", "#B3DE69", "#FCCDE5", "#D9D9D9", "#BC80BD",
+        "#CCEBC5", "#FFED6F", "#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3",
+        "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999", "#B3E2CD",
+        "#FDCDAC", "#CBD5E8", "#F4CAE4", "#E6F5C9", "#FFF2AE", "#F1E2CC", "#CCCCCC", "#FBB4AE", "#B3CDE3", "#DECBE4",
+        "#FED9A6", "#FFFFCC", "#FDDAEC", "#F2F2F2", "#A6CEE3", "#1F78B4", "#B2DF8A", "#33A02C", "#FB9A99", "#E31A1C",
+        "#FDBF6F", "#CAB2D6", "#6A3D9A", "#FFFF99", "#B15928", "#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E",
+        "#E6AB02", "#A6761D", "#0A2B9D", "#B14232", "#8889BB", "#467213", "#57FDA6", "#1E90FF", "#FF1493", "#00FA9A",
+        "#FF4500", "#DA70D6", "#32CD32", "#FFD700", "#00CED1", "#BA55D3", "#FF6347", "#ADFF2F", "#FF00FF", "#7B68EE",
+        "#FF69B4", "#40E0D0", "#FFB6C1", "#DB7093", "#00BFFF", "#D2691E", "#8B4513", "#FF7F50", "#C71585", "#4682B4",
+        "#008080", "#800000", "#008000", "#C0C0C0", "#808000", "#000080", "#800080", "#696969", "#FFFAFA", "#F5DEB3"
       )
 
-      combined_colors <- unique(combined_colors)
-
-      number_communities <- length(unique(node_data$community))
-
-
-      if (number_communities > length(combined_colors)) {
-        extra_colors <- randomcoloR::distinctColorPalette(number_communities - length(combined_colors))
-        combined_colors <- c(combined_colors, extra_colors)
-      }
+      node_data$color <- combined_colors[as.integer(node_data$community)]
 
       marker_params <- list(
         size = ~size,
@@ -1463,20 +1517,31 @@ server <- shinyServer(function(input, output, session) {
           showlegend = TRUE
         )
 
-      annotations <- lapply(1:nrow(node_data), function(i) {
-        list(
-          x = node_data$x[i],
-          y = node_data$y[i],
-          text = node_data$label[i],
-          xanchor = "center",
-          yanchor = "bottom",
-          showarrow = FALSE,
-          font = list(size = node_data$text_size[i], color = 'black')
-        )
-      })
+      top_nodes <- head(node_data[order(-node_data$degree), ], top_node_n)
 
-      plot <- plot %>%
-        layout(
+      annotations <- if (nrow(top_nodes) > 0) {
+        lapply(1:nrow(top_nodes), function(i) {
+          label <- top_nodes$label[i]
+          text <- ifelse(!is.na(label) & label != "", label, "")
+
+          list(
+            x = top_nodes$x[i],
+            y = top_nodes$y[i],
+            text = text,
+            xanchor = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, "left", "right"),
+            yanchor = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, "bottom", "top"),
+            xshift = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, 5, -5),
+            yshift = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, 3, -3),
+            showarrow = FALSE,
+            font = list(size = top_nodes$text_size[i], color = 'black')
+          )
+        })
+      } else {
+        list()
+      }
+
+      word_correlation_plotly <- plot %>%
+        plotly::layout(
           dragmode = "pan",
           title = list(text = "Word Correlation Network", font = list(size = 16)),
           showlegend = TRUE,
@@ -1485,10 +1550,9 @@ server <- shinyServer(function(input, output, session) {
           margin = list(l = 40, r = 150, t = 60, b = 40),
           annotations = annotations
         )
+      word_correlation_plotly
 
-      plot
-    })
-
+      })
 
     output$word_correlation_network_plot_uiOutput <- renderUI({
       req(input$plot_word_correlation_network)
