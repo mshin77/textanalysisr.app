@@ -4,8 +4,8 @@
 [![R-CMD-check](https://github.com/mshin77/TextAnalysisR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/mshin77/TextAnalysisR/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-`TextAnalysisR` provides a supporting workflow for text mining analysis.
-The web app incorporates
+`TextAnalysisR` provides a supporting workflow tool for text mining
+analysis. The web app incorporates
 [quanteda](https://github.com/quanteda/quanteda) (text preprocessing),
 [stm](https://github.com/bstewart/stm) (structural topic modeling),
 [ggraph](https://github.com/thomasp85/ggraph), and
@@ -37,11 +37,11 @@ Launch and browser the TextAnalysisR.app on the local computer:
 
 ## Citation:
 
--   Shin, M. (2024). *TextAnalysisR: Text mining workflow tools* (R
+-   Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* (R
     package version 0.0.2) \[Computer software\].
     <https://mshin77.github.io/TextAnalysisR>
 
--   Shin, M. (2024). *TextAnalysisR: Text mining workflow tools* \[Web
+-   Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* \[Web
     application\]. <https://www.textanalysisr.org>
 
 ## References:

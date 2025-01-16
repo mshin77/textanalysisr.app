@@ -1144,7 +1144,7 @@ server <- shinyServer(function(input, output, session) {
             include.lowest = TRUE
           )),
           line_width = scales::rescale(line_group, to = c(1, 5)),
-          alpha = scales::rescale(line_group, to = c(0.2, 0.4))
+          alpha = scales::rescale(line_group, to = c(0.1, 0.3))
         )
 
       edge_group_labels <- edge_data %>%
@@ -1387,7 +1387,7 @@ server <- shinyServer(function(input, output, session) {
             include.lowest = TRUE
           )),
           line_width = scales::rescale(line_group, to = c(1, 5)),
-          alpha = scales::rescale(line_group, to = c(0.2, 0.4))
+          alpha = scales::rescale(line_group, to = c(0.1, 0.3))
         )
 
       edge_group_labels <- edge_data %>%
