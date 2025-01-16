@@ -18,7 +18,7 @@ document-topic probabilities, estimated effects of covariates on topic
 prevalence, and network analysis, similar to tasks available in the web
 app.
 
-## Installation:
+## Installation
 
 The development version from
 [GitHub](https://github.com/mshin77/TextAnalysisR) with:
@@ -26,7 +26,7 @@ The development version from
     install.packages("devtools")
     devtools::install_github("mshin77/TextAnalysisR")
 
-## Run the Shiny App:
+## Launch and Browse the Shiny App
 
 Access the web app at <https://www.textanalysisr.org>.
 
@@ -35,7 +35,11 @@ Launch and browser the TextAnalysisR.app on the local computer:
     library(TextAnalysisR)
     TextAnalysisR.app()
 
-## Citation:
+## Alternatively, Load the TextAnalysisR Package
+
+    library(TextAnalysisR)
+
+## Citation
 
 -   Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* (R
     package version 0.0.2) \[Computer software\].
@@ -44,13 +48,14 @@ Launch and browser the TextAnalysisR.app on the local computer:
 -   Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* \[Web
     application\]. <https://www.textanalysisr.org>
 
-## References:
+## References
 
 -   Shin, M., Park, H., & Kang, E. (2024). Development of education
     policies and practices for students with learning disabilities in
     South Korea using Delphi surveys and topic modeling. *Learning
     Disability Quarterly*.
     [GitHub](https://github.com/mshin77/Korea-LD-policy)
+
 -   Shin, M., Ok, M. W., Choo, S., Hossain, G., Bryant, D. P., &
     Kang, E. (2023). A content analysis of research on technology use
     for teaching mathematics to students with disabilities: word
