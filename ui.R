@@ -482,7 +482,7 @@ ui <- fluidPage(
                 )
             )
         ),
-      tabPanel("Word Networks",
+      tabPanel("Word Analysis",
                sidebarLayout(
                  sidebarPanel(
                    width = 3,
@@ -653,7 +653,7 @@ ui <- fluidPage(
                        shinycssloaders::withSpinner(uiOutput("word_correlation_network_plot_uiOutput"))
                      ),
                      tabPanel(
-                       "3. Word Frequency Trends",
+                       "3. Word Proportions",
                        value = 12,
                        bsCollapse(
                          open = 0,
