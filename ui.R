@@ -61,7 +61,7 @@ ui <- fluidPage(
                          )
                      ),
                      mainPanel(width = 9,
-                               shinycssloaders::withSpinner(DT::dataTableOutput("data_table")))
+                               DT::dataTableOutput("data_table"))
                  )),
         tabPanel("Preprocess",
                  sidebarLayout(
@@ -122,21 +122,21 @@ ui <- fluidPage(
                          tabsetPanel(
                            id = "conditioned",
                            tabPanel("1. Unite texts", value = 1,
-                                    shinycssloaders::withSpinner(DT::dataTableOutput("step1_table"))),
+                                    DT::dataTableOutput("step1_table")),
                            tabPanel(
                              "2. Preprocess",
                              value = 2,
-                             shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_preprocess")
-                             )),
+                             shiny::verbatimTextOutput("step2_print_preprocess")
+                             ),
                            tabPanel(
                              "3. Dictionary",
                              value = 3,
-                             shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_dictionary"))
+                             shiny::verbatimTextOutput("step2_print_dictionary")
                            ),
                            tabPanel(
                              "4.Stopword",
                              value = 4,
-                             shinycssloaders::withSpinner(shiny::verbatimTextOutput("step2_print_stopword"))
+                             shiny::verbatimTextOutput("step2_print_stopword")
                            ),
                            tabPanel(
                              "5. Document-feature matrix",
@@ -660,25 +660,25 @@ ui <- fluidPage(
                          bsCollapsePanel(
                            p(strong("Click to set plot dimensions"),
                              style = "font-size: 15px;"),
-                           value = 5,
+                           value = 3,
                            style = "success",
                            p(strong("Dimensions of the plot")),
                            div(
                              style = "display:inline-block",
                              sliderInput(
-                               inputId = "height_line_con_var_plot,",
+                               inputId = "height_line_con_var_plot",
                                post = " px",
                                label = "height",
                                min = 200,
                                max = 4000,
                                step = 5,
-                               value = 700
+                               value = 500
                              )
                            ),
                            div(
                              style = "display:inline-block",
                              sliderInput(
-                               inputId = "width_line_con_var_plot,",
+                               inputId = "width_line_con_var_plot",
                                post = " px",
                                label = "width",
                                min = 500,
