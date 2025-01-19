@@ -15,6 +15,7 @@ suppressPackageStartupMessages({
   library(rlang)
   library(broom)
   library(igraph)
+  library(splines)
 })
 
 server <- shinyServer(function(input, output, session) {
@@ -1669,6 +1670,16 @@ server <- shinyServer(function(input, output, session) {
 
   observeEvent(input$plot_term, {
 
+    if (!requireNamespace("htmltools", quietly = TRUE) || !requireNamespace("splines", quietly = TRUE)) {
+      stop(
+        "Both 'htmltools' and 'splines' packages are required for this functionality. ",
+        "Please ensure both packages are installed."
+      )
+    }
+
+    library(htmltools)
+    library(splines)
+
     vm <- isolate(input$type_terms)
     if (!is.null(vm)) {
       dfm_outcome_obj <- dfm_outcome()
@@ -1746,7 +1757,7 @@ server <- shinyServer(function(input, output, session) {
         do(
           tidy(
             glm(
-              cbind(count, con_3_total - count) ~ s(!!rlang::sym(input$continuous_var_3)),
+              cbind(count, con_3_total - count) ~ bs(!!rlang::sym(input$continuous_var_3)),
               weights = con_3_total,
               family = binomial(link = "logit"),
               data = .
