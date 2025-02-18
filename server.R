@@ -1,8 +1,8 @@
-
 suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
   library(quanteda)
+  library(quanteda.textstats)
   library(shiny)
   library(stm)
   library(tidyr)
@@ -15,45 +15,50 @@ suppressPackageStartupMessages({
   library(rlang)
   library(broom)
   library(igraph)
-  library(splines)
 })
 
 server <- shinyServer(function(input, output, session) {
+  suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
 
   observeEvent(input$dataset_choice, {
     if (input$dataset_choice == "Upload an Example Dataset") {
       shinyjs::disable("file")
-    } else {
+      shinyjs::disable("text_input")
+    } else if (input$dataset_choice == "Copy and Paste Text") {
+      shinyjs::disable("file")
+      shinyjs::enable("text_input")
+    } else if (input$dataset_choice == "Upload Your File") {
       shinyjs::enable("file")
+      shinyjs::disable("text_input")
+    } else {
+      shinyjs::disable("file")
+      shinyjs::disable("text_input")
     }
   })
 
   mydata <- reactive({
+    req(input$dataset_choice)
+
     if (input$dataset_choice == "Upload an Example Dataset") {
-      data <- TextAnalysisR::SpecialEduTech
-    } else {
+      return(TextAnalysisR::SpecialEduTech)
+    } else if (input$dataset_choice == "Copy and Paste Text") {
+      req(input$text_input)
+      return(TextAnalysisR::process_files(input$dataset_choice, text_input = input$text_input))
+    } else if (input$dataset_choice == "Upload Your File") {
       req(input$file)
-      filename <- input$file$datapath
-      tryCatch({
-        if (grepl("*[.]xlsx$|[.]xls$|[.]xlsm$", filename)) {
-          data <- as.data.frame(readxl::read_excel(filename))
-        } else if (grepl("*[.]csv$|*", filename)) {
-          data <- read.csv(filename)
-        }
-      })
+      file_info <- data.frame(filepath = input$file$datapath, stringsAsFactors = FALSE)
+      return(TextAnalysisR::process_files(input$dataset_choice, file_info = file_info))
+    } else {
+      return(NULL)
     }
-    return(data)
   })
 
   output$data_table <- DT::renderDataTable({
     req(mydata())
-    DT::datatable(mydata(),
-                  rownames = FALSE)
+    DT::datatable(mydata(), rownames = FALSE)
   })
 
-  # "Preprocess" page
-  # Step 1: Unite texts
-  # Display checkbox
+  # Step 1: Unite texts.
 
   colnames <- reactive(names(mydata()))
 
@@ -72,22 +77,24 @@ server <- shinyServer(function(input, output, session) {
     input$show_vars
   })
 
-  # Select one or multiple columns for text data pre-processing
   united_tbl <- eventReactive(input$apply, {
 
     req(listed_vars())
     req(mydata())
 
-    united_texts_tbl <- mydata() %>%
-      dplyr::select(all_of(unname(listed_vars()))) %>%
+    selected_vars <- mydata() %>% dplyr::select(all_of(unname(listed_vars())))
+
+    united_texts_tbl <- selected_vars %>%
       tidyr::unite(col = "united_texts", sep = " ", remove = TRUE)
 
     docvar_tbl <- mydata()
 
-    dplyr::bind_cols(united_texts_tbl, docvar_tbl)
+    united_data <- dplyr::bind_cols(united_texts_tbl, docvar_tbl %>% dplyr::select(-all_of(unname(listed_vars()))))
+
+    return(united_data)
   })
 
-  output$step1_table <- DT::renderDataTable({
+  output$united_table <- DT::renderDataTable({
     req(input$apply)
     united_tbl()
   },
@@ -107,71 +114,157 @@ server <- shinyServer(function(input, output, session) {
     }
   )
 
-  # Step 2
-  # Preprocess data
-  processed_tokens <-
-    eventReactive(eventExpr = input$preprocess, {
-      united_tbl() %>% TextAnalysisR::preprocess_texts()
+  # Step 2: Preprocess data.
+
+  preprocessed_init <- eventReactive(eventExpr = input$preprocess, {
+
+    pre_init_verbose_output <- capture.output({
+      toks_processed <- TextAnalysisR::preprocess_texts(
+        united_tbl(),
+        text_field = "united_texts",
+        min_char = 2,
+        remove_punct = input$remove_punct,
+        remove_symbols = input$remove_symbols,
+        remove_numbers = input$remove_numbers,
+        remove_url = input$remove_url,
+        remove_separators = input$remove_separators,
+        split_hyphens = input$split_hyphens,
+        split_tags = input$split_tags,
+        include_docvars = input$include_docvars,
+        keep_acronyms = input$keep_acronyms,
+        padding = input$padding,
+        verbose = TRUE
+      )
+    }, type = "message")
+
+    shiny::showModal(
+      shiny::modalDialog(
+        title = "Preprocessing Steps",
+        shiny::verbatimTextOutput("modal_pre_init_verbose_output"),
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      )
+    )
+
+    output$modal_pre_init_verbose_output <- renderPrint({
+      cat(gsub("\n\n", "\n", paste(pre_init_verbose_output, collapse = "\n")))
     })
 
-  output$step2_print_preprocess <- renderPrint({
-    req(input$preprocess)
-    processed_tokens() %>% glimpse()
+    return(toks_processed)
   })
 
-  # Step 3
-  # Apply researcher-developed dictionaries
-  tokens_dict <- eventReactive(input$dictionary, {
-    dictionary_list_1 <- TextAnalysisR::dictionary_list_1
-    dictionary_list_2 <- TextAnalysisR::dictionary_list_2
+  output$dict_print_preprocess <- renderPrint({
+    req(input$preprocess)
+    preprocessed_init() %>% glimpse()
+  })
 
-    tokens_dict_int <-
-      processed_tokens() %>% quanteda::tokens_lookup(
-        dictionary = dictionary(dictionary_list_1),
-        valuetype = "glob",
-        verbose = FALSE,
-        exclusive = FALSE,
-        capkeys = FALSE
-      )
+  # Step 3: Process dictionary.
 
-    tokens_dict_int %>% quanteda::tokens_lookup(
-      dictionary = dictionary(dictionary_list_2),
-      valuetype = "glob",
-      verbose = FALSE,
-      exclusive = FALSE,
-      capkeys = FALSE
+  observeEvent(preprocessed_init(), {
+    tstat_collocation <- TextAnalysisR::detect_multi_word_expressions(
+      preprocessed_init(),
+      size = 2:5,
+      min_count = 2
+    )
+    tstat_collocation_top_500 <- head(tstat_collocation, 500)
+    tstat_collocation_top_20 <- head(tstat_collocation, 20)
+    updateSelectizeInput(
+      session,
+      "multi_word_expressions",
+      choices = tstat_collocation_top_500,
+      selected = tstat_collocation_top_20,
+      options = list(create = TRUE)
     )
   })
 
-  output$step2_print_dictionary <- renderPrint({
-    tokens_dict()
+  processed_tokens <- eventReactive(input$dictionary, {
+    req(preprocessed_init())
+
+    if (is.null(input$multi_word_expressions) || length(input$multi_word_expressions) == 0) {
+      return(preprocessed_init())
+    } else {
+      custom_dict <- dictionary(list(custom = input$multi_word_expressions))
+
+      dict_verbose_output <- capture.output({
+        toks_compound <- quanteda::tokens_compound(
+          preprocessed_init(),
+          pattern = custom_dict,
+          concatenator = "_",
+          valuetype = "glob",
+          window = 0,
+          case_insensitive = TRUE,
+          join = TRUE,
+          keep_unigrams = FALSE,
+          verbose = TRUE
+        )
+      }, type = "message")
+
+      shiny::showModal(
+        shiny::modalDialog(
+          title = "Dictionary Preprocessing Steps",
+          shiny::verbatimTextOutput("modal_dict_verbose_output"),
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        )
+      )
+
+      output$modal_dict_verbose_output <- renderPrint({
+        cat(gsub("\n\n", "\n", paste(dict_verbose_output, collapse = "\n")))
+      })
+
+      return(toks_compound)
+    }
   })
 
-  # Step 4
-  # Remove researcher-developed stop words.
-
-  stopwords_list <- TextAnalysisR::stopwords_list
-
-  tokens_dict_no_stop <- eventReactive(input$stopword, {
-    tokens_dict() %>% quanteda::tokens_remove(stopwords_list)
+  output$dict_print_dictionary <- renderPrint({
+    req(processed_tokens())
+    processed_tokens() %>% glimpse()
   })
 
-  output$step2_print_stopword <- renderPrint({
-    req(input$stopword)
-    tokens_dict_no_stop() %>% glimpse()
+  # Step 4: Construct a document-feature matrix.
+
+  dfm_init <- eventReactive(input$dfm_btn, {
+    req(processed_tokens())
+
+    dfm_verbose_output <- capture.output({
+      dfm_object <- processed_tokens() %>% quanteda::dfm()
+    }, type = "message")
+
+    doc_count     <- quanteda::ndoc(dfm_object)
+    feature_count <- quanteda::nfeat(dfm_object)
+    summary_info  <- capture.output({
+      str(dfm_object)
+    })
+
+    combined_output <- c(
+      dfm_verbose_output,
+      paste("Document count:", doc_count),
+      paste("Feature count:", feature_count),
+      "Summary of dfm_object:",
+      summary_info
+    )
+
+    shiny::showModal(
+      shiny::modalDialog(
+        title = "DFM Construction Steps",
+        shiny::verbatimTextOutput("modal_dfm_verbose_output"),
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      )
+    )
+
+    output$modal_dfm_verbose_output <- renderPrint({
+      cat(gsub("\n\n", "\n", paste(combined_output, collapse = "\n")))
+    })
+
+    dfm_object
   })
 
-  # Step 5
-  # Construct a document-feature matrix
-  dfm_init <- eventReactive(eventExpr = input$dfm_btn, {
-    dfm_init <- tokens_dict_no_stop() %>% quanteda::dfm()
-  })
-
-  output$step3_plot <- plotly::renderPlotly({
+  output$dfm_plot <- plotly::renderPlotly({
     dfm_init() %>% TextAnalysisR::plot_word_frequency(n = 20)
   })
 
-  output$step3_table <- DT::renderDataTable({
+  output$dfm_table <- DT::renderDataTable({
     quanteda.textstats::textstat_frequency(dfm_init())
   },
   rownames = FALSE,
@@ -185,76 +278,184 @@ server <- shinyServer(function(input, output, session) {
   )
   )
 
-  # Step 6
-  # Display the most frequent words (top 20)
-  top_frequent_word  <- reactive({
+  # Step 5: Remove common words and stopwords.
+
+  tstat_freq_dfm_init <- reactive({
     tstat_freq <- quanteda.textstats::textstat_frequency(dfm_init())
-    tstat_freq_n_20 <- utils::head(tstat_freq, 20)
-    top_frequent_word <- tstat_freq_n_20$feature
+    tstat_freq$feature
   })
 
   observe({
     updateSelectizeInput(
       session,
-      "remove.var",
-      choices = top_frequent_word(),
-      options = list(create = TRUE),
-      selected = ""
+      "common_words",
+      choices  = tstat_freq_dfm_init(),
+      selected = head(tstat_freq_dfm_init(), 20),
+      options  = list(create = TRUE),
+      server = TRUE
     )
   })
 
-  # Remove common words across documents
-  dfm_outcome <- reactive({
-    dictionary_list_1 <- TextAnalysisR::dictionary_list_1
-    dictionary_list_2 <- TextAnalysisR::dictionary_list_2
+  final_tokens <- eventReactive(input$remove, {
+    req(processed_tokens())
+    toks <- processed_tokens()
 
-    invisible(capture.output(print(input$remove)))
-
-    rm <- isolate(input$remove.var)
-
-    if (!is.null(rm)) {
-      removed_processed_tokens <-
-        quanteda::tokens_remove(tokens_dict_no_stop(), rm)
-
-      removed_tokens_dict_int <- removed_processed_tokens %>%
-        quanteda::tokens_lookup(
-          dictionary = dictionary(dictionary_list_1),
-          valuetype = "glob",
-          verbose = FALSE,
-          exclusive = FALSE,
-          capkeys = FALSE
-        )
-
-      removed_tokens_dict <- removed_tokens_dict_int %>%
-        quanteda::tokens_lookup(
-          dictionary = dictionary(dictionary_list_2),
-          valuetype = "glob",
-          verbose = FALSE,
-          exclusive = FALSE,
-          capkeys = FALSE
-        )
-
-      removed_tokens_dict %>% quanteda::dfm()
-
-    } else{
-      dfm_init()
+    if (!is.null(input$common_words) && length(input$common_words) > 0) {
+      toks <- quanteda::tokens_remove(toks, pattern = input$common_words, verbose = FALSE)
     }
+
+    if (isTRUE(input$leading_stopwords)) {
+      toks <- quanteda::tokens(
+        lapply(toks, function(token_vector) {
+          sapply(token_vector, function(tok) {
+            parts <- unlist(strsplit(tok, "_"))
+            if (length(parts) > 1 &&
+                tolower(parts[1]) %in% c(tolower(input$common_words), tolower(input$custom_stopwords))) {
+              parts <- parts[-1]
+            }
+            paste(parts, collapse = "_")
+          })
+        })
+      )
+    }
+
+    if (isTRUE(input$trailing_stopwords)) {
+      toks <- quanteda::tokens(
+        lapply(toks, function(token_vector) {
+          sapply(token_vector, function(tok) {
+            parts <- unlist(strsplit(tok, "_"))
+            if (length(parts) > 1 &&
+                tolower(tail(parts, n = 1)) %in% c(tolower(input$common_words), tolower(input$custom_stopwords))) {
+              parts <- head(parts, -1)
+            }
+            paste(parts, collapse = "_")
+          })
+        })
+      )
+    }
+
+    if (!is.null(input$custom_stopwords) && length(input$custom_stopwords) > 0) {
+      toks <- quanteda::tokens_remove(toks, pattern = input$custom_stopwords, verbose = FALSE)
+    }
+
+    toks
   })
 
-  output$step4_plot <- plotly::renderPlotly({
+  dfm_init_updated <- eventReactive(input$remove, {
+    req(final_tokens())
+    dfm_obj <- quanteda::dfm(final_tokens())
 
+    if (!is.null(quanteda::docvars(dfm_init()))) {
+      quanteda::docvars(dfm_obj) <- quanteda::docvars(dfm_init())
+    }
+
+    doc_count     <- quanteda::ndoc(dfm_obj)
+    feature_count <- quanteda::nfeat(dfm_obj)
+    summary_info  <- capture.output(str(dfm_obj))
+    combined_output <- c(
+      paste("Document count:", doc_count),
+      paste("Feature count:", feature_count),
+      "Summary of dfm_object:",
+      summary_info
+    )
+
+    shiny::showModal(
+      shiny::modalDialog(
+        title = "DFM Construction Steps (Stopwords Removal)",
+        shiny::verbatimTextOutput("modal_dfm_verbose_output"),
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      )
+    )
+    output$modal_dfm_verbose_output <- renderPrint({
+      cat(paste(combined_output, collapse = "\n"))
+    })
+
+    dfm_obj
+  })
+
+  output$stopword_plot <- plotly::renderPlotly({
     req(input$remove)
-    req(input$remove.var)
+    dfm_init_updated() %>% TextAnalysisR::plot_word_frequency(n = 20)
+  })
 
+  output$stopword_table <- DT::renderDataTable({
+    req(input$remove)
+    quanteda.textstats::textstat_frequency(dfm_init_updated())
+  },
+  rownames = FALSE,
+  extensions = 'Buttons',
+  options = list(
+    scrollX = TRUE,
+    scrollY = "400px",
+    width = "80%",
+    dom = 'Bfrtip',
+    buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+  ))
+
+  # Step 6: Lemmatize options.
+
+  dfm_outcome <- eventReactive(input$lemma, {
+    req(final_tokens())
+    toks <- final_tokens()
+
+    if (!is.null(input$lemma) && length(input$lemma) > 0) {
+      texts <- sapply(toks, paste, collapse = " ")
+      parsed <- spacyr::spacy_parse(x = texts, lemma = TRUE, entity = FALSE, pos = FALSE)
+      toks <- quanteda::as.tokens(parsed, use_lemma = TRUE)
+    }
+
+    if (!is.null(input$remainder_tokens) && length(input$remainder_tokens) > 0) {
+      toks <- quanteda::tokens_remove(toks, pattern = input$remainder_tokens, verbose = FALSE)
+    }
+
+    dfm_obj <- quanteda::dfm(toks)
+
+    doc_count     <- quanteda::ndoc(dfm_obj)
+    feature_count <- quanteda::nfeat(dfm_obj)
+    summary_info  <- capture.output(str(dfm_obj))
+    combined_output <- c(
+      paste("Document count:", doc_count),
+      paste("Feature count:", feature_count),
+      "Summary of dfm_object:",
+      summary_info
+    )
+
+    shiny::showModal(
+      shiny::modalDialog(
+        title = "DFM Construction Steps (Stemming & Lemmatization)",
+        shiny::verbatimTextOutput("modal_lemma_verbose_output"),
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      )
+    )
+    output$modal_lemma_verbose_output <- renderPrint({
+      cat(paste(combined_output, collapse = "\n"))
+    })
+
+    return(dfm_obj)
+  })
+
+  observe({
+    req(dfm_outcome())
+    freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
+    updateSelectizeInput(
+      session,
+      "remainder_tokens",
+      choices  = freq$feature,
+      selected = head(freq$feature, 10),
+      options  = list(create = TRUE),
+      server = TRUE
+    )
+  })
+
+  output$lemma_plot <- plotly::renderPlotly({
+    req(input$lemma)
     dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
-
   })
 
-  output$step4_table <- DT::renderDataTable({
-
-    req(input$remove)
-    req(input$remove.var)
-
+  output$lemma_table <- DT::renderDataTable({
+    req(input$lemma)
     quanteda.textstats::textstat_frequency(dfm_outcome())
   },
   rownames = FALSE,
@@ -265,15 +466,15 @@ server <- shinyServer(function(input, output, session) {
     width = "80%",
     dom = 'Bfrtip',
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-  )
-  )
+  ))
 
 
-  # "Structural Topic Model" page
+  # "Word Networks" page
 
-  # 1. Search K
+  # 1. Visualize word co-occurrence network.
 
   colnames_cat <- reactive({
+    req(mydata())
     categorical <- mydata() %>% select(where(is.character)) %>%
       select(where(~ n_distinct(.) <= (0.2 * nrow(mydata(
       )))))
@@ -282,14 +483,421 @@ server <- shinyServer(function(input, output, session) {
 
   observe({
     updateSelectizeInput(session,
+                         "doc_var_co_occurrence",
+                         choices = c("None" = "None", colnames_cat()),
+                         selected = "None")
+  })
+
+  word_co_occurrence_network_results <- reactive({
+    req(input$plot_word_co_occurrence_network)
+    doc_var_input <- as.character(input$doc_var_co_occurrence)
+    doc_var <- if (doc_var_input == "None") NULL else doc_var_input
+    co_occur_n <- floor(as.numeric(input$co_occurence_number))
+    top_node_n <- as.numeric(input$top_node_n_co_occurrence)
+    nrows <- as.numeric(input$nrows_co_occurrence)
+
+    word_co_occurrence_message <- capture.output({
+      result <- TextAnalysisR::word_co_occurrence_network(
+        dfm_object = dfm_outcome(),
+        doc_var = doc_var,
+        co_occur_n = co_occur_n,
+        top_node_n = top_node_n,
+        nrows = nrows,
+        width = input$width_word_co_occurrence_network_plot,
+        height = input$height_word_co_occurrence_network_plot
+      )
+    }, type = "message")
+
+    if (length(word_co_occurrence_message) > 0 && any(nzchar(word_co_occurrence_message))) {
+      shiny::showModal(
+        shiny::modalDialog(
+          title = "Word Co-occurrence Message",
+          shiny::verbatimTextOutput("word_co_occurrence_text"),
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        )
+      )
+
+      output$word_co_occurrence_text <- renderPrint({
+        cat(paste(word_co_occurrence_message, collapse = "\n"))
+      })
+    }
+
+    return(result)
+  })
+
+  output$word_co_occurrence_network_plot_uiOutput <- renderUI({
+    req(input$plot_word_co_occurrence_network)
+    word_co_occurrence_network_results()$plot
+  })
+
+  output$word_co_occurrence_network_table_uiOutput <- renderUI({
+    req(input$plot_word_co_occurrence_network)
+    word_co_occurrence_network_results()$table
+  })
+
+  output$word_co_occurrence_network_summary_uiOutput <- renderUI({
+    req(input$plot_word_co_occurrence_network)
+    word_co_occurrence_network_results()$summary
+  })
+
+  # 2. Visualize word correlation network.
+
+  observe({
+    updateSelectizeInput(session,
+                         "doc_var_correlation",
+                         choices = c("None" = "None", colnames_cat()),
+                         selected = "None")
+  })
+
+word_correlation_network_results <- reactive({
+
+  req(input$plot_word_correlation_network)
+  doc_var_input <- as.character(input$doc_var_correlation)
+  doc_var <- if (doc_var_input == "None") NULL else doc_var_input
+  common_term_n <- floor(as.numeric(input$common_term_n))
+  corr_n <- as.numeric(input$corr_n)
+  top_node_n <- as.numeric(input$top_node_n_correlation)
+  nrows <- as.numeric(input$nrows_correlation)
+
+  word_correlation_message <- capture.output({
+    result <- TextAnalysisR::word_correlation_network(
+    dfm_object = dfm_outcome(),
+    doc_var = doc_var,
+    common_term_n = common_term_n,
+    corr_n = corr_n,
+    top_node_n = top_node_n,
+    nrows = nrows,
+    width = input$width_word_correlation_network_plot,
+    height = input$height_word_correlation_network_plot
+  )
+  }, type = "message")
+
+  if (length(word_correlation_message) > 0 && any(nzchar(word_correlation_message))) {
+    shiny::showModal(
+      shiny::modalDialog(
+        title = "Word Correlation Message",
+        shiny::verbatimTextOutput("word_correlation_text"),
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      )
+    )
+
+    output$word_correlation_text <- renderPrint({
+      cat(paste(word_correlation_message, collapse = "\n"))
+    })
+  }
+
+  return(result)
+})
+
+output$word_correlation_network_plot_uiOutput <- renderUI({
+  req(input$plot_word_correlation_network)
+  word_correlation_network_results()$plot
+})
+
+output$word_correlation_network_table_uiOutput <- renderUI({
+  req(input$plot_word_correlation_network)
+  word_correlation_network_results()$table
+})
+
+output$word_correlation_network_summary_uiOutput <- renderUI({
+  req(input$plot_word_correlation_network)
+  word_correlation_network_results()$summary
+})
+
+  # 3. Display selected word frequency distributions over a continuous variable.
+
+colnames_con <- reactive({
+  req(mydata())
+  continuous <- mydata() %>% select(where(is.numeric))
+  names(continuous)
+})
+
+  observe({
+    updateSelectInput(session,
+                      "continuous_var_3",
+                      choices = colnames_con(),
+                      selected = NULL)
+  })
+
+  tstat_freq_over_con_var <- reactive({
+    tstat_freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
+    tstat_freq$feature
+  })
+
+  observe({
+    updateSelectizeInput(
+      session,
+      "type_terms",
+      choices = tstat_freq_over_con_var(),
+      options = list(create = TRUE),
+      selected = ""
+    )
+  })
+
+  observeEvent(input$type_terms, {
+    invisible(capture.output(print(input$type_terms)))
+  })
+
+  observeEvent(input$continuous_var_3, {
+    invisible(capture.output(print(input$continuous_var_3)))
+  })
+
+  observeEvent(input$plot_term, {
+    tryCatch({
+      if (!requireNamespace("htmltools", quietly = TRUE) ||
+          !requireNamespace("splines", quietly = TRUE) ||
+          !requireNamespace("broom", quietly = TRUE)) {
+        stop(
+          "The 'htmltools', 'splines', and 'broom' packages are required for this functionality. ",
+          "Please install them using install.packages(c('htmltools', 'splines', 'broom'))."
+        )
+      }
+
+      vm <- isolate(input$type_terms)
+      if (!is.null(vm)) {
+        dfm_outcome_obj <- dfm_outcome()
+        dfm_td <- tidytext::tidy(dfm_outcome())
+
+        dfm_outcome_obj@docvars$document <- dfm_outcome_obj@docvars$docname_
+
+        dfm_td <- dfm_td %>%
+          left_join(dfm_outcome_obj@docvars,
+                    by = c("document" = "document"))
+
+        con_var_term_counts <- dfm_td %>%
+          tibble::as_tibble() %>%
+          group_by(!!rlang::sym(input$continuous_var_3)) %>%
+          mutate(word_frequency = n()) %>%
+          ungroup()
+
+        output$line_con_var_plot <- plotly::renderPlotly({
+
+          req(input$continuous_var_3)
+          req(vm)
+
+          con_var_term_gg <- con_var_term_counts %>%
+            mutate(term = factor(term, levels = vm)) %>%
+            mutate(across(where(is.numeric), ~ round(., 3))) %>%
+            filter(term %in% vm) %>%
+            ggplot(aes(
+              x = !!rlang::sym(input$continuous_var_3),
+              y = word_frequency,
+              group = term
+            )) +
+            geom_point(color = "#337ab7", alpha = 0.6, size = 1) +
+            geom_line(color = "#337ab7", alpha = 0.6, linewidth = 0.5) +
+            facet_wrap(~ term, scales = "free") +
+            ggplot2::scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
+            labs(y = "Word Frequency") +
+            theme_minimal(base_size = 11) +
+            theme(
+              legend.position = "none",
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
+              axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
+              strip.text.x = element_text(size = 11, color = "#3B3B3B", face = "bold"),
+              axis.text.x = element_text(size = 11, color = "#3B3B3B"),
+              axis.text.y = element_text(size = 11, color = "#3B3B3B"),
+              axis.title = element_text(size = 11, color = "#3B3B3B"),
+              axis.title.x = element_text(margin = margin(t = 9)),
+              axis.title.y = element_text(margin = margin(r = 11))
+            )
+
+          plotly::ggplotly(
+            con_var_term_gg,
+            height = input$height_line_con_var_plot,
+            width = input$width_line_con_var_plot
+          ) %>%
+            plotly::layout(
+              margin = list(l = 40, r = 150, t = 60, b = 40)
+            )
+        })
+
+        significance_results <- con_var_term_counts %>%
+          mutate(word = term) %>%
+          filter(word %in% vm) %>%
+          group_by(word) %>%
+          group_modify(~ {
+            continuous_var <- if (is.null(input$continuous_var_3) ||
+                                  length(input$continuous_var_3) == 0) {
+              stop("No continuous variable selected.")
+            } else {
+              input$continuous_var_3[1]
+            }
+
+            df <- .x %>%
+              dplyr::mutate(
+                word_frequency = as.numeric(word_frequency),
+                !!continuous_var := as.numeric(!!rlang::sym(continuous_var))
+              ) %>%
+              dplyr::filter(is.finite(word_frequency) &
+                              is.finite(!!rlang::sym(continuous_var)))
+
+            if (length(unique(df$word_frequency)) <= 1) {
+              return(tibble::tibble(term = NA, estimate = NA, std.error = NA,
+                                    statistic = NA, p.value = NA,
+                                    `odds ratio` = NA, var.diag = NA,
+                                    `std.error (odds ratio)` = NA,
+                                    model_type = "Insufficient data"))
+            }
+
+            if (length(unique(df[[continuous_var]])) <= 1) {
+              return(tibble::tibble(term = NA, estimate = NA, std.error = NA,
+                                    statistic = NA, p.value = NA,
+                                    `odds ratio` = NA, var.diag = NA,
+                                    `std.error (odds ratio)` = NA,
+                                    model_type = "Insufficient data"))
+            }
+
+            if (nrow(df) < 2) {
+              return(tibble::tibble(term = NA, estimate = NA, std.error = NA,
+                                    statistic = NA, p.value = NA,
+                                    `odds ratio` = NA, var.diag = NA,
+                                    `std.error (odds ratio)` = NA,
+                                    model_type = "Insufficient data"))
+            }
+
+            formula_simple <- as.formula(paste0("word_frequency ~ ", continuous_var))
+
+            mean_count <- mean(df$word_frequency, na.rm = TRUE)
+            var_count <- var(df$word_frequency, na.rm = TRUE)
+            dispersion_ratio <- ifelse(mean_count != 0, var_count / mean_count, NA)
+            prop_zero <- mean(df$word_frequency == 0, na.rm = TRUE)
+
+            model <- NULL
+
+            if (prop_zero > 0.5) {
+              model <- tryCatch(
+                pscl::zeroinfl(formula_simple, data = df, dist = "negbin", link = "logit"),
+                error = function(e) {
+                  return(NULL)
+                }
+              )
+              if (!is.null(model)) {
+                model_type <- "Zero-Inflated Negative Binomial"
+              }
+            }
+
+            if (is.null(model)) {
+              model <- tryCatch(
+                MASS::glm.nb(formula_simple, data = df, control = glm.control(maxit = 200)),
+                error = function(e) {
+                  return(NULL)
+                }
+              )
+              if (is.null(model)) {
+                model <- glm(formula_simple, family = poisson(link = "log"), data = df)
+                model_type <- "Poisson"
+              } else {
+                model_type <- "Negative Binomial"
+              }
+            }
+
+            tidy_result <- broom::tidy(model) %>%
+              dplyr::mutate(
+                `odds ratio` = exp(estimate),
+                var.diag = diag(vcov(model)),
+                `std.error (odds ratio)` = sqrt(`odds ratio`^2 * var.diag),
+                model_type = model_type
+              )
+
+            return(tidy_result)
+          }) %>%
+          ungroup() %>%
+          dplyr::select(word, model_type, term, estimate, std.error,
+                        `odds ratio`, `std.error (odds ratio)`, statistic, p.value) %>%
+          rename(
+            logit = estimate,
+            `z-statistic` = statistic
+          )
+
+        output$significance_results_table <- renderUI({
+
+          if (nrow(significance_results) > 0) {
+
+            tables <- significance_results %>%
+              mutate(word = factor(word, levels = vm)) %>%
+              arrange(word) %>%
+              group_by(word) %>%
+              group_map(~ {
+                htmltools::tagList(
+                  htmltools::tags$div(
+                    style = "margin-bottom: 20px;",
+                    htmltools::tags$p(
+                      .y$word,
+                      style = "font-weight: bold; text-align: center; font-size: 11pt;"
+                    )
+                  ),
+                  .x %>%
+                    mutate_if(is.numeric, ~ round(., 3)) %>%
+                    DT::datatable(
+                      rownames = FALSE,
+                      extensions = 'Buttons',
+                      options = list(
+                        scrollX = TRUE,
+                        width = "80%",
+                        dom = 'Bfrtip',
+                        buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+                      )
+                    ) %>%
+                    DT::formatStyle(
+                      columns = names(.x),
+                      `font-size` = "16px"
+                    )
+                )
+              })
+
+            htmltools::tagList(tables)
+
+          } else {
+            htmltools::tagList(
+              htmltools::tags$p("No significant results to display.")
+            )
+          }
+        })
+
+      }
+    }, error = function(e) {
+      warning_message <- paste(e$message)
+      print(warning_message)
+      shiny::showModal(shiny::modalDialog(
+        title = "Error",
+        warning_message,
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      ))
+      NULL
+    })
+  })
+
+  output$line_con_var_plot_uiOutput <- renderUI({
+    req(input$plot_term > 0, input$continuous_var_3, input$type_terms)
+    htmltools::tagList(
+      plotly::plotlyOutput(
+        "line_con_var_plot",
+        height = input$height_line_con_var_plot,
+        width = input$width_line_con_var_plot
+      ),
+      htmltools::tags$div(
+        style = paste0("margin-top: 20px; width: ", input$width_line_con_var_plot, "px;"),
+        uiOutput("significance_results_table")
+      )
+    )
+  })
+
+
+  # "Structural Topic Model" page
+
+  # 1. Search K.
+
+  observe({
+    updateSelectizeInput(session,
                          "categorical_var",
                          choices = colnames_cat(),
                          selected = "")
-  })
-
-  colnames_con <- reactive({
-    continuous <- mydata() %>% select(which(sapply(., is.numeric)))
-    names(continuous)
   })
 
   observe({
@@ -299,32 +907,32 @@ server <- shinyServer(function(input, output, session) {
                       selected = "")
   })
 
-  print_K_range_1 <- eventReactive(eventExpr = input$K_range_1, {
-    print(input$K_range_1[1]:input$K_range_1[2])
+  K_range <- eventReactive(input$K_range, {
+    seq(input$K_range[1], input$K_range[2])
   })
 
   observeEvent(eventExpr = input$categorical_var, {
-    print(input$categorical_var)
+    invisible(capture.output(print(input$categorical_var)))
   })
 
   observeEvent(eventExpr = input$continuous_var, {
-    print(input$continuous_var)
+    invisible(capture.output(print(input$continuous_var)))
   })
 
   out <- reactive({
     quanteda::convert(dfm_outcome(), to = "stm")
   })
 
-  K_search <- eventReactive(eventExpr = input$search, {
-
-    categorical_var <- if (!is.null(input$categorical_var)) as.character(input$categorical_var) else NULL
-    continuous_var <- if (!is.null(input$continuous_var)) as.character(input$continuous_var) else NULL
-
-    if (!is.null(categorical_var)) {
-      categorical_var <- unlist(strsplit(categorical_var, ",\\s*"))
+  prevalence_formula_K_search <- reactive({
+    categorical_var <- if (!is.null(input$categorical_var)) {
+      trimws(unlist(strsplit(as.character(input$categorical_var), ",")))
+    } else {
+      NULL
     }
-    if (!is.null(continuous_var)) {
-      continuous_var <- unlist(strsplit(continuous_var, ",\\s*"))
+    continuous_var <- if (!is.null(input$continuous_var)) {
+      trimws(unlist(strsplit(as.character(input$continuous_var), ",")))
+    } else {
+      NULL
     }
 
     terms <- c()
@@ -333,155 +941,205 @@ server <- shinyServer(function(input, output, session) {
     }
     if (!is.null(continuous_var) && length(continuous_var) > 0) {
       for (var in continuous_var) {
-        unique_values <- length(unique(out()$meta[[var]]))
-        df <- max(3, min(4, unique_values - 1))
-        terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
+        if (var %in% names(out()$meta)) {
+          unique_values <- length(unique(out()$meta[[var]]))
+          df <- max(3, min(4, unique_values - 1))
+          terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
+        } else {
+          warning(paste("Variable", var, "not found in meta data"))
+        }
       }
     }
 
-    prevalence_formula <- if (length(terms) > 0) {
+    if (length(terms) > 0) {
       as.formula(paste("~", paste(terms, collapse = " + ")))
     } else {
-      NULL
+      as.formula("~ 1")
     }
+  })
 
+K_search <- eventReactive(input$search, {
+  tryCatch({
     stm::searchK(
       data = out()$meta,
       documents = out()$documents,
       vocab = out()$vocab,
-      max.em.its = 75,
-      init.type = "Spectral",
-      K = print_K_range_1(),
-      prevalence = prevalence_formula,
-      verbose = TRUE
+      init.type = input$init_type_search,
+      K = K_range(),
+      prevalence = prevalence_formula_K_search(),
+      verbose = TRUE,
+      gamma.prior = input$gamma_prior_search,
+      sigma.prior = 0,
+      kappa.prior = input$kappa_prior_search,
+      max.em.its = input$max_em_its_search
+    )
+  }, error = function(e) {
+    warning_message <- paste(e$message)
+    print(warning_message)
+    shiny::showModal(shiny::modalDialog(
+      title = "Error",
+      warning_message,
+      easyClose = TRUE,
+      footer = shiny::modalButton("Close")
+    ))
+    NULL
+  })
+})
+
+  output$topic_search_message <- renderUI({
+    formula_text <- if (is.null(prevalence_formula_K_search())) {
+      "No document-level covariates"
+    } else {
+      lines <- deparse(prevalence_formula_K_search())
+      lines_no_indent <- sub("^\\s+", "", lines)
+      paste(lines_no_indent, collapse = " ")
+    }
+
+    HTML(
+      paste0(
+        "<div style='border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9;'>",
+        "<h4 style='color: #333;'>Model Information</h4>",
+        "<p style='white-space: normal;'>",
+        "<b>Prevalence formula = </b> ", formula_text,
+        "</p>",
+        "<p><b>Topic number (K) range = </b> ", paste0(min(K_range()), " to ", max(K_range())), "</p>",
+        "</div>"
+      )
     )
   })
 
+ output$search_K_plot <- plotly::renderPlotly({
+  search_result <- K_search()
 
-  output$search_K_plot <- plotly::renderPlotly({
+  if (is.null(search_result)) {
+    return(NULL)
+  }
 
-    search_result <- K_search()
+  print(search_result$results)
 
-    print(search_result$results)
+  search_result$results$heldout <- as.numeric(search_result$results$heldout)
+  search_result$results$residual <- as.numeric(search_result$results$residual)
+  search_result$results$semcoh <- as.numeric(search_result$results$semcoh)
+  search_result$results$lbound <- as.numeric(search_result$results$lbound)
 
-    search_result$results$heldout <- as.numeric(search_result$results$heldout)
-    search_result$results$residual <- as.numeric(search_result$results$residual)
-    search_result$results$semcoh <- as.numeric(search_result$results$semcoh)
-    search_result$results$lbound <- as.numeric(search_result$results$lbound)
+  p1 <- plotly::plot_ly(
+    data = search_result$results,
+    x = ~K,
+    y = ~heldout,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Held-out Likelihood:", round(heldout, 3)),
+    hoverinfo = 'text',
+    width = 800,
+    height = 600
+  )
 
-    p1 <- plotly::plot_ly(
-      data = search_result$results,
-      x = ~K,
-      y = ~heldout,
-      type = 'scatter',
-      mode = 'lines+markers',
-      text = ~paste("K:", K, "<br>Held-out Likelihood:", round(heldout, 3)),
-      hoverinfo = 'text',
-      width = 800,
-      height = 600
-    )
+  p2 <- plotly::plot_ly(
+    data = search_result$results,
+    x = ~K,
+    y = ~residual,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Residuals:", round(residual, 3)),
+    hoverinfo = 'text',
+    width = 800,
+    height = 600
+  )
 
-    p2 <- plotly::plot_ly(
-      data = search_result$results,
-      x = ~K,
-      y = ~residual,
-      type = 'scatter',
-      mode = 'lines+markers',
-      text = ~paste("K:", K, "<br>Residuals:", round(residual, 3)),
-      hoverinfo = 'text',
-      width = 800,
-      height = 600
-    )
+  p3 <- plotly::plot_ly(
+    data = search_result$results,
+    x = ~K,
+    y = ~semcoh,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Semantic Coherence:", round(semcoh, 3)),
+    hoverinfo = 'text',
+    width = 800,
+    height = 600
+  )
 
-    p3 <- plotly::plot_ly(
-      data = search_result$results,
-      x = ~K,
-      y = ~semcoh,
-      type = 'scatter',
-      mode = 'lines+markers',
-      text = ~paste("K:", K, "<br>Semantic Coherence:", round(semcoh, 3)),
-      hoverinfo = 'text',
-      width = 800,
-      height = 600
-    )
+  p4 <- plotly::plot_ly(
+    data = search_result$results,
+    x = ~K,
+    y = ~lbound,
+    type = 'scatter',
+    mode = 'lines+markers',
+    text = ~paste("K:", K, "<br>Lower Bound:", round(lbound, 3)),
+    hoverinfo = 'text',
+    width = 800,
+    height = 600
+  )
 
-    p4 <- plotly::plot_ly(
-      data = search_result$results,
-      x = ~K,
-      y = ~lbound,
-      type = 'scatter',
-      mode = 'lines+markers',
-      text = ~paste("K:", K, "<br>Lower Bound:", round(lbound, 3)),
-      hoverinfo = 'text',
-      width = 800,
-      height = 600
-    )
-
-    plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.1) %>%
-      plotly::layout(
+  plotly::subplot(p1, p2, p3, p4, nrows = 2, margin = 0.1) %>%
+    plotly::layout(
+      title = list(
+        text = "Model Diagnostics by Number of Topics (K)",
+        font = list(size = 16)
+      ),
+      showlegend = FALSE,
+      margin = list(t = 100, b = 150, l = 50, r = 50),
+      annotations = list(
+        list(
+          x = 0.25, y = 1.05, text = "Held-out Likelihood", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.75, y = 1.05, text = "Residuals", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.25, y = 0.5, text = "Semantic Coherence", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.75, y = 0.5, text = "Lower Bound", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
+          font = list(size = 14)
+        ),
+        list(
+          x = 0.5, y = -0.2, text = "Number of Topics (K)", showarrow = FALSE,
+          xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'top',
+          font = list(size = 14)
+        )
+      ),
+      yaxis = list(
         title = list(
-          text = "Model Diagnostics by Number of Topics (K)",
-          font = list(size = 16)
-        ),
-        showlegend = FALSE,
-        margin = list(t = 100, b = 150, l = 50, r = 50),
-        annotations = list(
-          list(
-            x = 0.25, y = 1.05, text = "Held-out Likelihood", showarrow = FALSE,
-            xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
-            font = list(size = 14)
-          ),
-          list(
-            x = 0.75, y = 1.05, text = "Residuals", showarrow = FALSE,
-            xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
-            font = list(size = 14)
-          ),
-          list(
-            x = 0.25, y = 0.5, text = "Semantic Coherence", showarrow = FALSE,
-            xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
-            font = list(size = 14)
-          ),
-          list(
-            x = 0.75, y = 0.5, text = "Lower Bound", showarrow = FALSE,
-            xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'bottom',
-            font = list(size = 14)
-          ),
-          list(
-            x = 0.5, y = -0.2, text = "Number of Topics (K)", showarrow = FALSE,
-            xref = 'paper', yref = 'paper', xanchor = 'center', yanchor = 'top',
-            font = list(size = 14)
-          )
-        ),
-        yaxis = list(
-          title = list(
-            text = "Metric Value",
-            font = list(size = 14)
-          )
+          text = "Metric Value",
+          font = list(size = 14)
         )
       )
-  })
+    )
+})
 
+  output$search_download_table <- downloadHandler(
+    filename = function() {
+      "topic_number_search_results.xlsx"
+    },
+    content = function(file) {
+      search_result <- K_search()
+      td <- search_result$results %>%
+        mutate_if(is.numeric, ~ round(., 3))
+      openxlsx::write.xlsx(td, file)
+    }
+  )
 
-  # 2. Step 2: Run a model and display highest word probabilities for each labeled topic
+  # 2. Step 2: Run a model and display highest word probabilities for each labeled topic.
+
   output$K_number_uiOutput <- renderUI({
     sliderInput(
       "K_number",
-      "Choose K (number of topics)",
+      "Choose K (number of topics).",
       value = 10,
       min = 0,
       max = 50
     )
   })
 
-  print_K_number <- eventReactive(eventExpr = input$K_number, {
-    print(input$K_number)
-  })
-
-  colnames_cat_2 <- reactive({
-    categorical_2 <- mydata() %>% select(where(is.character)) %>%
-      select(where(~ n_distinct(.) <= (0.2 * nrow(mydata(
-      )))))
-    names(categorical_2)
+  K_number <- eventReactive(eventExpr = input$K_number, {
+    input$K_number
   })
 
   observe({
@@ -491,11 +1149,6 @@ server <- shinyServer(function(input, output, session) {
                          server = TRUE)
   })
 
-  colnames_con_2 <- reactive({
-    continuous_2 <- mydata() %>% select(which(sapply(., is.numeric)))
-    names(continuous_2)
-  })
-
   observe({
     updateSelectInput(session,
                       "continuous_var_2",
@@ -503,18 +1156,37 @@ server <- shinyServer(function(input, output, session) {
                       selected = " ")
   })
 
-  observeEvent(eventExpr = input$categorical_var_2, {
-    print(input$categorical_var_2)
+  observeEvent(input$categorical_var_2, {
+    shiny::updateActionButton(session, "run", label = "Run")
   })
 
-  observeEvent(eventExpr = input$continuous_var_2, {
-    print(input$continuous_var_2)
+  observeEvent(input$continuous_var_2, {
+    shiny::updateActionButton(session, "run", label = "Run")
   })
 
-  stm_K_number <- eventReactive(eventExpr = input$run, {
+  observeEvent(input$K_number, {
+    shiny::updateActionButton(session, "run", label = "Run")
+  })
 
-    categorical_var <- if (!is.null(input$categorical_var_2)) unlist(strsplit(as.character(input$categorical_var_2), ",\\s*")) else NULL
-    continuous_var <- if (!is.null(input$continuous_var_2)) unlist(strsplit(as.character(input$continuous_var_2), ",\\s*")) else NULL
+
+  stm_K_number <- reactiveVal(NULL)
+  previous_K_number <- reactiveVal(NULL)
+  previous_categorical_var_2 <- reactiveVal(NULL)
+  previous_continuous_var_2 <- reactiveVal(NULL)
+  prevalence_formula <- reactiveVal(NULL)
+  output_message <- reactiveVal(NULL)
+
+  prevalence_formula_K_n <- reactive({
+    categorical_var <- if (!is.null(input$categorical_var_2)) {
+      trimws(unlist(strsplit(as.character(input$categorical_var_2), ",")))
+    } else {
+      NULL
+    }
+    continuous_var <- if (!is.null(input$continuous_var_2)) {
+      trimws(unlist(strsplit(as.character(input$continuous_var_2), ",")))
+    } else {
+      NULL
+    }
 
     terms <- c()
     if (!is.null(categorical_var) && length(categorical_var) > 0) {
@@ -522,106 +1194,342 @@ server <- shinyServer(function(input, output, session) {
     }
     if (!is.null(continuous_var) && length(continuous_var) > 0) {
       for (var in continuous_var) {
-        unique_values <- length(unique(out()$meta[[var]]))
-        df <- max(3, min(4, unique_values - 1))
-        terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
+        if (var %in% names(out()$meta)) {
+          unique_values <- length(unique(out()$meta[[var]]))
+          df <- max(3, min(4, unique_values - 1))
+          terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
+        } else {
+          warning(paste("Variable", var, "not found in meta data"))
+        }
       }
     }
 
-    prevalence_formula <- if (length(terms) > 0) {
+    if (length(terms) > 0) {
       as.formula(paste("~", paste(terms, collapse = " + ")))
     } else {
-      NULL
+      as.formula("~ 1")
+    }
+  })
+
+  output$topic_term_message <- renderUI({
+    formula_text <- if (is.null(prevalence_formula_K_n())) {
+      "No document-level covariates"
+    } else {
+      lines <- deparse(prevalence_formula_K_n())
+      lines_no_indent <- sub("^\\s+", "", lines)
+      paste(lines_no_indent, collapse = " ")
     }
 
-    stm::stm(
-      data = out()$meta,
-      documents = out()$documents,
-      vocab = out()$vocab,
-      max.em.its = 75,
-      init.type = "Spectral",
-      K = print_K_number(),
-      prevalence = prevalence_formula,
-      verbose = TRUE
+    HTML(
+      paste0(
+        "<div style='border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9;'>",
+        "<h4 style='color: #333;'>Model Information</h4>",
+        "<p style='white-space: normal;'>",
+        "<b>Prevalence formula = </b> ", formula_text,
+        "</p>",
+        "<p><b>Topic number (K) = </b> ", input$K_number, "</p>",
+        "</div>"
+      )
     )
   })
 
 
+  observeEvent(input$run, {
+    print("Run button clicked: Checking if STM model needs to be updated...")
 
-  # Display highest word probabilities for each topic
+    req(input$K_number)
 
-  # Tidy the word-topic combinations
-  beta_td <- reactive({
-    tidytext::tidy(stm_K_number(), document_names = rownames(dfm_outcome()))
+    model_update_needed <- (
+      is.null(stm_K_number()) ||
+        input$K_number != previous_K_number() ||
+        (!is.null(input$categorical_var_2) && !identical(input$categorical_var_2, previous_categorical_var_2())) ||
+        (!is.null(input$continuous_var_2) && !identical(input$continuous_var_2, previous_continuous_var_2()))
+    )
+
+    if (isTRUE(model_update_needed)) {
+      print("Model parameters changed: Running or updating STM model...")
+
+      categorical_var <- if (!is.null(input$categorical_var_2))
+        unlist(strsplit(as.character(input$categorical_var_2), ",\\s*")) else NULL
+
+      continuous_var <- if (!is.null(input$continuous_var_2))
+        unlist(strsplit(as.character(input$continuous_var_2), ",\\s*")) else NULL
+
+      terms <- c()
+      if (!is.null(categorical_var) && length(categorical_var) > 0) {
+        terms <- c(terms, categorical_var)
+      }
+      if (!is.null(continuous_var) && length(continuous_var) > 0) {
+        for (var in continuous_var) {
+          unique_values <- length(unique(out()$meta[[var]]))
+          df <- max(3, min(4, unique_values - 1))
+          terms <- c(terms, paste0("s(", var, ", df = ", df, ")"))
+        }
+      }
+
+      prevalence_formula(if (length(terms) > 0) {
+        as.formula(paste("~", paste(terms, collapse = " + ")))
+      } else {
+        NULL
+      })
+
+      print(paste("Computing STM model with K =", input$K_number))
+
+      K_num <- as.numeric(input$K_number)
+      if (is.na(K_num)) {
+        stop("K_number must be a numeric value")
+      }
+
+      tryCatch({
+        stm_K_number(stm::stm(
+          data = out()$meta,
+          documents = out()$documents,
+          vocab = out()$vocab,
+          init.type = input$init_type_K,
+          K = K_num,
+          prevalence = prevalence_formula_K_n(),
+          verbose = TRUE,
+          gamma.prior = input$gamma_prior_K,
+          sigma.prior = 0,
+          kappa.prior = input$kappa_prior_K,
+          max.em.its = input$max_em_its_K
+        ))
+
+        generated_labels(NULL)
+
+        previous_K_number(input$K_number)
+        previous_categorical_var_2(input$categorical_var_2)
+        previous_continuous_var_2(input$continuous_var_2)
+
+        output$output_message <- renderUI({
+          HTML(paste0(
+            "<div style='border: 1px solid #ddd; padding: 10px; border-radius: 5px; background-color: #f9f9f9;'>",
+            "<h4 style='color: #333;'>Model Information</h4>",
+            "<p><b>Prevalence formula:</b> ",
+            ifelse(is.null(prevalence_formula()), "No document-level covariates", deparse(prevalence_formula())),
+            "</p>",
+            "<p><b>Computing STM model with K =</b> ", input$K_number, "</p>",
+            "</div>"
+          ))
+        })
+      }, error = function(e) {
+        warning_message <- paste(e$message)
+        print(warning_message)
+        shiny::showModal(shiny::modalDialog(
+          title = "Error",
+          warning_message,
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        ))
+        NULL
+      })
+
+    } else {
+      print("No significant parameter changes detected. STM model remains unchanged.")
+      shiny::removeModal()
+      shiny::showModal(shiny::modalDialog(
+        title = "Notification",
+        "No significant parameter changes detected. STM model remains unchanged.",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      ))
+    }
   })
 
-  observe({
-    invisible(capture.output(print(input$label_topics)))
+  output$text_output <- renderText({
+    output_message()
+  })
+
+  generated_labels <- shiny::reactiveVal(NULL)
+
+  beta_td <- reactive({
+    req(stm_K_number())
+    tidytext::tidy(stm_K_number(), matrix = "beta")
+  })
+
+  previous_system <- reactiveVal(NULL)
+  previous_user <- reactiveVal(NULL)
+
+  shiny::observeEvent(input$generate_labels, {
+    if (!is.null(generated_labels()) && input$system == previous_system() && input$user == previous_user()) {
+      shiny::showModal(shiny::modalDialog(
+        title = "Notification",
+        "Topic labels were already generated.",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      ))
+    } else {
+      shiny::req(beta_td())
+      if (file.exists(".env")) {
+        dotenv::load_dot_env()
+      }
+
+      if (Sys.getenv("SHINY_PORT") == "" && Sys.getenv("OPENAI_API_KEY") == "") {
+        shiny::showModal(shiny::modalDialog(
+          title = "OpenAI API Key Required",
+          tagList(
+            shiny::p("Please enter your OpenAI API key:"),
+            shiny::textInput("openai_api_input", label = NULL, value = "", placeholder = "Enter API key here")
+          ),
+          footer = tagList(
+            shiny::modalButton("Cancel"),
+            shiny::actionButton("submit_api_key", "Submit")
+          ),
+          easyClose = TRUE
+        ))
+        generated_labels(NULL)
+        return()
+      }
+
+      shiny::showModal(shiny::modalDialog(
+        title = "Generating Topic Labels",
+        "Please wait while topic labels are being generated...",
+        easyClose = TRUE,
+        footer = shiny::modalButton("Close")
+      ))
+
+      shiny::withProgress(message = 'Generating topic labels...', value = 0, {
+        top_topic_terms <- beta_td() %>%
+          dplyr::group_by(topic) %>%
+          dplyr::top_n(input$top_term_number_1, beta) %>%
+          dplyr::ungroup()
+
+        new_labels_td <- TextAnalysisR::generate_topic_labels(
+          top_topic_terms,
+          system = input$system,
+          user = input$user
+        )
+
+        generated_labels(tibble::as_tibble(new_labels_td))
+        incProgress(1)
+
+        previous_system(input$system)
+        previous_user(input$user)
+
+        shiny::removeModal()
+        shiny::showNotification("Topic labels generated successfully!", type = "message", duration = 3)
+      })
+    }
+  })
+
+  shiny::observeEvent(input$submit_api_key, {
+    if (nzchar(input$openai_api_input)) {
+      Sys.setenv(OPENAI_API_KEY = input$openai_api_input)
+      shiny::removeModal()
+      shiny::showNotification("OpenAI API Key saved successfully for this session.", type = "message", duration = 3)
+    } else {
+      shiny::showNotification("Please enter a valid API key.", type = "error", duration = 3)
+    }
   })
 
   output$topic_term_plot <- plotly::renderPlotly({
-    invisible(capture.output(print(input$top_term_number_1)))
-    req(!is.na(stm_K_number()))
+    shiny::req(beta_td())
 
-    if (input$label_topics == '') {
-      tn = NULL
+    wrap_width <- reactive({
+      if (is.null(input$width)) {
+        return(30)
+      } else if (input$width > 1000) {
+        return(35)
+      } else {
+        return(25)
+      }
+    })
+
+    topic_labels_td <- beta_td() %>%
+      dplyr::group_by(topic) %>%
+      dplyr::top_n(input$top_term_number_1, beta) %>%
+      dplyr::ungroup() %>%
+      dplyr::distinct(topic, .keep_all = TRUE) %>%
+      dplyr::mutate(topic_label = paste("Topic", topic))
+
+    topic_labels_td <- topic_labels_td %>%
+      dplyr::mutate(topic_label = stringr::str_wrap(topic_label, width = wrap_width()))
+
+    manual_labels <- if (input$label_topics != '') {
+      strsplit(input$label_topics, split = ',')[[1]]
     } else {
-      tn = strsplit(input$label_topics, split = ',')[[1]]
+      NULL
     }
+
+    new_labels_td <- generated_labels()
+
+    topic_numbers <- sort(unique(topic_labels_td$topic))
+    max_topics <- length(topic_numbers)
+
+    final_labels <- stats::setNames(paste("Topic", topic_numbers), topic_numbers)
+
+    if (!is.null(new_labels_td) && nrow(new_labels_td) > 0) {
+      for (i in seq_len(nrow(new_labels_td))) {
+        topic_idx <- as.character(new_labels_td$topic[i])
+        if (topic_idx %in% names(final_labels)) {
+          final_labels[topic_idx] <- new_labels_td$topic_label[i]
+        }
+      }
+    }
+
+    if (!is.null(manual_labels) && length(manual_labels) > 0) {
+      for (i in seq_len(min(length(manual_labels), max_topics))) {
+        if (manual_labels[i] != "") {
+          final_labels[as.character(topic_numbers[i])] <- manual_labels[i]
+        }
+      }
+    }
+
+    topic_labels_td <- topic_labels_td %>%
+      dplyr::mutate(topic_label = final_labels[as.character(topic)]) %>%
+      dplyr::arrange(as.numeric(topic))
+
+    topic_labels_td$topic_label <- stringr::str_wrap(topic_labels_td$topic_label, width = wrap_width())
 
     topic_term_plot <- beta_td() %>%
-      group_by(topic) %>%
-      top_n(input$top_term_number_1, beta) %>%
-      ungroup() %>%
-      mutate(
-        ord = factor(topic, levels = c(min(topic):max(topic))),
-        tt = as.numeric(topic),
-        topic = paste("Topic", topic),
-        term = reorder_within(term, beta, topic)
-      ) %>% arrange(ord)
+      dplyr::group_by(topic) %>%
+      dplyr::top_n(input$top_term_number_1, beta) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(term = as.character(term)) %>%
+      dplyr::left_join(dplyr::distinct(topic_labels_td, topic, topic_label), by = "topic", relationship = "many-to-one") %>%
+      dplyr::mutate(
+        topic_label = factor(topic_label, levels = unique(topic_labels_td$topic_label)),
+        term = tidytext::reorder_within(term, beta, topic_label)
+      ) %>%
+      dplyr::arrange(topic_label, dplyr::desc(beta))
 
-    levelt = paste("Topic", topic_term_plot$ord) %>% unique()
-    topic_term_plot$topic = factor(topic_term_plot$topic,
-                                   levels = levelt)
-    if (!is.null(tn)) {
-      topic_term_plot$topic = tn[topic_term_plot$tt]
-      topic_term_plot <- topic_term_plot %>%
-        mutate(topic = as.character(topic)) %>%
-        mutate(topic = ifelse(!is.na(topic), topic, paste('Topic', tt)))
-      topic_term_plot$topic =
-        factor(topic_term_plot$topic, levels = topic_term_plot$topic %>% unique())
-    }
-    topic_term_plot$tt = NULL
-
-    topic_term_plot_gg <- ggplot(
+    topic_term_plot_gg <- ggplot2::ggplot(
       topic_term_plot,
-      aes(term, beta, fill = topic, text = paste("Topic:", topic, "<br>Beta:", sprintf("%.3f", beta)))
+      ggplot2::aes(term, beta, fill = topic_label, text = paste("Topic:", topic_label, "<br>Beta:", sprintf("%.3f", beta)))
     ) +
-      geom_col(show.legend = FALSE, alpha = 0.8) +
-      facet_wrap(~ topic, scales = "free", ncol = 2, strip.position = "top") +
-      scale_x_reordered() +
-      scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
-      coord_flip() +
-      xlab(" ") +
-      ylab("Word probability") +
-      theme_minimal(base_size = 11) +
-      theme(
+      ggplot2::geom_col(show.legend = FALSE, alpha = 0.8) +
+      ggplot2::facet_wrap(~ topic_label, scales = "free", ncol = input$ncol_top_terms, strip.position = "top") +
+      tidytext::scale_x_reordered() +
+      ggplot2::scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
+      ggplot2::coord_flip() +
+      ggplot2::xlab(" ") +
+      ggplot2::ylab("Word Probability") +
+      ggplot2::theme_minimal(base_size = 11) +
+      ggplot2::theme(
         legend.position = "none",
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
         axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
-        strip.text.x = element_text(size = 11, color = "#3B3B3B", margin = margin(b = 30, t = 15)),
-        axis.text.x = element_text(size = 11, color = "#3B3B3B", hjust = 1, margin = margin(t = 20)),
-        axis.text.y = element_text(size = 11, color = "#3B3B3B", margin = margin(r = 20)),
+        strip.text.x = element_text(
+          size = 11,
+          face = "bold",
+          lineheight = ifelse(input$width > 1000, 1.1, 1.5),
+          margin = margin(l = 20, r = 20)
+        ),
+        panel.spacing.x = unit(ifelse(input$width > 1000, 2.2, 1.6), "lines"),
+        panel.spacing.y = unit(ifelse(input$width > 1000, 2.2, 1.6), "lines"),
+        axis.text.x = element_text(size = 11, color = "#3B3B3B", hjust = 1, margin = margin(r = 20)),
+        axis.text.y = element_text(size = 11, color = "#3B3B3B", margin = margin(t = 20)),
         axis.title = element_text(size = 11, color = "#3B3B3B"),
         axis.title.x = element_text(margin = margin(t = 25)),
         axis.title.y = element_text(margin = margin(r = 25)),
-        plot.margin = margin(t = 40, b = 40)
+        plot.margin = margin(t = 40, b = 40, l = 100, r = 40)
       )
 
     plotly::ggplotly(topic_term_plot_gg, height = input$height, width = input$width, tooltip = "text") %>%
       plotly::layout(
+        title = list(font = 11),
         margin = list(t = 40, b = 40)
       )
   })
@@ -634,50 +1542,151 @@ server <- shinyServer(function(input, output, session) {
     ))
   })
 
+topic_table_data <- reactive({
+  req(beta_td())
 
+  current_wrap_width <- if (is.null(input$width)) {
+    30
+  } else if (input$width > 1000) {
+    35
+  } else {
+    25
+  }
 
-  # Step 3: Display per-document-per topic probabilities by topics
+  topic_labels_td <- beta_td() %>%
+    dplyr::group_by(topic) %>%
+    dplyr::top_n(input$top_term_number_1, beta) %>%
+    dplyr::ungroup() %>%
+    dplyr::distinct(topic, .keep_all = TRUE) %>%
+    dplyr::mutate(topic_label = paste("Topic", topic)) %>%
+    dplyr::mutate(topic_label = stringr::str_wrap(topic_label, width = current_wrap_width))
+
+  manual_labels <- if (input$label_topics != "") {
+    strsplit(input$label_topics, split = ",")[[1]]
+  } else {
+    NULL
+  }
+
+  new_labels_td <- generated_labels()
+  topic_numbers <- sort(unique(topic_labels_td$topic))
+  max_topics <- length(topic_numbers)
+
+  final_labels <- stats::setNames(paste("Topic", topic_numbers), topic_numbers)
+
+  if (!is.null(new_labels_td) && nrow(new_labels_td) > 0) {
+    for (i in seq_len(nrow(new_labels_td))) {
+      topic_idx <- as.character(new_labels_td$topic[i])
+      if (topic_idx %in% names(final_labels)) {
+        final_labels[topic_idx] <- new_labels_td$topic_label[i]
+      }
+    }
+  }
+
+  if (!is.null(manual_labels) && length(manual_labels) > 0) {
+    for (i in seq_len(min(length(manual_labels), max_topics))) {
+      if (manual_labels[i] != "") {
+        final_labels[as.character(topic_numbers[i])] <- manual_labels[i]
+      }
+    }
+  }
+
+  topic_labels_td <- topic_labels_td %>%
+    dplyr::mutate(topic_label = final_labels[as.character(topic)]) %>%
+    dplyr::arrange(as.numeric(topic))
+
+  topic_labels_td$topic_label <- stringr::str_wrap(topic_labels_td$topic_label, width = current_wrap_width)
+
+  df <- beta_td() %>%
+    dplyr::left_join(
+      dplyr::distinct(topic_labels_td, topic, topic_label),
+      by = "topic",
+      relationship = "many-to-one"
+    ) %>%
+    dplyr::select(topic_label, topic, term, beta) %>%
+    dplyr::mutate_if(is.numeric, ~ round(., 3))
+
+  df
+})
+
+output$topic_term_table <- DT::renderDataTable({
+  topic_table_data() %>%
+    DT::datatable(
+      rownames = FALSE,
+      width = input$width,
+      extensions = 'Buttons',
+      options = list(
+        scrollX = TRUE,
+        scrollY = "400px",
+        width = "80%",
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+      )
+    )
+})
+
+  output$topic_term_table_uiOutput <- renderUI({
+    req(beta_td())
+    htmltools::tags$div(
+      style = "margin-top: 20px;",
+      DT::dataTableOutput("topic_term_table", width = input$width)
+    )
+  })
+
+output$topic_download_table <- downloadHandler(
+  filename = function() {
+    "topic_term_table.xlsx"
+  },
+  content = function(file) {
+    openxlsx::write.xlsx(topic_table_data(), file)
+  }
+)
+
+  # Step 3: Display per-document-per topic probabilities by topics.
 
   output$topic_number_uiOutput <- renderUI({
-    req(print_K_number())
     sliderInput(
       "topic_number",
-      "Choose the topic numbers to display",
-      value = print_K_number(),
+      "Choose the topic numbers to display.",
+      value = K_number(),
       min = 0,
       step = 1,
-      max = print_K_number()
+      max = K_number()
     )
   })
 
   top_terms_selected <- reactive({
+    topic_mapping <- topic_table_data() %>%
+      dplyr::select(topic, topic_label) %>%
+      dplyr::distinct()
+
     beta_td() %>%
-      arrange(beta) %>%
-      group_by(topic) %>%
-      top_n(input$top_term_number_2, beta) %>%
-      arrange(beta) %>%
-      select(topic, term) %>%
-      summarise(terms = list(term)) %>%
-      mutate(terms = purrr::map(terms, paste, collapse = ", ")) %>%
-      unnest(cols = c(terms))
+      dplyr::group_by(topic) %>%
+      dplyr::top_n(input$top_term_number_2, beta) %>%
+      dplyr::arrange(beta) %>%
+      dplyr::summarise(terms = paste(term, collapse = ", ")) %>%
+      dplyr::ungroup() %>%
+      dplyr::left_join(topic_mapping, by = "topic")
   })
 
   gamma_terms <- reactive({
-    gamma_td = tidytext::tidy(
+    gamma_td <- tidytext::tidy(
       stm_K_number(),
       matrix = "gamma",
       document_names = rownames(dfm_outcome())
     )
+
+    topic_mapping <- topic_table_data() %>%
+      dplyr::select(topic, topic_label) %>%
+      dplyr::distinct()
+
     gamma_td %>%
-      group_by(topic) %>%
-      summarise(gamma = mean(gamma)) %>%
-      arrange(desc(gamma)) %>%
-      left_join(top_terms_selected(), by = "topic") %>%
-      mutate(topic = reorder(topic, gamma))
+      dplyr::group_by(topic) %>%
+      dplyr::summarise(gamma = mean(gamma)) %>%
+      dplyr::arrange(desc(gamma)) %>%
+      dplyr::left_join(top_terms_selected(), by = "topic") %>%
+      dplyr::left_join(topic_mapping, by = "topic") %>%
+      dplyr::mutate(topic = reorder(topic, gamma))
   })
-
-
-  # Visualize per-document-per topic probabilities ----
 
   observeEvent(input$display, {
     gamma_terms()
@@ -717,7 +1726,7 @@ server <- shinyServer(function(input, output, session) {
         coord_flip() +
         scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 2)) +
         xlab(" ") +
-        ylab("Topic proportion") +
+        ylab("Topic Proportion") +
         theme_minimal(base_size = 10) +
         theme(
           legend.position = "none",
@@ -737,10 +1746,15 @@ server <- shinyServer(function(input, output, session) {
           margin = list(t = 40, b = 40)
         )
     })
-
   })
 
-  # Display topics ordered by prevalence
+  output$topic_prevalence_plot_uiOutput <- renderUI({
+    plotly::plotlyOutput(
+      "topic_by_prevalence_plot2",
+      height = input$height_topic_prevalence,
+      width = input$width_topic_prevalence
+    )
+  })
 
   observeEvent(input$display, {
     if (input$label_topics == '') {
@@ -776,7 +1790,8 @@ server <- shinyServer(function(input, output, session) {
       )
 
       topic_by_prevalence_table %>%
-        select(topic = topic_label, gamma) %>%
+        select(topic_label, topic, gamma) %>%
+        dplyr::arrange(as.numeric(topic)) %>%
         mutate_if(is.numeric, ~ round(., 3)) %>%
         DT::datatable(
           rownames = FALSE,
@@ -794,10 +1809,18 @@ server <- shinyServer(function(input, output, session) {
           fontSize = '16px'
         )
     })
+
+    output$topic_prevalence_table_uiOutput <- renderUI({
+      htmltools::tags$div(
+        style = "margin-top: 20px;",
+        DT::dataTableOutput("topic_by_prevalence_table", width = input$width_topic_prevalence)
+      )
+    })
+
   })
 
+  # Step 4: Explore example documents for each topic (display quotes).
 
-  # Step 4: Explore example documents for each topic (display quotes)
   print_K_number_from_1 <-
     eventReactive(eventExpr = input$K_number, {
       print(1:input$K_number)
@@ -852,6 +1875,7 @@ server <- shinyServer(function(input, output, session) {
   )
 
   # Step 5: Display estimates regressions based on a STM object.
+
   effect_stm_K_number <- eventReactive(eventExpr = input$effect, {
     categorical_var <- if (!is.null(input$categorical_var_2)) unlist(strsplit(as.character(input$categorical_var_2), ",\\s*")) else NULL
     continuous_var <- if (!is.null(input$continuous_var_2)) unlist(strsplit(as.character(input$continuous_var_2), ",\\s*")) else NULL
@@ -896,13 +1920,14 @@ server <- shinyServer(function(input, output, session) {
   observe({
     effect_stm_K_number_td <- effect_stm_K_number()
 
-    td <- tidytext::tidy(effect_stm_K_number_td) %>%
-      mutate_if(is.numeric, ~ round(., 3))
+    if (!is.null(effect_stm_K_number_td)) {
+      td <- tidytext::tidy(effect_stm_K_number_td) %>%
+        mutate_if(is.numeric, ~ round(., 3))
 
-    output$effect_table <- DT::renderDataTable({ td
-    },
-    rownames = FALSE
-    )
+      output$effect_table <- DT::renderDataTable({ td },
+                                                 rownames = FALSE
+      )
+    }
   })
 
   output$effect_download_table <- downloadHandler(
@@ -918,16 +1943,13 @@ server <- shinyServer(function(input, output, session) {
 
 
   # Step 6: Plot topic prevalence effects by a categorical variable.
+
   observe({
     selected_cat <- input$categorical_var_2
     updateSelectInput(session,
                       "effect_cat_btn",
                       choices = selected_cat,
                       selected = if (!is.null(selected_cat) && length(selected_cat) > 0) selected_cat[1] else NULL)
-  })
-
-  observeEvent(eventExpr = input$effect_cat_btn, {
-    # print(input$effect_cat_btn)
   })
 
   effects_categorical_var <- reactive({
@@ -944,8 +1966,9 @@ server <- shinyServer(function(input, output, session) {
       req(effects_categorical_var())
 
       effects_categorical_var_gg <- effects_categorical_var() %>%
+        dplyr::mutate(topic_label = paste("Topic", topic)) %>%
         ggplot(aes(x = value, y = proportion)) +
-        facet_wrap(~ topic, ncol = 2, scales = "free") +
+        facet_wrap(~ topic_label, ncol = input$ncol_cat, scales = "free") +
         scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
         xlab("") +
         ylab("Topic proportion") +
@@ -999,6 +2022,7 @@ server <- shinyServer(function(input, output, session) {
     output$cat_table <- DT::renderDataTable({
       req(effects_categorical_var())
       effects_categorical_var() %>%
+        dplyr::select(topic, value, proportion, lower, upper) %>%
         mutate_if(is.numeric, ~ round(., 3)) %>%
         DT::datatable(
           rownames = FALSE,
@@ -1019,7 +2043,7 @@ server <- shinyServer(function(input, output, session) {
     req(input$display_cat)
     htmltools::tags$div(
       style = "margin-top: 20px;",
-      DT::dataTableOutput("cat_table")
+      DT::dataTableOutput("cat_table", width = input$width_cat_plot)
     )
   })
 
@@ -1031,10 +2055,6 @@ server <- shinyServer(function(input, output, session) {
                       "effect_con_btn",
                       choices = selected_con,
                       selected = if (!is.null(selected_con) && length(selected_con) > 0) selected_con[1] else NULL)
-  })
-
-  observeEvent(input$effect_con_btn, {
-    # print(input$effect_con_btn)
   })
 
   effects_continuous_var <- reactive({
@@ -1050,15 +2070,13 @@ server <- shinyServer(function(input, output, session) {
     output$con_plot <- plotly::renderPlotly({
       req(effects_continuous_var())
 
-      effects_continuous_var_gg <-  effects_continuous_var() %>%
+      effects_continuous_var_gg <- effects_continuous_var() %>%
+        dplyr::mutate(topic_label = paste("Topic", topic)) %>%
         ggplot(aes(x = value, y = proportion)) +
-        facet_wrap( ~ topic,
-                    ncol = 2,
-                    scales = "free") +
+        facet_wrap(~ topic_label, ncol = input$ncol_con, scales = "free") +
         scale_y_continuous(labels = numform::ff_num(zero = 0, digits = 3)) +
         geom_ribbon(aes(ymin = lower, ymax = upper), fill = "#337ab7", alpha = 0.2) +
-        geom_line(linewidth = 0.5,
-                  color = "#337ab7") +
+        geom_line(linewidth = 0.5, color = "#337ab7") +
         xlab("") +
         ylab("Topic proportion") +
         theme_minimal(base_size = 11) +
@@ -1104,6 +2122,7 @@ server <- shinyServer(function(input, output, session) {
     output$con_table <- DT::renderDataTable({
       req(effects_continuous_var())
       effects_continuous_var() %>%
+        dplyr::select(topic, value, proportion, lower, upper) %>%
         mutate_if(is.numeric, ~ round(., 3)) %>%
         DT::datatable(
           rownames = FALSE,
@@ -1124,710 +2143,14 @@ server <- shinyServer(function(input, output, session) {
     req(input$display_con)
     htmltools::tags$div(
       style = "margin-top: 20px;",
-      DT::dataTableOutput("con_table")
+      DT::dataTableOutput("con_table", width = input$width_con_plot)
     )
   })
 
-  # "Word Networks" page
-
-  # 1. Visualize word co-occurrence network
-
-  output$word_co_occurrence_network_plot <- renderPlotly({
-
-    req(input$plot_word_co_occurrence_network, dfm_outcome())
-    req(input$top_node_n_co_occurrence)
-
-    top_node_n <- as.numeric(input$top_node_n_co_occurrence)
-
-    dfm_td <- tidytext::tidy(dfm_outcome()) %>%
-      tibble::as_tibble()
-
-    co_occur_n <- floor(as.numeric(input$co_occurence_number_init))
-
-    term_co_occur <- dfm_td %>%
-      count(document, term) %>%
-      widyr::pairwise_count(term, document, sort = TRUE) %>%
-      filter(n >= co_occur_n)
-
-    co_occur_graph <- igraph::graph_from_data_frame(term_co_occur, directed = FALSE)
-
-    if (igraph::vcount(co_occur_graph) == 0) {
-      showNotification("No co-occurrence relationships meet the threshold.", type = "error")
-      return(NULL)
-    }
-
-    igraph::V(co_occur_graph)$degree <- igraph::degree(co_occur_graph)
-    igraph::V(co_occur_graph)$betweenness <- igraph::betweenness(co_occur_graph)
-    igraph::V(co_occur_graph)$closeness <- igraph::closeness(co_occur_graph)
-    igraph::V(co_occur_graph)$eigenvector <- igraph::eigen_centrality(co_occur_graph)$vector
-    igraph::V(co_occur_graph)$community <- igraph::cluster_leiden(co_occur_graph)$membership
-
-    layout <- igraph::layout_with_fr(co_occur_graph)
-    layout_df <- as.data.frame(layout)
-    colnames(layout_df) <- c("x", "y")
-
-    layout_df$label <- igraph::V(co_occur_graph)$name
-    layout_df$degree <- igraph::V(co_occur_graph)$degree
-    layout_df$betweenness <- igraph::V(co_occur_graph)$betweenness
-    layout_df$closeness <- igraph::V(co_occur_graph)$closeness
-    layout_df$eigenvector <- igraph::V(co_occur_graph)$eigenvector
-    layout_df$community <- igraph::V(co_occur_graph)$community
-
-    edge_data <- igraph::as_data_frame(co_occur_graph, what = "edges") %>%
-      dplyr::mutate(
-        x = layout_df$x[match(from, layout_df$label)],
-        y = layout_df$y[match(from, layout_df$label)],
-        xend = layout_df$x[match(to, layout_df$label)],
-        yend = layout_df$y[match(to, layout_df$label)],
-        cooccur_count = n
-      ) %>%
-      dplyr::select(from, to, x, y, xend, yend, cooccur_count)
-
-    edge_data <- edge_data %>%
-      dplyr::mutate(
-        line_group = as.integer(cut(
-          cooccur_count,
-          breaks = unique(quantile(cooccur_count, probs = seq(0, 1, length.out = 6), na.rm = TRUE)),
-          include.lowest = TRUE
-        )),
-        line_width = scales::rescale(line_group, to = c(1, 5)),
-        alpha = scales::rescale(line_group, to = c(0.1, 0.3))
-      )
-
-    edge_group_labels <- edge_data %>%
-      dplyr::group_by(line_group) %>%
-      dplyr::summarise(
-        min_count = min(cooccur_count, na.rm = TRUE),
-        max_count = max(cooccur_count, na.rm = TRUE)
-      ) %>%
-      dplyr::mutate(label = paste0("Count: ", min_count, " - ", max_count)) %>%
-      dplyr::pull(label)
-
-    node_data <- layout_df %>%
-      dplyr::mutate(
-        degree_log = log1p(degree),
-        size = scales::rescale(degree_log, to = c(12, 30)),
-        text_size = scales::rescale(degree_log, to = c(14, 20)),
-        alpha = scales::rescale(degree_log, to = c(0.2, 1)),
-        hover_text = paste(
-          "Word:", label,
-          "<br>Degree:", degree,
-          "<br>Betweenness:", round(betweenness, 2),
-          "<br>Closeness:", round(closeness, 2),
-          "<br>Eigenvector:", round(eigenvector, 2),
-          "<br>Community:", community
-        )
-      )
-
-    n_communities <- length(unique(node_data$community))
-    if (n_communities >= 3 && n_communities <= 8) {
-      palette <- RColorBrewer::brewer.pal(n_communities, "Set2")
-    } else if (n_communities > 8) {
-      palette <- colorRampPalette(RColorBrewer::brewer.pal(8, "Set2"))(n_communities)
-    } else if (n_communities > 0 && n_communities < 3) {
-      palette <- RColorBrewer::brewer.pal(3, "Set2")[1:n_communities]
-    } else {
-      palette <- rep("#000000", n_communities)
-    }
-
-    node_data$community <- factor(node_data$community, levels = unique(node_data$community))
-    community_levels <- levels(node_data$community)
-    names(palette) <- community_levels
-    node_data$color <- palette[as.character(node_data$community)]
-
-    plot <- plotly::plot_ly(
-      type = 'scatter',
-      mode = 'markers',
-      width = input$width_word_co_occurrence_network_plot,
-      height = input$height_word_co_occurrence_network_plot
-    )
-
-    for (i in unique(edge_data$line_group)) {
-
-      edge_subset <- edge_data %>% dplyr::filter(line_group == i)
-      edge_label <- edge_group_labels[i]
-
-      edge_subset <- edge_subset %>%
-        dplyr::mutate(
-          mid_x = (x + xend) / 2,
-          mid_y = (y + yend) / 2
-        )
-
-      if (nrow(edge_subset) > 0) {
-        plot <- plot %>%
-          plotly::add_segments(
-            data = edge_subset,
-            x = ~x,
-            y = ~y,
-            xend = ~xend,
-            yend = ~yend,
-            line = list(
-              color = '#5C5CFF',
-              width = ~line_width
-            ),
-            hoverinfo = 'none',
-            opacity = ~alpha,
-            showlegend = TRUE,
-            name = edge_label,
-            legendgroup = "Edges"
-          ) %>%
-
-          plotly::add_trace(
-            data = edge_subset,
-            x = ~mid_x,
-            y = ~mid_y,
-            type = 'scatter',
-            mode = 'markers',
-            marker = list(size = 0.1, color = '#e0f7ff', opacity = 0),
-            text = ~paste0(
-              "Co-occurrence: ", cooccur_count,
-              "<br>Source: ", from,
-              "<br>Target: ", to
-            ),
-            hoverinfo = 'text',
-            showlegend = FALSE
-          )
-      }
-    }
-
-    plot <- plot %>%
-      plotly::layout(
-        legend = list(
-          title = list(text = "Co-occurrence"),
-          orientation = "v",
-          x = 1.1,
-          y = 1,
-          xanchor = "left",
-          yanchor = "top"
-        )
-      )
-
-    marker_params <- list(
-      size = ~size,
-      showscale = FALSE,
-      line = list(width = 3, color = '#FFFFFF')
-    )
-
-    for (n in community_levels) {
-      community_data <- node_data[node_data$community == n, ]
-
-      plot <- plot %>%
-        plotly::add_markers(
-          data = community_data,
-          x = ~x,
-          y = ~y,
-          marker = list(
-            size = ~size,
-            color = palette[n],
-            showscale = FALSE,
-            line = list(width = 3, color = '#FFFFFF')
-          ),
-          hoverinfo = 'text',
-          text = ~hover_text,
-          showlegend = TRUE,
-          name = paste("Community", n),
-          legendgroup = "Community"
-        )
-    }
-
-    top_nodes <- head(node_data[order(-node_data$degree), ], top_node_n)
-
-    annotations <- if (nrow(top_nodes) > 0) {
-      lapply(1:nrow(top_nodes), function(i) {
-        label <- top_nodes$label[i]
-        text <- ifelse(!is.na(label) & label != "", label, "")
-
-        list(
-          x = top_nodes$x[i],
-          y = top_nodes$y[i],
-          text = text,
-          xanchor = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, "left", "right"),
-          yanchor = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, "bottom", "top"),
-          xshift = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, 5, -5),
-          yshift = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, 3, -3),
-          showarrow = FALSE,
-          font = list(size = top_nodes$text_size[i], color = 'black')
-        )
-      })
-    } else {
-      list()
-    }
-
-    word_co_occurrence_plotly <- plot %>%
-      plotly::layout(
-        dragmode = "pan",
-        title = list(text = "Word Co-occurrence Network", font = list(size = 16)),
-        showlegend = TRUE,
-        xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-        yaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-        margin = list(l = 40, r = 100, t = 60, b = 40),
-        annotations = annotations
-      )
-
-    word_co_occurrence_plotly
+  session$onSessionEnded(function() {
+    spacyr::spacy_finalize()
+    Sys.unsetenv("OPENAI_API_KEY")
+    shiny::showNotification("OpenAI API Key has been removed from the environment.", type = "message", duration = 3)
+    stopApp()
   })
-
-  output$word_co_occurrence_network_plot_uiOutput <- renderUI({
-
-    req(input$plot_word_co_occurrence_network)
-    shinycssloaders::withSpinner(
-      plotly::plotlyOutput(
-        "word_co_occurrence_network_plot",
-        width = input$width_word_co_occurrence_network_plot,
-        height = input$height_word_co_occurrence_network_plot
-      )
-    )
-  })
-
-  # 2. Visualize word correlation network
-
-  output$word_correlation_network_plot <- renderPlotly({
-
-    req(input$plot_word_correlation_network, dfm_outcome())
-    req(input$top_node_n_correlation)
-
-    top_node_n <- as.numeric(input$top_node_n_correlation)
-
-    dfm_td <- tidytext::tidy(dfm_outcome()) %>%
-      tibble::as_tibble()
-
-    co_occur_n <- floor(as.numeric(input$co_occurence_number))
-    corr_n <- as.numeric(input$correlation_value)
-
-    term_cor <- dfm_td %>%
-      tibble::as_tibble() %>%
-      group_by(term) %>%
-      filter(n() >= co_occur_n) %>%
-      widyr::pairwise_cor(term, document, sort = TRUE)
-
-    term_cor_graph <- term_cor %>%
-      filter(correlation > corr_n) %>%
-      igraph::graph_from_data_frame(directed = FALSE)
-
-    if (igraph::vcount(term_cor_graph) == 0) {
-      showNotification("No correlation relationships meet the threshold.", type = "error")
-      return(NULL)
-    }
-
-    igraph::V(term_cor_graph)$degree <- igraph::degree(term_cor_graph)
-    igraph::V(term_cor_graph)$betweenness <- igraph::betweenness(term_cor_graph)
-    igraph::V(term_cor_graph)$closeness <- igraph::closeness(term_cor_graph)
-    igraph::V(term_cor_graph)$eigenvector <- igraph::eigen_centrality(term_cor_graph)$vector
-    igraph::V(term_cor_graph)$community <- igraph::cluster_leiden(term_cor_graph)$membership
-
-    layout <- igraph::layout_with_fr(term_cor_graph)
-    layout_df <- as.data.frame(layout)
-    colnames(layout_df) <- c("x", "y")
-
-    layout_df$label <- igraph::V(term_cor_graph)$name
-    layout_df$degree <- igraph::V(term_cor_graph)$degree
-    layout_df$betweenness <- igraph::V(term_cor_graph)$betweenness
-    layout_df$closeness <- igraph::V(term_cor_graph)$closeness
-    layout_df$eigenvector <- igraph::V(term_cor_graph)$eigenvector
-    layout_df$community <- igraph::V(term_cor_graph)$community
-
-    edge_data <- igraph::as_data_frame(term_cor_graph, what = "edges") %>%
-      dplyr::mutate(
-        x = layout_df$x[match(from, layout_df$label)],
-        y = layout_df$y[match(from, layout_df$label)],
-        xend = layout_df$x[match(to, layout_df$label)],
-        yend = layout_df$y[match(to, layout_df$label)],
-        correlation = correlation
-      ) %>%
-      dplyr::select(from, to, x, y, xend, yend, correlation)
-
-    edge_data <- edge_data %>%
-      dplyr::mutate(
-        line_group = as.integer(cut(
-          correlation,
-          breaks = unique(quantile(correlation, probs = seq(0, 1, length.out = 6), na.rm = TRUE)),
-          include.lowest = TRUE
-        )),
-        line_width = scales::rescale(line_group, to = c(1, 5)),
-        alpha = scales::rescale(line_group, to = c(0.1, 0.3))
-      )
-
-    edge_group_labels <- edge_data %>%
-      dplyr::group_by(line_group) %>%
-      dplyr::summarise(
-        min_corr = min(correlation, na.rm = TRUE),
-        max_corr = max(correlation, na.rm = TRUE)
-      ) %>%
-      dplyr::mutate(label = paste0("Correlation: ", round(min_corr, 2), " - ", round(max_corr, 2))) %>%
-      dplyr::pull(label)
-
-    node_data <- layout_df %>%
-      dplyr::mutate(
-        degree_log = log1p(degree),
-        size = scales::rescale(degree_log, to = c(12, 30)),
-        text_size = scales::rescale(degree_log, to = c(14, 20)),
-        alpha = scales::rescale(degree_log, to = c(0.2, 1)),
-        hover_text = paste(
-          "Word:", label,
-          "<br>Degree:", degree,
-          "<br>Betweenness:", round(betweenness, 2),
-          "<br>Closeness:", round(closeness, 2),
-          "<br>Eigenvector:", round(eigenvector, 2),
-          "<br>Community:", community
-        )
-      )
-
-    n_communities <- length(unique(node_data$community))
-    if (n_communities >= 3 && n_communities <= 8) {
-      palette <- RColorBrewer::brewer.pal(n_communities, "Set2")
-    } else if (n_communities > 8) {
-      palette <- colorRampPalette(RColorBrewer::brewer.pal(8, "Set2"))(n_communities)
-    } else if (n_communities > 0 && n_communities < 3) {
-      palette <- RColorBrewer::brewer.pal(3, "Set2")[1:n_communities]
-    } else {
-      palette <- rep("#000000", n_communities)
-    }
-
-    node_data$community <- factor(node_data$community, levels = unique(node_data$community))
-    community_levels <- levels(node_data$community)
-    names(palette) <- community_levels
-    node_data$color <- palette[as.character(node_data$community)]
-
-    plot <- plotly::plot_ly(
-      type = 'scatter',
-      mode = 'markers',
-      width = input$width_word_correlation_network_plot,
-      height = input$height_word_correlation_network_plot
-    )
-
-    for (i in unique(edge_data$line_group)) {
-
-      edge_subset <- edge_data %>% dplyr::filter(line_group == i)
-      edge_label <- edge_group_labels[i]
-
-      edge_subset <- edge_subset %>%
-        dplyr::mutate(
-          mid_x = (x + xend) / 2,
-          mid_y = (y + yend) / 2
-        )
-
-      if (nrow(edge_subset) > 0) {
-        plot <- plot %>%
-          plotly::add_segments(
-            data = edge_subset,
-            x = ~x,
-            y = ~y,
-            xend = ~xend,
-            yend = ~yend,
-            line = list(
-              color = '#5C5CFF',
-              width = ~line_width
-            ),
-            hoverinfo = 'none',
-            opacity = ~alpha,
-            showlegend = TRUE,
-            name = edge_label,
-            legendgroup = "Edges"
-          ) %>%
-
-          plotly::add_trace(
-            data = edge_subset,
-            x = ~mid_x,
-            y = ~mid_y,
-            type = 'scatter',
-            mode = 'markers',
-            marker = list(size = 0.1, color = '#e0f7ff', opacity = 0),
-            text = ~paste0(
-              "Correlation:", round(correlation, 2),
-              "<br>Source: ", from,
-              "<br>Target: ", to
-            ),
-            hoverinfo = 'text',
-            showlegend = FALSE
-          )
-      }
-    }
-
-    plot <- plot %>%
-      plotly::layout(
-        legend = list(
-          title = list(text = "Correlation"),
-          orientation = "v",
-          x = 1.1,
-          y = 1,
-          xanchor = "left",
-          yanchor = "top"
-        )
-      )
-
-    marker_params <- list(
-      size = ~size,
-      showscale = FALSE,
-      line = list(width = 3, color = '#FFFFFF')
-    )
-
-    for (n in community_levels) {
-      community_data <- node_data[node_data$community == n, ]
-
-      plot <- plot %>%
-        plotly::add_markers(
-          data = community_data,
-          x = ~x,
-          y = ~y,
-          marker = list(
-            size = ~size,
-            color = palette[n],
-            showscale = FALSE,
-            line = list(width = 3, color = '#FFFFFF')
-          ),
-          hoverinfo = 'text',
-          text = ~hover_text,
-          showlegend = TRUE,
-          name = paste("Community", n),
-          legendgroup = "Community"
-        )
-    }
-
-    top_nodes <- head(node_data[order(-node_data$degree), ], top_node_n)
-
-    annotations <- if (nrow(top_nodes) > 0) {
-      lapply(1:nrow(top_nodes), function(i) {
-        label <- top_nodes$label[i]
-        text <- ifelse(!is.na(label) & label != "", label, "")
-
-        list(
-          x = top_nodes$x[i],
-          y = top_nodes$y[i],
-          text = text,
-          xanchor = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, "left", "right"),
-          yanchor = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, "bottom", "top"),
-          xshift = ifelse(!is.na(top_nodes$x[i]) & top_nodes$x[i] > 0, 5, -5),
-          yshift = ifelse(!is.na(top_nodes$y[i]) & top_nodes$y[i] > 0, 3, -3),
-          showarrow = FALSE,
-          font = list(size = top_nodes$text_size[i], color = 'black')
-        )
-      })
-    } else {
-      list()
-    }
-
-    word_correlation_plotly <- plot %>%
-      plotly::layout(
-        dragmode = "pan",
-        title = list(text = "Word Correlation Network", font = list(size = 16)),
-        showlegend = TRUE,
-        xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-        yaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-        margin = list(l = 40, r = 100, t = 60, b = 40),
-        annotations = annotations
-      )
-
-    word_correlation_plotly
-
-  })
-
-  output$word_correlation_network_plot_uiOutput <- renderUI({
-
-    req(input$plot_word_correlation_network)
-    shinycssloaders::withSpinner(
-      plotly::plotlyOutput(
-        "word_correlation_network_plot",
-        height = input$height_word_correlation_network_plot,
-        width = input$width_word_correlation_network_plot
-      )
-    )
-
-  })
-
-  # 3. Display selected terms
-
-  observe({
-    selected_con <- input$continuous_var_2
-    updateSelectInput(session,
-                      "continuous_var_3",
-                      choices = selected_con,
-                      selected = if (!is.null(selected_con) && length(selected_con) > 0) selected_con[1] else NULL)
-  })
-
-  top_frequent_over_con_var <- reactive({
-    tstat_freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
-    tstat_freq_n_20 <- head(tstat_freq, 20)
-    tstat_freq_n_20$feature
-  })
-
-  observe({
-    updateSelectizeInput(
-      session,
-      "type_terms",
-      choices = top_frequent_over_con_var(),
-      options = list(create = TRUE),
-      selected = ""
-    )
-  })
-
-  observeEvent(input$type_terms, {
-    invisible(capture.output(print(input$type_terms)))
-  })
-
-  observeEvent(input$continuous_var_3, {
-    invisible(capture.output(print(input$continuous_var_3)))
-  })
-
-  observeEvent(input$plot_term, {
-
-    if (!requireNamespace("htmltools", quietly = TRUE) ||
-        !requireNamespace("splines", quietly = TRUE) ||
-        !requireNamespace("broom", quietly = TRUE)) {
-      stop(
-        "The 'htmltools', 'splines', and 'broom' packages are required for this functionality. ",
-        "Please install them using install.packages(c('htmltools', 'splines', 'broom'))."
-      )
-    }
-
-    vm <- isolate(input$type_terms)
-    if (!is.null(vm)) {
-      dfm_outcome_obj <- dfm_outcome()
-      dfm_td <- tidytext::tidy(dfm_outcome())
-      gamma_td <-
-        tidytext::tidy(
-          stm_K_number(),
-          matrix = "gamma",
-          document_names = rownames(dfm_outcome())
-        )
-      dfm_outcome_obj@docvars$document <- dfm_outcome_obj@docvars$docname_
-
-      dfm_gamma_td <- gamma_td %>%
-        left_join(dfm_outcome_obj@docvars,
-                  by = c("document" = "document")) %>%
-        left_join(dfm_td, by = c("document" = "document"), relationship = "many-to-many")
-
-      con_var_term_counts <- dfm_gamma_td %>%
-        tibble::as_tibble() %>%
-        group_by(!!rlang::sym(input$continuous_var_3)) %>%
-        mutate(
-          con_3_total = sum(count),
-          word_proportion = count / con_3_total
-        ) %>%
-        ungroup()
-
-      output$line_con_var_plot <- plotly::renderPlotly({
-
-        req(input$continuous_var_3)
-        req(vm)
-
-        con_var_term_gg <- con_var_term_counts %>%
-          mutate(term = factor(term, levels = vm)) %>%
-          mutate(across(where(is.numeric), ~ round(., 3))) %>%
-          filter(term %in% vm) %>%
-          ggplot(aes(
-            x = !!rlang::sym(input$continuous_var_3),
-            y = word_proportion,
-            group = term
-          )) +
-          geom_point(color = "#337ab7", alpha = 0.6, size = 1) +
-          geom_line(color = "#337ab7", alpha = 0.6, linewidth = 0.5) +
-          facet_wrap(~ term, scales = "free") +
-          scale_y_continuous(labels = scales::percent_format()) +
-          labs(y = "Term Proportion (%)") +
-          theme_minimal(base_size = 11) +
-          theme(
-            legend.position = "none",
-            panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            axis.line = element_line(color = "#3B3B3B", linewidth = 0.3),
-            axis.ticks = element_line(color = "#3B3B3B", linewidth = 0.3),
-            strip.text.x = element_text(size = 11, color = "#3B3B3B"),
-            axis.text.x = element_text(size = 11, color = "#3B3B3B"),
-            axis.text.y = element_text(size = 11, color = "#3B3B3B"),
-            axis.title = element_text(size = 11, color = "#3B3B3B"),
-            axis.title.x = element_text(margin = margin(t = 9)),
-            axis.title.y = element_text(margin = margin(r = 11))
-          )
-
-        plotly::ggplotly(
-          con_var_term_gg,
-          height = input$height_line_con_var_plot,
-          width = input$width_line_con_var_plot
-        ) %>%
-          plotly::layout(
-            margin = list(l = 40, r = 150, t = 60, b = 40)
-          )
-      })
-
-      significance_results <- con_var_term_counts %>%
-        mutate(word = term) %>%
-        filter(word %in% vm) %>%
-        group_by(word) %>%
-        do(
-          tidy(
-            glm(
-              cbind(count, con_3_total - count) ~ splines::bs(!!rlang::sym(input$continuous_var_3)),
-              weights = con_3_total,
-              family = binomial(link = "logit"),
-              data = .
-            )
-          )
-        ) %>%
-        mutate(`odds ratio` = exp(estimate)) %>%
-        rename(`logit` = estimate) %>%
-        ungroup()
-
-      output$significance_results_table <- renderUI({
-        if (nrow(significance_results) > 0) {
-          tables <- significance_results %>%
-            mutate(word = factor(word, levels = vm)) %>%
-            arrange(word) %>%
-            group_by(word) %>%
-            group_map(~ {
-              htmltools::tagList(
-                htmltools::tags$div(
-                  style = "margin-bottom: 20px;",
-                  htmltools::tags$p(
-                    style = "font-weight: bold; text-align: center;",
-                    .y$word
-                  )
-                ),
-                .x %>%
-                  mutate_if(is.numeric, ~ round(., 3)) %>%
-                  DT::datatable(
-                    rownames = FALSE,
-                    extensions = 'Buttons',
-                    options = list(
-                      scrollX = TRUE,
-                      scrollY = "400px",
-                      width = "80%",
-                      dom = 'Bfrtip',
-                      buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-                    )
-                  ) %>%
-                  DT::formatStyle(
-                    columns = names(.x),
-                    `font-size` = "16px"
-                  )
-              )
-            })
-          htmltools::tagList(tables)
-        } else {
-          htmltools::tagList(
-            htmltools::tags$p("No significant results to display.")
-          )
-        }
-      })
-
-
-    }
-  })
-
-  output$line_con_var_plot_uiOutput <- renderUI({
-    req(input$plot_term > 0, input$continuous_var_3, input$type_terms)
-    htmltools::tagList(
-      plotly::plotlyOutput(
-        "line_con_var_plot",
-        height = input$height_line_con_var_plot,
-        width = input$width_line_con_var_plot
-      ),
-      htmltools::tags$div(
-        style = "margin-top: 20px;",
-        uiOutput("significance_results_table")
-      )
-    )
-  })
-
-  session$onSessionEnded(stopApp)
-
 })
