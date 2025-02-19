@@ -142,15 +142,6 @@ ui <- fluidPage(
                    ),
                    br(),
                    actionButton("remove", "Apply", icon = icon("check"))
-                 ),
-                 # Step 6
-                 conditionalPanel(
-                   condition = "input.conditioned == 6",
-                   tags$h5(
-                     strong("Lemmatize tokens.")
-                   ),
-                   actionButton("lemma", "Apply", icon = icon("check")),
-                   actionButton("skip", "Skip", icon = icon("step-forward"))
                  )
                ),
                mainPanel(
@@ -185,13 +176,6 @@ ui <- fluidPage(
                      shinycssloaders::withSpinner(plotly::plotlyOutput("stopword_plot", height = 500, width = 1000)),
                      br(),
                      DT::dataTableOutput("stopword_table")
-                   ),
-                   tabPanel(
-                     "6. Lemmatize",
-                     value = 6,
-                     shinycssloaders::withSpinner(plotly::plotlyOutput("lemma_plot", height = 500, width = 1000)),
-                     br(),
-                     DT::dataTableOutput("lemma_table")
                    )
                  )
                )

@@ -15,11 +15,9 @@ suppressPackageStartupMessages({
   library(rlang)
   library(broom)
   library(igraph)
-  library(spacyr)
 })
 
 server <- shinyServer(function(input, output, session) {
-  # suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
 
   observeEvent(input$dataset_choice, {
     if (input$dataset_choice == "Upload an Example Dataset") {
@@ -343,7 +341,7 @@ server <- shinyServer(function(input, output, session) {
     toks
   })
 
-  dfm_init_updated <- eventReactive(input$remove, {
+  dfm_outcome <- eventReactive(input$remove, {
     req(final_tokens())
     dfm_obj <- quanteda::dfm(final_tokens())
 
@@ -378,89 +376,11 @@ server <- shinyServer(function(input, output, session) {
 
   output$stopword_plot <- plotly::renderPlotly({
     req(input$remove)
-    dfm_init_updated() %>% TextAnalysisR::plot_word_frequency(n = 20)
+    dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
   })
 
   output$stopword_table <- DT::renderDataTable({
     req(input$remove)
-    quanteda.textstats::textstat_frequency(dfm_init_updated())
-  },
-  rownames = FALSE,
-  extensions = 'Buttons',
-  options = list(
-    scrollX = TRUE,
-    scrollY = "400px",
-    width = "80%",
-    dom = 'Bfrtip',
-    buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-  ))
-
-  # Step 6: Lemmatize options.
-
-  tokens_lemmatized <- eventReactive(input$lemma, {
-    req(final_tokens())
-    toks <- final_tokens()
-
-    texts <- sapply(toks, paste, collapse = " ")
-    parsed <- spacyr::spacy_parse(x = texts, lemma = TRUE, entity = FALSE, pos = FALSE)
-    toks <- quanteda::as.tokens(parsed, use_lemma = TRUE)
-
-    return(toks)
-  })
-
-  last_clicked <- reactiveVal(NULL)
-
-  observeEvent(input$lemma, {
-    last_clicked("lemma")
-  })
-  observeEvent(input$skip, {
-    last_clicked("skip")
-  })
-
-  dfm_outcome <- eventReactive(last_clicked(), {
-    if (last_clicked() == "lemma") {
-      req(tokens_lemmatized())
-      dfm_obj <- quanteda::dfm(tokens_lemmatized())
-
-          if (!is.null(quanteda::docvars(dfm_init_updated()))) {
-            quanteda::docvars(dfm_obj) <- quanteda::docvars(dfm_init_updated())
-          }
-
-              doc_count     <- quanteda::ndoc(dfm_obj)
-              feature_count <- quanteda::nfeat(dfm_obj)
-              summary_info  <- capture.output(str(dfm_obj))
-              combined_output <- c(
-                paste("Document count:", doc_count),
-                paste("Feature count:", feature_count),
-                "Summary of dfm_object:",
-                summary_info
-              )
-
-              shiny::showModal(
-                shiny::modalDialog(
-                  title = "DFM Construction Steps (Lemmatization)",
-                  shiny::verbatimTextOutput("modal_lemma_verbose_output"),
-                  easyClose = TRUE,
-                  footer = shiny::modalButton("Close")
-                )
-              )
-              output$modal_lemma_verbose_output <- renderPrint({
-                cat(paste(combined_output, collapse = "\n"))
-              })
-
-      return(dfm_obj)
-    } else if (last_clicked() == "skip") {
-      return(dfm_init_updated())
-    }
-  })
-
-  output$lemma_plot <- plotly::renderPlotly({
-    req(dfm_outcome())
-    dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
-  })
-
-  output$lemma_table <- DT::renderDataTable({
-    req(dfm_outcome())
     quanteda.textstats::textstat_frequency(dfm_outcome())
   },
   rownames = FALSE,
@@ -472,8 +392,7 @@ server <- shinyServer(function(input, output, session) {
     dom = 'Bfrtip',
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
   ))
-
-
+  
 
   # "Word Networks" page
 
@@ -2155,7 +2074,6 @@ output$topic_download_table <- downloadHandler(
   })
 
   session$onSessionEnded(function() {
-    # spacyr::spacy_finalize()
     Sys.unsetenv("OPENAI_API_KEY")
     shiny::showNotification("OpenAI API Key has been removed from the environment.", type = "message", duration = 3)
     stopApp()
