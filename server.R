@@ -18,7 +18,7 @@ suppressPackageStartupMessages({
 })
 
 server <- shinyServer(function(input, output, session) {
-  # suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
+  suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
 
   observeEvent(input$dataset_choice, {
     if (input$dataset_choice == "Upload an Example Dataset") {
