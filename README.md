@@ -3,8 +3,6 @@
 <img src="man/figures/logo.png" align="right" width=150px alt="TextAnalysisR Logo">
 
 <!-- badges: start -->
-
-[![R-CMD-check](https://github.com/mshin77/TextAnalysisR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/mshin77/TextAnalysisR/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 `TextAnalysisR` provides a supporting workflow tool for text mining
