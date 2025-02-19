@@ -140,22 +140,17 @@ ui <- fluidPage(
                          options = list(create = TRUE)
                        )
                    ),
+                   br(),
                    actionButton("remove", "Apply", icon = icon("check"))
                  ),
-                   # Step 6
+                 # Step 6
                  conditionalPanel(
                    condition = "input.conditioned == 6",
                    tags$h5(
                      strong("Lemmatize tokens.")
                    ),
-                   selectizeInput(
-                     "remainder_tokens",
-                     "Remove Remainder Tokens:",
-                     choices = NULL,
-                     multiple = TRUE,
-                     options = list(create = TRUE)
-                   ),
-                   actionButton("lemma", "Apply", icon = icon("check"))
+                   actionButton("lemma", "Apply", icon = icon("check")),
+                   actionButton("skip", "Skip", icon = icon("step-forward"))
                  )
                ),
                mainPanel(

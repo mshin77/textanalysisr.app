@@ -18,6 +18,7 @@ suppressPackageStartupMessages({
 })
 
 server <- shinyServer(function(input, output, session) {
+  suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
 
   observeEvent(input$dataset_choice, {
     if (input$dataset_choice == "Upload an Example Dataset") {
@@ -281,7 +282,8 @@ server <- shinyServer(function(input, output, session) {
 
   tstat_freq_dfm_init <- reactive({
     tstat_freq <- quanteda.textstats::textstat_frequency(dfm_init())
-    tstat_freq$feature
+    tstat_freq_n_100 <- head(tstat_freq, 100)
+    tstat_freq_n_100$feature
   })
 
   observe({
@@ -394,67 +396,70 @@ server <- shinyServer(function(input, output, session) {
 
   # Step 6: Lemmatize options.
 
-  dfm_outcome <- eventReactive(input$lemma, {
+  tokens_lemmatized <- eventReactive(input$lemma, {
     req(final_tokens())
     toks <- final_tokens()
 
-    if (!is.null(input$lemma) && length(input$lemma) > 0) {
-      texts <- sapply(toks, paste, collapse = " ")
-      parsed <- spacyr::spacy_parse(x = texts, lemma = TRUE, entity = FALSE, pos = FALSE)
-      toks <- quanteda::as.tokens(parsed, use_lemma = TRUE)
-    }
+    texts <- sapply(toks, paste, collapse = " ")
+    parsed <- spacyr::spacy_parse(x = texts, lemma = TRUE, entity = FALSE, pos = FALSE)
+    toks <- quanteda::as.tokens(parsed, use_lemma = TRUE)
 
-    if (!is.null(input$remainder_tokens) && length(input$remainder_tokens) > 0) {
-      toks <- quanteda::tokens_remove(toks, pattern = input$remainder_tokens, verbose = FALSE)
-    }
-
-    dfm_obj <- quanteda::dfm(toks)
-
-    doc_count     <- quanteda::ndoc(dfm_obj)
-    feature_count <- quanteda::nfeat(dfm_obj)
-    summary_info  <- capture.output(str(dfm_obj))
-    combined_output <- c(
-      paste("Document count:", doc_count),
-      paste("Feature count:", feature_count),
-      "Summary of dfm_object:",
-      summary_info
-    )
-
-    shiny::showModal(
-      shiny::modalDialog(
-        title = "DFM Construction Steps (Stemming & Lemmatization)",
-        shiny::verbatimTextOutput("modal_lemma_verbose_output"),
-        easyClose = TRUE,
-        footer = shiny::modalButton("Close")
-      )
-    )
-    output$modal_lemma_verbose_output <- renderPrint({
-      cat(paste(combined_output, collapse = "\n"))
-    })
-
-    return(dfm_obj)
+    return(toks)
   })
 
-  observe({
-    req(dfm_outcome())
-    freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
-    updateSelectizeInput(
-      session,
-      "remainder_tokens",
-      choices  = freq$feature,
-      selected = head(freq$feature, 10),
-      options  = list(create = TRUE),
-      server = TRUE
-    )
+  last_clicked <- reactiveVal(NULL)
+
+  observeEvent(input$lemma, {
+    last_clicked("lemma")
+  })
+  observeEvent(input$skip, {
+    last_clicked("skip")
+  })
+
+  dfm_outcome <- eventReactive(last_clicked(), {
+    if (last_clicked() == "lemma") {
+      req(tokens_lemmatized())
+      dfm_obj <- quanteda::dfm(tokens_lemmatized())
+
+          if (!is.null(quanteda::docvars(dfm_init_updated()))) {
+            quanteda::docvars(dfm_obj) <- quanteda::docvars(dfm_init_updated())
+          }
+
+              doc_count     <- quanteda::ndoc(dfm_obj)
+              feature_count <- quanteda::nfeat(dfm_obj)
+              summary_info  <- capture.output(str(dfm_obj))
+              combined_output <- c(
+                paste("Document count:", doc_count),
+                paste("Feature count:", feature_count),
+                "Summary of dfm_object:",
+                summary_info
+              )
+
+              shiny::showModal(
+                shiny::modalDialog(
+                  title = "DFM Construction Steps (Lemmatization)",
+                  shiny::verbatimTextOutput("modal_lemma_verbose_output"),
+                  easyClose = TRUE,
+                  footer = shiny::modalButton("Close")
+                )
+              )
+              output$modal_lemma_verbose_output <- renderPrint({
+                cat(paste(combined_output, collapse = "\n"))
+              })
+
+      return(dfm_obj)
+    } else if (last_clicked() == "skip") {
+      return(dfm_init_updated())
+    }
   })
 
   output$lemma_plot <- plotly::renderPlotly({
-    req(input$lemma)
+    req(dfm_outcome())
     dfm_outcome() %>% TextAnalysisR::plot_word_frequency(n = 20)
   })
 
   output$lemma_table <- DT::renderDataTable({
-    req(input$lemma)
+    req(dfm_outcome())
     quanteda.textstats::textstat_frequency(dfm_outcome())
   },
   rownames = FALSE,
@@ -466,6 +471,7 @@ server <- shinyServer(function(input, output, session) {
     dom = 'Bfrtip',
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
   ))
+
 
 
   # "Word Networks" page
@@ -622,7 +628,8 @@ colnames_con <- reactive({
 
   tstat_freq_over_con_var <- reactive({
     tstat_freq <- quanteda.textstats::textstat_frequency(dfm_outcome())
-    tstat_freq$feature
+    tstat_freq_n_100 <- head(tstat_freq, 100)
+    tstat_freq_n_100$feature
   })
 
   observe({
@@ -2147,6 +2154,7 @@ output$topic_download_table <- downloadHandler(
   })
 
   session$onSessionEnded(function() {
+    spacyr::spacy_finalize()
     Sys.unsetenv("OPENAI_API_KEY")
     shiny::showNotification("OpenAI API Key has been removed from the environment.", type = "message", duration = 3)
     stopApp()
