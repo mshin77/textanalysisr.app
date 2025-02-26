@@ -22,41 +22,34 @@ server <- shinyServer(function(input, output, session) {
   observeEvent(input$dataset_choice, {
     if (input$dataset_choice == "Upload an Example Dataset") {
       shinyjs::disable("file")
-      shinyjs::disable("text_input")
-    } else if (input$dataset_choice == "Copy and Paste Text") {
-      shinyjs::disable("file")
-      shinyjs::enable("text_input")
-    } else if (input$dataset_choice == "Upload Your File") {
+    } else {
       shinyjs::enable("file")
-      shinyjs::disable("text_input")
-    } else {
-      shinyjs::disable("file")
-      shinyjs::disable("text_input")
     }
   })
-
+  
   mydata <- reactive({
-    req(input$dataset_choice)
-
     if (input$dataset_choice == "Upload an Example Dataset") {
-      return(TextAnalysisR::SpecialEduTech)
-    } else if (input$dataset_choice == "Copy and Paste Text") {
-      req(input$text_input)
-      return(TextAnalysisR::process_files(input$dataset_choice, text_input = input$text_input))
-    } else if (input$dataset_choice == "Upload Your File") {
-      req(input$file)
-      file_info <- data.frame(filepath = input$file$datapath, stringsAsFactors = FALSE)
-      return(TextAnalysisR::process_files(input$dataset_choice, file_info = file_info))
+      data <- TextAnalysisR::SpecialEduTech
     } else {
-      return(NULL)
+      req(input$file)
+      filename <- input$file$datapath
+      tryCatch({
+        if (grepl("*[.]xlsx$|[.]xls$|[.]xlsm$", filename)) {
+          data <- as.data.frame(readxl::read_excel(filename))
+        } else if (grepl("*[.]csv$|*", filename)) {
+          data <- read.csv(filename)
+        }
+      })
     }
+    return(data)
   })
-
+  
   output$data_table <- DT::renderDataTable({
     req(mydata())
-    DT::datatable(mydata(), rownames = FALSE)
+    DT::datatable(mydata(),
+                  rownames = FALSE)
   })
-
+  
   # Step 1: Unite texts.
 
   colnames <- reactive(names(mydata()))

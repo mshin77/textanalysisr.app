@@ -42,26 +42,27 @@ ui <- fluidPage(
              sidebarLayout(
                sidebarPanel(
                  width = 3,
-                 tags$h5(strong("Upload a file or use the dataset.")),
-                 selectizeInput("dataset_choice", "Choose Dataset:",
-                                choices = c("Select a dataset" = "",
-                                            "Upload an Example Dataset",
-                                            "Upload Your File",
-                                            "Copy and Paste Text"),
-                                selected = "",
-                                options = list(placeholder = 'Select a dataset')
+                 selectInput(
+                   "dataset_choice",
+                   helpText(
+                     strong("Upload an Excel file or use the dataset."),
+                     br(),
+                     br(),
+                     "When uploading an Excel file, please upload one sheet."
+                   ),
+                   selected = " ",
+                   choices = c(" ", "Upload an Example Dataset", "Upload Your File")
                  ),
-                 fileInput("file", "Upload Your File",
-                           multiple = TRUE,
-                           accept = c(".xlsx", ".xls", ".xlsm", ".csv", ".pdf", ".docx", ".txt")),
-                 textAreaInput("text_input", "Copy and Paste Text", "",
-                               rows = 10, placeholder = "Paste your text here...")
+                 fileInput(
+                   "file",
+                   "Upload a file",
+                   multiple = TRUE,
+                   accept = c(".xlsx, .xls, .xlsm, .csv")
+                 )
                ),
                mainPanel(width = 9,
-                         DT::dataTableOutput("data_table")
-               )
-             )
-    ),
+                         DT::dataTableOutput("data_table"))
+             )),
     tabPanel("Preprocess",
              sidebarLayout(
                sidebarPanel(
