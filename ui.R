@@ -51,8 +51,9 @@ ui <- fluidPage(
                                 selected = "",
                                 options = list(placeholder = 'Select a dataset')
                  ),
-                 fileInput("file", "Upload Your File",
-                           multiple = TRUE,
+                 fileInput("file", 
+                           "Upload Your File",
+                           multiple = FALSE,
                            accept = c(".xlsx", ".xls", ".xlsm", ".csv", ".pdf", ".docx", ".txt")),
                  textAreaInput("text_input", "Copy and Paste Text", "",
                                rows = 10, placeholder = "Paste your text here...")
