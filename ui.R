@@ -151,7 +151,7 @@ ui <- fluidPage(
                    tabPanel(
                      "1. Unite Texts",
                      value = 1,
-                     DT::dataTableOutput("united_table")
+                     shinycssloaders::withSpinner(DT::dataTableOutput("united_table"))
                    ),
                    tabPanel(
                      "2. Segment Texts",
