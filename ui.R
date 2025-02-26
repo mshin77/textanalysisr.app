@@ -42,25 +42,26 @@ ui <- fluidPage(
              sidebarLayout(
                sidebarPanel(
                  width = 3,
-                 tags$h5(
-                   strong("Upload an Excel file or use the dataset.")
+                 tags$h5(strong("Upload a file or use the dataset.")),
+                 selectizeInput("dataset_choice", "Choose Dataset:",
+                                choices = c("Select a dataset" = "",
+                                            "Upload an Example Dataset",
+                                            "Upload Your File",
+                                            "Copy and Paste Text"),
+                                selected = "",
+                                options = list(placeholder = 'Select a dataset')
                  ),
-                 selectInput(
-                   "dataset_choice",
-                   helpText(strong("When uploading an Excel file, please upload one sheet.")),
-                   selected = " ",
-                   choices = c(" ", "Upload an Example Dataset", "Upload Your File")
-                 ),
-                 fileInput(
-                   "file",
-                   "Upload a file",
-                   multiple = TRUE,
-                   accept = c(".xlsx, .xls, .xlsm, .csv")
-                 )
+                 fileInput("file", "Upload Your File",
+                           multiple = TRUE,
+                           accept = c(".xlsx", ".xls", ".xlsm", ".csv", ".pdf", ".docx", ".txt")),
+                 textAreaInput("text_input", "Copy and Paste Text", "",
+                               rows = 10, placeholder = "Paste your text here...")
                ),
                mainPanel(width = 9,
-                         DT::dataTableOutput("data_table"))
-             )),
+                         DT::dataTableOutput("data_table")
+               )
+             )
+    ),
     tabPanel("Preprocess",
              sidebarLayout(
                sidebarPanel(
@@ -150,7 +151,7 @@ ui <- fluidPage(
                    tabPanel(
                      "1. Unite Texts",
                      value = 1,
-                     shinycssloaders::withSpinner(DT::dataTableOutput("united_table"))
+                     DT::dataTableOutput("united_table")
                    ),
                    tabPanel(
                      "2. Segment Texts",
