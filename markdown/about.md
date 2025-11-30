@@ -1,4 +1,4 @@
-<img src="man/figures/logo.png" alt="TextAnalysisR Logo" align="right" width="150px"/>
+<img src="www/images/logo.png" alt="TextAnalysisR Logo" align="right" width="150px"/>
 
 [![R-CMD-check](https://github.com/mshin77/TextAnalysisR/workflows/R-CMD-check/badge.svg)](https://github.com/mshin77/TextAnalysisR/actions)
 [![Project Status:
