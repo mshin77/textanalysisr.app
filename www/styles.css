@@ -136,9 +136,19 @@ body {
   border-color: #10707f;
 }
 
+/* Shinybusy overlay */
+.shinybusy-overlay {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+}
+
 .shiny-notification {
   color: #0c1f4a !important;
   font-size: 16px !important;
+  pointer-events: auto !important;
+}
+
+.shiny-notification:hover {
+  opacity: 1 !important;
 }
 
 .shiny-notification-message {
@@ -1062,6 +1072,81 @@ div {
   color: #e2e8f0 !important;
 }
 
+/* Google Translate select styling */
+#google_translate_element.show select,
+#google_translate_element.show .goog-te-combo {
+  font-size: 16px !important;
+  padding: 8px 14px !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  background-color: #fff !important;
+  min-width: 140px !important;
+  max-width: 200px !important;
+  height: auto !important;
+  cursor: pointer !important;
+}
+
+#google_translate_element select:focus,
+#google_translate_element select:active,
+.goog-te-combo:focus,
+.goog-te-combo:active {
+  font-size: 16px !important;
+}
+
+#google_translate_element option,
+.goog-te-combo option {
+  font-size: 16px !important;
+}
+
+#google_translate_element.show .goog-te-gadget {
+  font-size: 0 !important;
+  line-height: 1 !important;
+  display: inline-block !important;
+}
+
+#google_translate_element.show .goog-te-gadget .goog-te-combo {
+  margin: 0 !important;
+  vertical-align: middle !important;
+  font-size: 16px !important;
+  display: inline-block !important;
+}
+
+/* Hide Google Translate branding */
+.goog-logo-link {
+  display: none !important;
+}
+
+.goog-te-gadget span {
+  display: none !important;
+}
+
+.goog-te-banner-frame,
+body > .skiptranslate {
+  display: none !important;
+}
+
+.goog-te-gadget img {
+  display: none !important;
+}
+
+/* Mobile responsive for Google Translate */
+@media (max-width: 768px) {
+  #google_translate_element select,
+  #google_translate_element select *,
+  .goog-te-combo,
+  .goog-te-combo * {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+  }
+}
+
+/* Sidebar logo */
+.sidebar-logo {
+  width: 100%;
+  text-align: center;
+}
+
 [data-theme="dark"] .navbar,
 [data-theme="dark"] .navbar-default {
   background-color: var(--bg-secondary) !important;
@@ -1228,6 +1313,13 @@ div {
 }
 
 .top-right-controls {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 15px;
   background-color: transparent !important;
 }
 

@@ -5954,6 +5954,13 @@ server <- shinyServer(function(input, output, session) {
       choices = col_names,
       selected = ""
     )
+
+    updateSelectizeInput(
+      session,
+      "lexdiv_doc_id_var",
+      choices = col_names,
+      selected = ""
+    )
   })
 
   observeEvent(input$sentiment_category_var, {
@@ -6815,10 +6822,7 @@ server <- shinyServer(function(input, output, session) {
       "gunning_fog" = "Gunning Fog",
       "smog" = "SMOG",
       "ari" = "Automated Readability Index",
-      "coleman_liau" = "Coleman-Liau",
-      "Lexical Diversity (TTR)" = "Lexical Diversity (TTR)",
-      "Lexical Diversity (MTLD)" = "Lexical Diversity (MTLD)",
-      "Avg Sentence Length" = "Avg Sentence Length"
+      "coleman_liau" = "Coleman-Liau"
     )
 
     display_names <- sapply(metric_names, function(m) {
@@ -6872,7 +6876,7 @@ server <- shinyServer(function(input, output, session) {
 
     tryCatch({
       texts <- united_tbl()$united_texts
-      doc_names <- paste0("doc", seq_len(nrow(united_tbl())))
+      doc_names <- paste0("Doc ", seq_len(nrow(united_tbl())))
 
       selected_metrics <- input$readability_metrics
 
@@ -6885,8 +6889,8 @@ server <- shinyServer(function(input, output, session) {
       readability_scores <- TextAnalysisR::calculate_text_readability(
         texts = texts,
         metrics = selected_metrics,
-        include_lexical_diversity = TRUE,
-        include_sentence_stats = TRUE,
+        include_lexical_diversity = FALSE,
+        include_sentence_stats = FALSE,
         dfm_for_lexdiv = dfm_to_use,
         doc_names = doc_names
       )
@@ -7035,27 +7039,46 @@ server <- shinyServer(function(input, output, session) {
     analyzed = FALSE,
     data = NULL,
     summary = NULL,
-    selected_metric = "TTR"
+    selected_metric = "TTR",
+    original_data = NULL
   )
 
   output$lexical_diversity_uiOutput <- renderUI({
     if (lexical_diversity_results$analyzed) {
+      # Get available metrics from data
+      available_metrics <- setdiff(names(lexical_diversity_results$data), "document")
+
+      # Create choices with display labels
+      metric_labels <- c(
+        "MTLD" = "MTLD (Most Recommended)",
+        "MATTR" = "MATTR (Recommended)",
+        "MSTTR" = "MSTTR (Mean Segmental TTR)",
+        "TTR" = "TTR (Type-Token Ratio)",
+        "CTTR" = "CTTR (Corrected TTR)",
+        "C" = "Herdan's C",
+        "R" = "Guiraud's R",
+        "Maas" = "Maas",
+        "K" = "Yule's K",
+        "D" = "Simpson's D",
+        "U" = "Dugast's U",
+        "S" = "Summer's S",
+        "I" = "Yule's I",
+        "Vm" = "Herdan's Vm"
+      )
+
+      # Filter to only available metrics
+      metric_choices <- available_metrics
+      names(metric_choices) <- sapply(available_metrics, function(m) {
+        if (m %in% names(metric_labels)) metric_labels[[m]] else m
+      })
+
       tagList(
         fluidRow(
           column(12,
             selectInput(
               "lexdiv_metric_select",
-              "Select Metric:",
-              choices = c(
-                "MTLD (Recommended)" = "MTLD",
-                "MATTR (Recommended)" = "MATTR",
-                "MSTTR (Mean Segmental TTR)" = "MSTTR",
-                "TTR (Type-Token Ratio)" = "TTR",
-                "CTTR (Corrected TTR)" = "CTTR",
-                "Maas" = "Maas",
-                "Yule's K" = "K",
-                "Simpson's D" = "D"
-              ),
+              "Select Metric to Visualize:",
+              choices = metric_choices,
               selected = lexical_diversity_results$selected_metric
             )
           )
@@ -7130,15 +7153,41 @@ server <- shinyServer(function(input, output, session) {
     show_loading_notification("Calculating lexical diversity metrics...", id = "lexdiv_loading")
 
     tryCatch({
+      # Get selected metrics from checkboxGroup, default to all if none selected
+      selected_metrics <- input$lexdiv_metrics
+      if (is.null(selected_metrics) || length(selected_metrics) == 0) {
+        selected_metrics <- "all"
+      }
+
+      # Get texts for average sentence length calculation
+      texts_for_lexdiv <- NULL
+      tryCatch({
+        text_col <- input$text_column
+        if (!is.null(text_col) && text_col %in% names(united_tbl())) {
+          texts_for_lexdiv <- as.character(united_tbl()[[text_col]])
+        }
+      }, error = function(e) {
+        texts_for_lexdiv <- NULL
+      })
+
       result <- TextAnalysisR::lexical_diversity_analysis(
         dfm_object = tokens_to_use,
-        measures = "all"
+        measures = selected_metrics,
+        texts = texts_for_lexdiv
       )
 
       lexical_diversity_results$analyzed <- TRUE
       lexical_diversity_results$data <- result$lexical_diversity
       lexical_diversity_results$summary <- result$summary_stats
-      lexical_diversity_results$selected_metric <- input$lexdiv_metric_select %||% "TTR"
+      lexical_diversity_results$original_data <- united_tbl()
+
+      # Set selected_metric to first available metric from selection
+      available_metrics <- setdiff(names(result$lexical_diversity), "document")
+      if (length(available_metrics) > 0) {
+        lexical_diversity_results$selected_metric <- available_metrics[1]
+      } else {
+        lexical_diversity_results$selected_metric <- "TTR"
+      }
 
       remove_notification_by_id("lexdiv_loading")
       show_completion_notification("Lexical diversity analysis completed successfully!")
@@ -7174,8 +7223,36 @@ server <- shinyServer(function(input, output, session) {
     req(lexical_diversity_results$data)
 
     lex_data <- lexical_diversity_results$data
-    numeric_cols <- setdiff(names(lex_data), "document")
-    create_analysis_datatable(lex_data, numeric_cols = numeric_cols, digits = 2)
+
+    # Add Document ID if selected
+    if (!is.null(input$lexdiv_doc_id_var) && input$lexdiv_doc_id_var != "" &&
+        input$lexdiv_doc_id_var != "None" && !is.null(lexical_diversity_results$original_data) &&
+        input$lexdiv_doc_id_var %in% names(lexical_diversity_results$original_data)) {
+      doc_ids <- as.character(lexical_diversity_results$original_data[[input$lexdiv_doc_id_var]])
+      lex_data$`Document ID` <- doc_ids
+      # Reorder columns to put Document ID after document
+      col_order <- c("document", "Document ID", setdiff(names(lex_data), c("document", "Document ID")))
+      lex_data <- lex_data[, col_order, drop = FALSE]
+    }
+
+    # Rename 'document' column to 'Document' for consistency with Readability
+    if ("document" %in% names(lex_data)) {
+      names(lex_data)[names(lex_data) == "document"] <- "Document"
+    }
+
+    numeric_cols <- names(lex_data)[!names(lex_data) %in% c("Document", "Document ID")]
+
+    datatable(
+      lex_data,
+      options = list(
+        pageLength = 20,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+      ),
+      rownames = FALSE
+    ) %>%
+      formatRound(columns = numeric_cols, digits = 3)
   })
 
   keyword_results <- reactiveValues(

@@ -414,12 +414,119 @@ $(document).ready(function() {
       // Trigger immediate conditional panel re-evaluation
       Shiny.shinyapp.$updateConditionals();
     });
-    
+
     // Also handle selectize events
     $(document).on('change', '.selectize-input', function() {
       Shiny.shinyapp.$updateConditionals();
     });
   }
+});
+
+// Shiny notification close button handler
+$(document).on('shiny:notification', function(event) {
+  event.notification.closeButton = true;
+});
+
+$(document).on('mouseover', '.shiny-notification', function(e) {
+  e.stopPropagation();
+});
+
+// Coding mode custom message handler - wait for Shiny to be available
+$(document).on('shiny:connected', function() {
+  if (typeof Shiny !== 'undefined') {
+    Shiny.addCustomMessageHandler('setCodingMode', function(mode) {
+      Shiny.setInputValue('coding_mode', mode);
+    });
+  }
+});
+
+// Topic modeling path tab visibility handler
+$(document).on('shiny:inputchanged', function(event) {
+  if (event.name === 'topic_modeling_path') {
+    var path = event.value;
+    var tabsToHide = ['8', '9', '10'];
+    tabsToHide.forEach(function(tabValue) {
+      var tabLink = $('#conditioned3 a[data-value="' + tabValue + '"]');
+      if (tabLink.length > 0) {
+        if (path === 'embedding') {
+          tabLink.parent().hide();
+        } else {
+          tabLink.parent().show();
+        }
+      }
+    });
+  }
+});
+
+// Dark mode toggle function
+function toggleDarkMode() {
+  const html = document.documentElement;
+  const currentTheme = html.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+
+  const btn = document.getElementById('dark_mode_toggle');
+  if (btn) {
+    const icon = btn.querySelector('i');
+    if (icon) {
+      icon.className = newTheme === 'dark' ? 'fa fa-sun' : 'fa fa-moon';
+    }
+    btn.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.title = newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+}
+
+// Initialize theme on page load
+$(document).ready(function() {
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
+  const btn = document.getElementById('dark_mode_toggle');
+  if (btn) {
+    const icon = btn.querySelector('i');
+    if (icon) {
+      icon.className = savedTheme === 'dark' ? 'fa fa-sun' : 'fa fa-moon';
+    }
+    btn.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.title = savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+
+  // Initialize Google Translate
+  var initAttempts = 0;
+  var maxAttempts = 10;
+
+  function tryInitTranslate() {
+    initAttempts++;
+    var translateElement = document.getElementById('google_translate_element');
+
+    if (!translateElement) {
+      if (initAttempts < maxAttempts) {
+        setTimeout(tryInitTranslate, 500);
+      }
+      return;
+    }
+
+    if (typeof google !== 'undefined' && google.translate && typeof googleTranslateElementInit === 'function') {
+      if (translateElement.innerHTML.trim() === '') {
+        googleTranslateElementInit();
+        setTimeout(function() {
+          translateElement.style.display = 'none';
+        }, 100);
+      } else {
+        translateElement.style.display = 'none';
+      }
+    } else {
+      if (initAttempts < maxAttempts) {
+        setTimeout(tryInitTranslate, 500);
+      }
+    }
+  }
+
+  setTimeout(tryInitTranslate, 500);
+
+  // Activate first tab by default
+  $('#home_nav_menu li:first-child a').tab('show');
 });
 
 // Ensure only one option is highlighted at a time in selectize

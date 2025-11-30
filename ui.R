@@ -39,194 +39,8 @@ ui <- fluidPage(
 
     tags$meta(name = "theme-color", content = "#337ab7"),
 
-    tags$style(HTML("
-      .shinybusy-overlay {
-        background-color: rgba(0, 0, 0, 0.15) !important;
-      }
-      .shiny-notification {
-        pointer-events: auto !important;
-      }
-      .shiny-notification:hover {
-        opacity: 1 !important;
-      }
-      #google_translate_element.show {
-        display: inline-block !important;
-        vertical-align: middle !important;
-        line-height: normal !important;
-      }
-      #google_translate_element.show select,
-      #google_translate_element.show .goog-te-combo {
-        font-size: 16px !important;
-        padding: 8px 14px !important;
-        border: 1px solid #ddd !important;
-        border-radius: 4px !important;
-        background-color: #fff !important;
-        min-width: 140px !important;
-        max-width: 200px !important;
-        height: auto !important;
-        cursor: pointer !important;
-      }
-
-      #google_translate_element select:focus,
-      #google_translate_element select:active,
-      .goog-te-combo:focus,
-      .goog-te-combo:active {
-        font-size: 16px !important;
-      }
-      #google_translate_element option,
-      .goog-te-combo option {
-        font-size: 16px !important;
-      }
-      #google_translate_element.show .goog-te-gadget {
-        font-size: 0 !important;
-        line-height: 1 !important;
-        display: inline-block !important;
-      }
-      #google_translate_element.show .goog-te-gadget .goog-te-combo {
-        margin: 0 !important;
-        vertical-align: middle !important;
-        font-size: 16px !important;
-        display: inline-block !important;
-      }
-      .goog-logo-link {
-        display: none !important;
-      }
-      .goog-te-gadget span {
-        display: none !important;
-      }
-      .goog-te-banner-frame,
-      body > .skiptranslate {
-        display: none !important;
-      }
-      .goog-te-gadget img {
-        display: none !important;
-      }
-
-      @media (max-width: 768px) {
-        #google_translate_element select,
-        #google_translate_element select *,
-        .goog-te-combo,
-        .goog-te-combo * {
-          font-size: 16px !important;
-          -webkit-text-size-adjust: 100% !important;
-          text-size-adjust: 100% !important;
-        }
-      }
-    ")),
-    tags$script(HTML("
-      $(document).on('shiny:notification', function(event) {
-        event.notification.closeButton = true;
-      });
-      $(document).on('mouseover', '.shiny-notification', function(e) {
-        e.stopPropagation();
-      });
-      Shiny.addCustomMessageHandler('setCodingMode', function(mode) {
-        Shiny.setInputValue('coding_mode', mode);
-      });
-      $(document).on('shiny:inputchanged', function(event) {
-        if (event.name === 'topic_modeling_path') {
-          var path = event.value;
-          var tabsToHide = ['8', '9', '10'];
-          tabsToHide.forEach(function(tabValue) {
-            var tabLink = $('#conditioned3 a[data-value=\"' + tabValue + '\"]');
-            if (tabLink.length > 0) {
-              if (path === 'embedding') {
-                tabLink.parent().hide();
-              } else {
-                tabLink.parent().show();
-              }
-            }
-          });
-        }
-      });
-
-      function toggleDarkMode() {
-        const html = document.documentElement;
-        const currentTheme = html.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        html.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-
-        const btn = document.getElementById('dark_mode_toggle');
-        if (btn) {
-          const icon = btn.querySelector('i');
-          if (icon) {
-            icon.className = newTheme === 'dark' ? 'fa fa-sun' : 'fa fa-moon';
-          }
-          btn.setAttribute('aria-label', newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-          btn.title = newTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
-        }
-      }
-
-      $(document).ready(function() {
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-
-        const btn = document.getElementById('dark_mode_toggle');
-        if (btn) {
-          const icon = btn.querySelector('i');
-          if (icon) {
-            icon.className = savedTheme === 'dark' ? 'fa fa-sun' : 'fa fa-moon';
-          }
-          btn.setAttribute('aria-label', savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
-          btn.title = savedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
-        }
-
-        var initAttempts = 0;
-        var maxAttempts = 10;
-
-        function tryInitTranslate() {
-          initAttempts++;
-          var translateElement = document.getElementById('google_translate_element');
-
-          if (!translateElement) {
-            if (initAttempts < maxAttempts) {
-              setTimeout(tryInitTranslate, 500);
-            }
-            return;
-          }
-
-          if (typeof google !== 'undefined' && google.translate && typeof googleTranslateElementInit === 'function') {
-            if (translateElement.innerHTML.trim() === '') {
-              googleTranslateElementInit();
-              setTimeout(function() {
-                translateElement.style.display = 'none';
-              }, 100);
-            } else {
-              translateElement.style.display = 'none';
-            }
-          } else {
-            if (initAttempts < maxAttempts) {
-              setTimeout(tryInitTranslate, 500);
-            }
-          }
-        }
-
-        setTimeout(tryInitTranslate, 500);
-      });
-    ")),
-    tags$script(src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"),
-    tags$style(HTML("
-      .top-right-controls {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-      }
-      .sidebar-logo {
-        width: 100%;
-        text-align: center;
-      }
-    ")),
-    tags$script(HTML("
-      $(document).ready(function() {
-        // Activate first tab by default
-        $('#home_nav_menu li:first-child a').tab('show');
-      });
-    "))
+    # Google Translate API (external library - must remain here)
+    tags$script(src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit")
   ),
 
   tags$div(
@@ -936,7 +750,35 @@ Supports:
                         style = "color: #337ab7; font-size: 16px;",
                         title = "Click for detailed metric descriptions")
             ),
+            selectizeInput(
+              "lexdiv_doc_id_var",
+              "Document ID variable",
+              choices = NULL,
+              selected = "",
+              options = list(
+                allowEmptyOption = TRUE,
+                persist = TRUE,
+                placeholder = "Optional"
+              )
+            ),
             br(),
+            checkboxGroupInput(
+              "lexdiv_metrics",
+              "Metrics to calculate",
+              choices = c(
+                "MTLD (Most Recommended)" = "MTLD",
+                "MATTR (Recommended)" = "MATTR",
+                "MSTTR (Mean Segmental TTR)" = "MSTTR",
+                "TTR (Type-Token Ratio)" = "TTR",
+                "CTTR (Corrected TTR)" = "CTTR",
+                "Herdan's C" = "C",
+                "Guiraud's R" = "R",
+                "Maas" = "Maas",
+                "Yule's K" = "K",
+                "Simpson's D" = "D"
+              ),
+              selected = c("MTLD", "MATTR", "TTR")
+            ),
             actionButton("run_lexdiv_analysis", "Analyze", class = "btn-primary btn-block")
           ),
           conditionalPanel(
