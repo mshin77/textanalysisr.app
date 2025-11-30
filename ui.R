@@ -288,7 +288,6 @@ ui <- fluidPage(
   titlePanel("TextAnalysisR",
     windowTitle = "TextAnalysisR: Text Mining and Semantic Analysis Toolkit"
   ),
-  uiOutput("web_deployment_banner"),
   tags$main(
     id = "main-content",
     role = "main",
