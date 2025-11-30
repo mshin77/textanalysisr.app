@@ -2791,8 +2791,9 @@ server <- shinyServer(function(input, output, session) {
             easyClose = TRUE,
             footer = modalButton("Close")
           ))
-          last_clicked("lemma")
           lemmatized_tokens(tokens_to_use)
+          lemma_applied(TRUE)
+          last_clicked("lemma")
           return(NULL)
         })
       }
