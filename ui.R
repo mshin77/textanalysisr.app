@@ -21,23 +21,27 @@ ui <- fluidPage(
     tags$meta(name = "description", content = "TextAnalysisR: Comprehensive text mining and semantic analysis toolkit"),
     tags$meta(name = "keywords", content = "text mining, topic modeling, semantic analysis, R Shiny"),
 
-    tags$meta(
-      `http-equiv` = "Content-Security-Policy",
-      content = paste(
-        "default-src 'self';",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly https://translate.google.com http://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com https://translate-pa.googleapis.com;",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://translate.googleusercontent.com https://www.gstatic.com;",
-        "font-src 'self' https://fonts.gstatic.com;",
-        "img-src 'self' data: https: http://translate.google.com https://www.gstatic.com https://translate.google.com;",
-        "connect-src 'self' https://translate.googleapis.com https://translate-pa.googleapis.com http://translate.googleapis.com;",
-        "frame-src 'self' http: https: https://translate.google.com https://translate.googleusercontent.com;"
-      )
-    ),
+    # CSP temporarily disabled for testing
+    # tags$meta(
+    #   `http-equiv` = "Content-Security-Policy",
+    #   content = paste(
+    #     "default-src 'self';",
+    #     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly https://translate.google.com http://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com https://translate-pa.googleapis.com;",
+    #     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://translate.googleusercontent.com https://www.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com;",
+    #     "font-src 'self' https://fonts.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:;",
+    #     "img-src 'self' data: https: http://translate.google.com https://www.gstatic.com https://translate.google.com;",
+    #     "connect-src 'self' https://translate.googleapis.com https://translate-pa.googleapis.com http://translate.googleapis.com;",
+    #     "frame-src 'self' http: https: https://translate.google.com https://translate.googleusercontent.com;"
+    #   )
+    # ),
     tags$meta(`http-equiv` = "X-Content-Type-Options", content = "nosniff"),
     tags$meta(`http-equiv` = "X-XSS-Protection", content = "1; mode=block"),
     tags$meta(`http-equiv` = "Referrer-Policy", content = "no-referrer-when-downgrade"),
 
     tags$meta(name = "theme-color", content = "#337ab7"),
+
+    # Font Awesome icons
+    tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"),
 
     # Google Translate API (external library - must remain here)
     tags$script(src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit")
@@ -108,6 +112,7 @@ ui <- fluidPage(
     tabindex = "-1",
     navbarPage(
       "",
+      id = "main_navbar",
       tabPanel(
         "Home",
         fluidRow(
@@ -357,7 +362,7 @@ Supports:
                 tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
                 style = "color: #0c1f4a; margin: 0;"
               ),
-              actionLink("showDFMInfo", icon("info-circle"),
+              actionLink("showDFMInfo", tags$i(class = "fas fa-info-circle"),
                         style = "color: #337ab7; font-size: 16px;",
                         title = "Click for DFM guide")
             ),
@@ -1340,7 +1345,33 @@ Supports:
               tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
               tags$span("Embeddings similarity data calculated and ready")
             ),
-            actionButton("visualize_similarity", "Visualize Results", class = "btn-primary btn-block", icon = icon("chart-bar"))
+            actionButton("visualize_similarity", "Visualize Results", class = "btn-primary btn-block", icon = icon("chart-bar")),
+
+            # Contrastive Similarity Analysis Controls
+            tags$hr(style = "margin: 15px 0;"),
+            tags$label(HTML("<strong>Contrastive Analysis</strong>"), style = "font-weight: 700; margin-bottom: 8px; display: block;"),
+            tags$div(
+              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
+              "Compare reference category against others to identify unique content, gaps, and cross-category opportunities."
+            ),
+            uiOutput("gap_reference_category_ui"),
+            sliderInput(
+              "gap_unique_threshold",
+              "Unique threshold",
+              min = 0.3, max = 0.9, value = 0.6, step = 0.05
+            ),
+            sliderInput(
+              "gap_cross_policy_max",
+              "Cross-category max",
+              min = 0.6, max = 1.0, value = 0.8, step = 0.05
+            ),
+            actionButton("run_gap_analysis", "Run Contrastive Analysis", class = "btn-info btn-block", icon = icon("search-minus")),
+            tags$div(
+              id = "gap_analysis_ready_status",
+              style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-top: 10px; font-size: 16px; border-radius: 4px; display: none;",
+              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+              tags$span("Gap analysis complete")
+            )
           ),
 
           conditionalPanel(
@@ -1966,46 +1997,7 @@ Supports:
               br(),
               conditionalPanel(
                 condition = "output.has_documents == true",
-                DT::dataTableOutput("document_summary_table"),
-                br(),
-                tags$div(
-                  style = "border: 1px solid #dee2e6; padding: 20px; margin-top: 20px; border-radius: 4px; background: #f8f9fa;",
-                  tags$h5(
-                    tags$i(class = "fa fa-brain", style = "margin-right: 8px; color: #337ab7;"),
-                    "Embedding Generation",
-                    style = "color: #0c1f4a; margin-top: 0; margin-bottom: 15px;"
-                  ),
-                  tags$p(
-                    "Generate embeddings for advanced semantic analyses (Document Similarity, Search, Clustering).",
-                    style = "color: #64748B; margin-bottom: 15px;"
-                  ),
-                  uiOutput("embedding_status_ui"),
-                  br(),
-                  fluidRow(
-                    column(6,
-                      selectInput(
-                        "embedding_model_setup",
-                        "Embedding Model:",
-                        choices = c(
-                          "all-MiniLM-L6-v2 (Fast, 384 dimensions)" = "all-MiniLM-L6-v2",
-                          "all-mpnet-base-v2 (Accurate, 768 dimensions)" = "all-mpnet-base-v2"
-                        ),
-                        selected = "all-MiniLM-L6-v2"
-                      )
-                    ),
-                    column(6,
-                      tags$div(
-                        style = "margin-top: 25px;",
-                        actionButton(
-                          "generate_embeddings",
-                          "Generate Embeddings",
-                          class = "btn-primary btn-block",
-                          icon = icon("play")
-                        )
-                      )
-                    )
-                  )
-                )
+                DT::dataTableOutput("document_summary_table")
               ),
               conditionalPanel(
                 condition = "output.has_documents == false",
@@ -2069,7 +2061,44 @@ Supports:
                   height = "auto", width = "100%"
                 ),
                 br(),
-                DT::dataTableOutput("semantic_similarity_stats")
+                DT::dataTableOutput("semantic_similarity_stats"),
+
+                # Contrastive Similarity Analysis Results
+                conditionalPanel(
+                  condition = "output.has_gap_analysis == true",
+                  tags$hr(style = "margin: 20px 0;"),
+                  tags$h5(HTML("<strong>Contrastive Similarity Analysis</strong>"), style = "color: #0c1f4a; margin-bottom: 15px;"),
+                  uiOutput("gap_reference_category_label"),
+                  tabsetPanel(
+                    id = "gap_analysis_tabs",
+                    tabPanel(
+                      "Summary",
+                      br(),
+                      DT::dataTableOutput("gap_summary_stats")
+                    ),
+                    tabPanel(
+                      "Unique (Reference)",
+                      br(),
+                      tags$p("Reference items with low similarity to all comparison categories (distinctive content).",
+                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                      DT::dataTableOutput("gap_unique_items")
+                    ),
+                    tabPanel(
+                      "Missing (Comparison)",
+                      br(),
+                      tags$p("Comparison category items not well-covered by reference category (content gaps).",
+                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                      DT::dataTableOutput("gap_missing_items")
+                    ),
+                    tabPanel(
+                      "Cross-Category",
+                      br(),
+                      tags$p("Items with moderate similarity - potential for cross-category learning or transfer.",
+                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                      DT::dataTableOutput("gap_cross_policy")
+                    )
+                  )
+                )
               )
             ),
             tabPanel(
@@ -2481,7 +2510,7 @@ Supports:
           width = 3,
           class = "sidebar-panel",
 
-          tags$label("Topic modeling approach", style = "font-weight: 600; color: #0c1f4a; margin-bottom: 10px; display: block;"),
+          tags$h5(HTML("<strong>Topic modeling approach</strong>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
           tags$div(
             id = "topic_modeling_path",
             class = "shiny-input-radiogroup shiny-input-container",
@@ -2921,6 +2950,69 @@ Focus on incorporating the most significant keywords while following the guideli
             actionButton("display_con", "Display", class = "btn-primary btn-block")
           ),
 
+          conditionalPanel(
+            condition = "input.conditioned3 == 'ai_content'",
+            tags$h5(HTML("<strong>Generate content using OpenAI's API</strong>"), style = "color: #0c1f4a; margin-bottom: 15px;"),
+            tags$div(
+              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
+              tags$i(class = "fas fa-robot", style = "margin-right: 8px;"),
+              "Generate survey items, research questions, or other content from topic terms."
+            ),
+            selectInput(
+              "content_type",
+              "Content type",
+              choices = c(
+                "Survey Item" = "survey_item",
+                "Research Question" = "research_question",
+                "Theme Description" = "theme_description",
+                "Policy Recommendation" = "policy_recommendation",
+                "Interview Question" = "interview_question",
+                "Custom" = "custom"
+              ),
+              selected = "survey_item"
+            ),
+            sliderInput(
+              "content_top_terms",
+              "Top terms for content",
+              value = 7,
+              min = 3,
+              max = 15
+            ),
+            sliderInput(
+              "content_max_tokens",
+              "Max tokens",
+              min = 50, max = 500, value = 150, step = 25
+            ),
+            selectInput(
+              "content_model",
+              "AI model",
+              choices = c("gpt-3.5-turbo", "gpt-4-turbo", "gpt-4", "gpt-4o"),
+              selected = "gpt-4o"
+            ),
+            textAreaInput(
+              "content_system_prompt",
+              "System prompt",
+              value = "",
+              rows = 8
+            ),
+            textAreaInput(
+              "content_user_prompt",
+              "User prompt (use {terms} placeholder)",
+              value = "",
+              rows = 5
+            ),
+            sliderInput(
+              "content_temperature",
+              "Temperature (creativity level)",
+              min = 0, max = 1, value = 0.5, step = 0.1
+            ),
+            actionButton(
+              "generate_topic_content",
+              HTML('<i class="fas fa-pen-fancy"></i> Generate Content'),
+              class = "btn-primary btn-block",
+              style = "margin-top: 15px;"
+            )
+          ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'embedding' && input.conditioned3 == 4",
             tags$h5(HTML("<strong>Configure Embedding-based Topic Modeling</strong> <a href='https://maartengr.github.io/BERTopic/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
@@ -3648,7 +3740,33 @@ Focus on incorporating the most significant keywords while following the guideli
               )
             ),
             tabPanel(
-              "3. Document-Topic",
+              "3. Content Generation",
+              value = "ai_content",
+              div(
+                style = "padding: 20px;",
+                tags$h5(tags$strong("Generated Content"), style = "color: #0c1f4a; margin-bottom: 15px;"),
+                conditionalPanel(
+                  condition = "output.has_generated_content == true",
+                  DT::dataTableOutput("generated_content_table")
+                ),
+                conditionalPanel(
+                  condition = "output.has_generated_content == false",
+                  div(
+                    style = "padding: 60px 40px; text-align: center; background-color: #F8FAFC; border-radius: 8px;",
+                    tags$i(class = "fas fa-file-alt", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Run topic modeling first, then configure settings in the sidebar and click ",
+                      tags$strong("'Generate Content'", style = "color: #0c1f4a;"),
+                      " to create content from your topics.",
+                      style = "font-size: 16px; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              )
+            ),
+
+            tabPanel(
+              "4. Document-Topic",
               value = 6,
               bsCollapse(
                 open = 0,
@@ -3749,7 +3867,7 @@ Focus on incorporating the most significant keywords while following the guideli
               )
             ),
             tabPanel(
-              "4. Quotes",
+              "5. Quotes",
               value = 7,
               conditionalPanel(
                 condition = "output.has_quotes == true",

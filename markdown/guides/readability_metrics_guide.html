@@ -1,29 +1,70 @@
 <div style="font-family: 'Roboto', sans-serif; font-size: 16px; color: #0c1f4a; line-height: 1.6; max-width: 800px;">
   <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Readability Metrics</h4>
-  <p>Readability metrics quantify text complexity using statistical measures of sentence structure and word characteristics to estimate comprehension difficulty.</p>
+  <p>Readability metrics quantify text complexity using statistical measures of sentence structure and word characteristics. These formulas estimate the education level required to understand a text.</p>
   <hr>
 
-  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Metrics</h4>
-  <ul>
-    <li><strong>Flesch Reading Ease:</strong> 0-100 (higher = easier)</li>
-    <li><strong>Flesch-Kincaid:</strong> U.S. grade level</li>
-    <li><strong>Gunning Fog, SMOG:</strong> Education years needed</li>
-    <li><strong>ARI, Coleman-Liau:</strong> Character-based grade level</li>
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Available Metrics</h4>
+
+  <h5 style="color: #0c1f4a; margin-top: 15px;"><strong>Flesch Reading Ease (flesch)</strong></h5>
+  <p style="margin-left: 15px;">Based on average sentence length and syllables per word.</p>
+  <ul style="margin-left: 15px;">
+    <li><strong>Formula:</strong> 206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)</li>
+    <li><strong>Scale:</strong> 0-100 (higher scores = easier to read)</li>
+  </ul>
+
+  <h5 style="color: #0c1f4a; margin-top: 15px;"><strong>Flesch-Kincaid Grade Level (flesch_kincaid)</strong></h5>
+  <p style="margin-left: 15px;">Converts readability to U.S. grade level equivalent.</p>
+  <ul style="margin-left: 15px;">
+    <li><strong>Formula:</strong> 0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59</li>
+    <li><strong>Output:</strong> U.S. grade level (e.g., 8.0 = 8th grade)</li>
+  </ul>
+
+  <h5 style="color: #0c1f4a; margin-top: 15px;"><strong>Gunning Fog Index (gunning_fog)</strong></h5>
+  <p style="margin-left: 15px;">Estimates years of formal education needed. Uses complex words (3+ syllables).</p>
+  <ul style="margin-left: 15px;">
+    <li><strong>Formula:</strong> 0.4 × [(words/sentences) + 100 × (complex words/words)]</li>
+    <li><strong>Output:</strong> Years of education</li>
+  </ul>
+
+  <h5 style="color: #0c1f4a; margin-top: 15px;"><strong>SMOG Index (smog)</strong></h5>
+  <p style="margin-left: 15px;">Simple Measure of Gobbledygook. Based on polysyllabic word count.</p>
+  <ul style="margin-left: 15px;">
+    <li><strong>Formula:</strong> 1.0430 × sqrt(polysyllables × 30/sentences) + 3.1291</li>
+    <li><strong>Output:</strong> Years of education</li>
+    <li><strong>Note:</strong> Requires minimum 30 sentences for reliable results</li>
+  </ul>
+
+  <h5 style="color: #0c1f4a; margin-top: 15px;"><strong>Automated Readability Index (ari)</strong></h5>
+  <p style="margin-left: 15px;">Character-based formula (no syllable counting required).</p>
+  <ul style="margin-left: 15px;">
+    <li><strong>Formula:</strong> 4.71 × (characters/words) + 0.5 × (words/sentences) - 21.43</li>
+    <li><strong>Output:</strong> U.S. grade level</li>
+  </ul>
+
+  <h5 style="color: #0c1f4a; margin-top: 15px;"><strong>Coleman-Liau Index (coleman_liau)</strong></h5>
+  <p style="margin-left: 15px;">Character-based formula using letters and sentences per 100 words.</p>
+  <ul style="margin-left: 15px;">
+    <li><strong>Formula:</strong> 0.0588 × L - 0.296 × S - 15.8</li>
+    <li><strong>Where:</strong> L = letters per 100 words, S = sentences per 100 words</li>
+    <li><strong>Output:</strong> U.S. grade level</li>
   </ul>
   <hr>
 
-  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Usage</h4>
-  <p>Select metrics and optionally group by variables to compare documents.</p>
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Usage Notes</h4>
+  <ul>
+    <li>Select metrics from the dropdown and optionally group by variables to compare documents</li>
+    <li>Different formulas may produce slightly different grade level estimates</li>
+    <li>These formulas measure surface-level text features (word length, sentence length)</li>
+    <li>Short texts may produce less reliable scores</li>
+  </ul>
   <hr style="margin-top: 20px; margin-bottom: 15px;">
 
   <div style="background-color: #F3F4F6; padding: 12px; border-radius: 6px;">
-    <p style="margin: 0 0 8px 0; font-size: 14px;">
+    <p style="margin: 0 0 8px 0; font-size: 16px;">
       <strong>Learn More:</strong>
     </p>
-    <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+    <ul style="margin: 0; padding-left: 20px; font-size: 16px;">
       <li><a href="https://quanteda.io/reference/textstat_readability.html" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">quanteda textstat_readability Documentation</a></li>
-      <li><a href="https://readable.com/readability/flesch-reading-ease-flesch-kincaid-grade-level/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">Flesch & Flesch-Kincaid Formulas Explained</a></li>
-      <li><a href="https://readabilityformulas.com/how-to-decide-which-readability-formula-to-use/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">How to Choose a Readability Formula</a></li>
     </ul>
   </div>
 </div>

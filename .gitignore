@@ -1,4 +1,19 @@
+.env
+security.log
 .Rproj.user
 .Rhistory
+.claude
+inst/doc
+CRAN-SUBMISSION
 .RData
-.Ruserdata
+inst/rsconnect
+README-*.png
+cran-comments.md
+test_*.R
+run_checks.R
+
+# Temporary files
+*.tmp
+*.tmp.*
+.DS_Store
+Thumbs.db

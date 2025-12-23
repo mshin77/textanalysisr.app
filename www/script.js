@@ -543,3 +543,4 @@ $(document).ready(function() {
     $('.selectize-dropdown .option').removeClass('active');
   });
 });
+

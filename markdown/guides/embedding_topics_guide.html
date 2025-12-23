@@ -12,13 +12,32 @@
   <hr>
 
   <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Usage</h4>
-  <p>Automatic topic discovery with density-based clustering. Requires Python.</p>
+  <p>Automatic topic discovery with density-based clustering. Requires Python with sentence-transformers, umap-learn, and hdbscan packages.</p>
+  <hr>
+
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Key Components</h4>
+  <ul>
+    <li><strong>Sentence Transformers:</strong> Generate contextual embeddings (e.g., all-MiniLM-L6-v2)</li>
+    <li><strong>UMAP:</strong> Dimensionality reduction preserving local structure</li>
+    <li><strong>HDBSCAN:</strong> Density-based clustering for topic discovery</li>
+    <li><strong>c-TF-IDF:</strong> Class-based TF-IDF for topic keyword extraction</li>
+  </ul>
+  <hr>
+
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">References</h4>
+  <ul style="font-size: 14px;">
+    <li>Grootendorst, M. (2022). BERTopic: Neural topic modeling with a class-based TF-IDF procedure. <em>arXiv preprint arXiv:2203.05794</em>.</li>
+    <li>Reimers, N., & Gurevych, I. (2019). Sentence-BERT: Sentence embeddings using Siamese BERT-Networks. <em>EMNLP-IJCNLP 2019</em>.</li>
+    <li>McInnes, L., Healy, J., & Melville, J. (2018). UMAP: Uniform manifold approximation and projection for dimension reduction. <em>arXiv preprint arXiv:1802.03426</em>.</li>
+    <li>Campello, R. J., Moulavi, D., & Sander, J. (2013). Density-based clustering based on hierarchical density estimates. <em>PAKDD 2013</em>.</li>
+  </ul>
   <hr style="margin-top: 20px; margin-bottom: 15px;">
 
   <div style="background-color: #F3F4F6; padding: 12px; border-radius: 6px;">
-    <p style="margin: 0; font-size: 14px;">
+    <p style="margin: 0; font-size: 16px;">
       <strong>Learn More:</strong>
-      <a href="https://maartengr.github.io/BERTopic/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">BERTopic Documentation</a>
+      <a href="https://maartengr.github.io/BERTopic/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">BERTopic</a> |
+      <a href="https://www.sbert.net/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">Sentence-BERT</a>
     </p>
   </div>
 </div>

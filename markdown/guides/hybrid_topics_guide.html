@@ -16,10 +16,31 @@
   <p>Initializes STM with semantic embeddings rather than traditional bag-of-words, maintains interpretability of probabilistic models, incorporates covariate effects, and provides cross-validation between methods. Computationally intensive but offers methodological rigor for high-stakes research.</p>
   <hr style="margin-top: 20px; margin-bottom: 15px;">
 
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Quality Metrics</h4>
+  <p>The hybrid model computes several quality metrics to assess model fit:</p>
+  <ul>
+    <li><strong>Semantic Coherence:</strong> Measures how often top words co-occur in documents (higher is better)</li>
+    <li><strong>Exclusivity:</strong> Measures how unique words are to each topic (higher is better)</li>
+    <li><strong>Silhouette Score:</strong> Measures cluster separation for embedding topics (-1 to 1, higher is better)</li>
+    <li><strong>Alignment Score:</strong> Agreement between STM and embedding topic assignments</li>
+    <li><strong>Adjusted Rand Index:</strong> Clustering agreement corrected for chance</li>
+  </ul>
+  <hr>
+
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">References</h4>
+  <ul style="font-size: 14px;">
+    <li>Belford, M., & Greene, D. (2020). Ensemble topic modeling using weighted term co-associations. <em>Expert Systems with Applications</em>, 161, 113709.</li>
+    <li>Mimno, D., Wallach, H., Talley, E., Leenders, M., & McCallum, A. (2011). Optimizing semantic coherence in topic models. <em>EMNLP 2011</em>.</li>
+    <li>Roberts, M. E., Stewart, B. M., & Tingley, D. (2019). stm: An R package for structural topic models. <em>Journal of Statistical Software</em>, 91(2), 1-40.</li>
+    <li>Grootendorst, M. (2022). BERTopic: Neural topic modeling with a class-based TF-IDF procedure. <em>arXiv preprint arXiv:2203.05794</em>.</li>
+  </ul>
+  <hr style="margin-top: 20px; margin-bottom: 15px;">
+
   <div style="background-color: #F3F4F6; padding: 12px; border-radius: 6px;">
-    <p style="margin: 0; font-size: 14px;">
+    <p style="margin: 0; font-size: 16px;">
       <strong>Learn More:</strong>
-      <a href="https://www.structuraltopicmodel.com/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">Structural Topic Model</a>
+      <a href="https://www.structuraltopicmodel.com/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">Structural Topic Model</a> |
+      <a href="https://maartengr.github.io/BERTopic/" target="_blank" style="color: #337ab7; text-decoration: none; font-weight: 500;">BERTopic</a>
     </p>
   </div>
 </div>
