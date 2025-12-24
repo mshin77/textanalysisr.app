@@ -701,6 +701,11 @@ Supports:
               max = 20,
               step = 5
             ),
+            checkboxInput(
+              "include_dependency",
+              "Include dependency parsing (syntactic relations)",
+              value = FALSE
+            ),
             div(
               style = "display: flex; gap: 10px; margin-bottom: 15px;",
               div(
@@ -1022,7 +1027,7 @@ Supports:
               ),
               div(
                 style = "flex: 1;",
-                actionButton("export_entities", "Export",
+                downloadButton("export_entities", "Export",
                            class = "btn-primary btn-block",
                            icon = icon("download"))
               )
@@ -1243,6 +1248,21 @@ Supports:
         sidebarPanel(
           width = 3,
           class = "sidebar-panel",
+          # Category variable - always visible
+          div(
+            style = "margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;",
+            selectizeInput(
+              "doc_category_var",
+              "Category variable",
+              choices = NULL,
+              selected = "",
+              options = list(
+                allowEmptyOption = TRUE,
+                persist = TRUE,
+                placeholder = "Optional - enables category-based analysis"
+              )
+            )
+          ),
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'summary'",
             tags$h5(strong("Configure document metadata"), style = "color: #0c1f4a; margin-bottom: 10px;"),
@@ -1250,18 +1270,6 @@ Supports:
               selectizeInput(
                 "doc_id_var",
                 "Document ID variable",
-                choices = NULL,
-                selected = "",
-                options = list(
-                  allowEmptyOption = TRUE,
-                  persist = TRUE,
-                  placeholder = "Optional"
-                )
-              ),
-              br(),
-              selectizeInput(
-                "doc_category_var",
-                "Category variable",
                 choices = NULL,
                 selected = "",
                 options = list(
@@ -1895,6 +1903,23 @@ Supports:
                 step = 1
               ),
               sliderInput(
+                "node_label_size_cooccur",
+                "Node label size",
+                value = 22,
+                min = 12,
+                max = 40,
+                step = 2
+              ),
+              selectInput(
+                "community_method_cooccur",
+                "Community detection",
+                choices = c("Leiden (recommended)" = "leiden",
+                            "Louvain" = "louvain",
+                            "Label Propagation" = "label_prop",
+                            "Fast Greedy" = "fast_greedy"),
+                selected = "leiden"
+              ),
+              sliderInput(
                 "nrows_co_occurrence",
                 "Row numbers",
                 value = 1,
@@ -1957,6 +1982,23 @@ Supports:
                 min = 0,
                 max = 150,
                 step = 1
+              ),
+              sliderInput(
+                "node_label_size_corr",
+                "Node label size",
+                value = 22,
+                min = 12,
+                max = 40,
+                step = 2
+              ),
+              selectInput(
+                "community_method_corr",
+                "Community detection",
+                choices = c("Leiden (recommended)" = "leiden",
+                            "Louvain" = "louvain",
+                            "Label Propagation" = "label_prop",
+                            "Fast Greedy" = "fast_greedy"),
+                selected = "leiden"
               ),
               sliderInput(
                 "nrows_correlation",

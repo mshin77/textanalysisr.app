@@ -2983,6 +2983,27 @@ server <- shinyServer(function(input, output, session) {
 
     parsed <- spacyr_processed()
 
+    # Check if entity column exists (spacy_parse may be called with entity = FALSE)
+    if (!"entity" %in% names(parsed)) {
+      # No entity data available - only use custom entities if any
+      if (nrow(custom_entities()) > 0) {
+        entity_counts <- custom_entities() %>%
+          dplyr::count(`Construct`, name = "n") %>%
+          dplyr::rename(entity = `Construct`) %>%
+          dplyr::arrange(dplyr::desc(n))
+
+        ordered_entities <- entity_counts$entity
+
+        updateSelectizeInput(
+          session,
+          "entity_type_filter",
+          choices = c("All Types" = "", ordered_entities),
+          selected = ""
+        )
+      }
+      return()
+    }
+
     entity_counts <- parsed %>%
       dplyr::filter(!is.na(entity), entity != "") %>%
       dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
@@ -3033,7 +3054,38 @@ server <- shinyServer(function(input, output, session) {
   pos_applied <- reactiveVal(0)
 
   observeEvent(input$apply_pos, {
-    pos_applied(pos_applied() + 1)
+    tokens_to_use <- TextAnalysisR::get_available_tokens(
+      final_tokens = final_tokens(),
+      processed_tokens = processed_tokens(),
+      preprocessed_tokens = preprocessed_combined(),
+      united_tbl = united_tbl()
+    )
+    req(tokens_to_use)
+
+    # Check if spacyr_processed already has pos and tag columns
+    current_parsed <- spacyr_processed()
+    if (!is.null(current_parsed) && all(c("pos", "tag") %in% names(current_parsed))) {
+      pos_applied(pos_applied() + 1)
+      return()
+    }
+
+    showNotification("Extracting POS tags...", type = "message", duration = 3)
+
+    include_dep <- isTRUE(input$include_dependency)
+    
+    tryCatch({
+      parsed <- TextAnalysisR::extract_pos_tags(
+        tokens_to_use,
+        include_dependency = include_dep
+      )
+      spacyr_processed(parsed)
+      pos_applied(pos_applied() + 1)
+      
+      msg <- if (include_dep) "POS tagging with dependency parsing completed!" else "POS tagging completed!"
+      showNotification(msg, type = "message", duration = 3)
+    }, error = function(e) {
+      showNotification(paste("Error:", e$message), type = "error", duration = 5)
+    })
   })
 
   observeEvent(input$generate_pos_report, {
@@ -3042,6 +3094,12 @@ server <- shinyServer(function(input, output, session) {
     req(spacyr_processed())
 
     parsed <- spacyr_processed()
+
+    # Check if pos and tag columns exist
+    if (!all(c("pos", "tag") %in% names(parsed))) {
+      showNotification("POS data not available. Click 'Apply' to extract POS tags.", type = "warning")
+      return()
+    }
 
     if (!is.null(input$pos_filter) && length(input$pos_filter) > 0) {
       parsed <- parsed %>%
@@ -3428,6 +3486,14 @@ server <- shinyServer(function(input, output, session) {
     }
 
     parsed <- spacyr_processed()
+
+    # Check if pos column exists
+    if (!"pos" %in% names(parsed)) {
+      return(TextAnalysisR::create_empty_plot_message(
+        "POS data not available. Click 'Apply' to extract POS tags."
+      ))
+    }
+
     pos_data <- parsed
 
     if (!is.null(input$pos_filter) && length(input$pos_filter) > 0) {
@@ -3462,6 +3528,9 @@ server <- shinyServer(function(input, output, session) {
 
     parsed <- spacyr_processed()
 
+    # Check if pos and tag columns exist
+    req(all(c("pos", "tag") %in% names(parsed)))
+
     if (!is.null(input$pos_filter) && length(input$pos_filter) > 0) {
       parsed <- parsed %>%
         dplyr::filter(pos %in% input$pos_filter)
@@ -3486,6 +3555,33 @@ server <- shinyServer(function(input, output, session) {
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
   ))
 
+  # Extract entities when NER filter is applied
+  observeEvent(input$apply_ner_filter, {
+    tokens_to_use <- TextAnalysisR::get_available_tokens(
+      final_tokens = final_tokens(),
+      processed_tokens = processed_tokens(),
+      preprocessed_tokens = preprocessed_combined(),
+      united_tbl = united_tbl()
+    )
+    req(tokens_to_use)
+
+    # Check if spacyr_processed already has entity column
+    current_parsed <- spacyr_processed()
+    if (!is.null(current_parsed) && "entity" %in% names(current_parsed)) {
+      return()
+    }
+
+    showNotification("Extracting named entities...", type = "message", duration = 3)
+
+    tryCatch({
+      parsed <- TextAnalysisR::extract_named_entities(tokens_to_use)
+      spacyr_processed(parsed)
+      showNotification("Named entity extraction completed!", type = "message", duration = 3)
+    }, error = function(e) {
+      showNotification(paste("Error:", e$message), type = "error", duration = 5)
+    })
+  })
+
   output$entity_plot <- plotly::renderPlotly({
     req(input$apply_ner_filter)
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
@@ -3500,35 +3596,58 @@ server <- shinyServer(function(input, output, session) {
 
     parsed <- spacyr_processed()
 
-    entity_data <- parsed %>%
-      dplyr::filter(!is.na(entity), entity != "") %>%
-      dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity))
+    # Check if entity column exists
+    if (!"entity" %in% names(parsed)) {
+      # Use only custom entities if available
+      if (nrow(custom_entities()) > 0) {
+        entity_data <- custom_entities() %>%
+          dplyr::count(`Construct`, name = "n") %>%
+          dplyr::rename(entity = `Construct`)
 
-    if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
-      entity_data <- entity_data %>%
-        dplyr::filter(entity_clean %in% input$entity_type_filter)
-    }
+        if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
+          entity_data <- entity_data %>%
+            dplyr::filter(entity %in% input$entity_type_filter)
+        }
 
-    entity_data <- entity_data %>%
-      dplyr::count(entity_clean, sort = TRUE, name = "n") %>%
-      dplyr::rename(entity = entity_clean) %>%
-      dplyr::slice_head(n = 20)
-
-    if (nrow(custom_entities()) > 0) {
-      custom_counts <- custom_entities() %>%
-        dplyr::count(`Construct`, name = "n") %>%
-        dplyr::rename(entity = `Construct`)
+        entity_data <- entity_data %>%
+          dplyr::arrange(dplyr::desc(n)) %>%
+          dplyr::slice_head(n = 20)
+      } else {
+        return(TextAnalysisR::create_empty_plot_message(
+          "No named entity data available. Entity extraction was not enabled during processing."
+        ))
+      }
+    } else {
+      entity_data <- parsed %>%
+        dplyr::filter(!is.na(entity), entity != "") %>%
+        dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity))
 
       if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
-        custom_counts <- custom_counts %>%
-          dplyr::filter(entity %in% input$entity_type_filter)
+        entity_data <- entity_data %>%
+          dplyr::filter(entity_clean %in% input$entity_type_filter)
       }
 
-      entity_data <- dplyr::bind_rows(entity_data, custom_counts) %>%
-        dplyr::group_by(entity) %>%
-        dplyr::summarise(n = sum(n), .groups = "drop") %>%
-        dplyr::arrange(dplyr::desc(n)) %>%
+      entity_data <- entity_data %>%
+        dplyr::count(entity_clean, sort = TRUE, name = "n") %>%
+        dplyr::rename(entity = entity_clean) %>%
         dplyr::slice_head(n = 20)
+
+      if (nrow(custom_entities()) > 0) {
+        custom_counts <- custom_entities() %>%
+          dplyr::count(`Construct`, name = "n") %>%
+          dplyr::rename(entity = `Construct`)
+
+        if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
+          custom_counts <- custom_counts %>%
+            dplyr::filter(entity %in% input$entity_type_filter)
+        }
+
+        entity_data <- dplyr::bind_rows(entity_data, custom_counts) %>%
+          dplyr::group_by(entity) %>%
+          dplyr::summarise(n = sum(n), .groups = "drop") %>%
+          dplyr::arrange(dplyr::desc(n)) %>%
+          dplyr::slice_head(n = 20)
+      }
     }
 
     TextAnalysisR::plot_entity_frequencies(
@@ -3554,6 +3673,11 @@ server <- shinyServer(function(input, output, session) {
     custom_entities()
 
     parsed <- spacyr_processed()
+
+    # Check if entity column exists
+    if (!"entity" %in% names(parsed)) {
+      return(NULL)
+    }
 
     entity_detail <- parsed %>%
       dplyr::filter(!is.na(entity), entity != "") %>%
@@ -3882,11 +4006,16 @@ server <- shinyServer(function(input, output, session) {
 
           search_terms_lower <- tolower(search_terms)
 
-          if (use_regex) {
+          if (use_regex && "lemma" %in% names(parsed)) {
+            # Include lemmas - match both token and lemma (both lowercased)
             matching_tokens <- parsed %>%
-              dplyr::mutate(token_lower = tolower(token)) %>%
-              dplyr::filter(token_lower %in% search_terms_lower | lemma %in% search_terms_lower)
+              dplyr::mutate(
+                token_lower = tolower(token),
+                lemma_lower = tolower(lemma)
+              ) %>%
+              dplyr::filter(token_lower %in% search_terms_lower | lemma_lower %in% search_terms_lower)
           } else {
+            # Exact token match only
             matching_tokens <- parsed %>%
               dplyr::mutate(token_lower = tolower(token)) %>%
               dplyr::filter(token_lower %in% search_terms_lower)
@@ -4216,67 +4345,74 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$export_entities, {
-    req(spacyr_processed())
+  output$export_entities <- downloadHandler(
+    filename = function() {
+      timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+      paste0("entities_export_", timestamp, ".xlsx")
+    },
+    content = function(file) {
+      parsed <- spacyr_processed()
 
-    parsed <- spacyr_processed()
+      # Check if entity column exists
+      if (is.null(parsed) || !"entity" %in% names(parsed)) {
+        if (!is.null(custom_entities()) && nrow(custom_entities()) > 0) {
+          # Export only custom entities
+          custom_export <- custom_entities() %>%
+            dplyr::select(
+              `Construct`,
+              `Operational Definition`,
+              Frequency,
+              Document,
+              Notes,
+              Keep
+            )
+          openxlsx::write.xlsx(custom_export, file = file)
+        } else {
+          # Create empty file with message
+          openxlsx::write.xlsx(
+            data.frame(Message = "No entity data available. Run entity extraction first."),
+            file = file
+          )
+        }
+        return()
+      }
 
-    entity_export <- parsed %>%
-      dplyr::filter(!is.na(entity), entity != "") %>%
-      dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
-      dplyr::select(
-        Document = doc_id,
-        Sentence = sentence_id,
-        Token_ID = token_id,
-        Entity_Text = token,
-        Entity_Type = entity_clean,
-        Lemma = lemma,
-        POS = pos
-      )
-
-    if (nrow(custom_entities()) > 0) {
-      custom_export <- custom_entities() %>%
+      entity_export <- parsed %>%
+        dplyr::filter(!is.na(entity), entity != "") %>%
+        dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
         dplyr::select(
-          `Construct`,
-          `Operational Definition`,
-          Frequency,
-          Document,
-          Notes,
-          Keep
+          Document = doc_id,
+          Sentence = sentence_id,
+          Token_ID = token_id,
+          Entity_Text = token,
+          Entity_Type = entity_clean,
+          Lemma = lemma,
+          POS = pos
         )
 
-      output_file <- tempfile(pattern = "entities_with_custom_", fileext = ".xlsx")
-      openxlsx::write.xlsx(
-        list(
-          "Detected_Entities" = entity_export,
-          "Custom_Entities" = custom_export
-        ),
-        file = output_file
-      )
-    } else {
-      output_file <- tempfile(pattern = "entities_", fileext = ".xlsx")
-      openxlsx::write.xlsx(entity_export, file = output_file)
+      if (!is.null(custom_entities()) && nrow(custom_entities()) > 0) {
+        custom_export <- custom_entities() %>%
+          dplyr::select(
+            `Construct`,
+            `Operational Definition`,
+            Frequency,
+            Document,
+            Notes,
+            Keep
+          )
+
+        openxlsx::write.xlsx(
+          list(
+            "Detected_Entities" = entity_export,
+            "Custom_Entities" = custom_export
+          ),
+          file = file
+        )
+      } else {
+        openxlsx::write.xlsx(entity_export, file = file)
+      }
     }
-
-    showModal(modalDialog(
-      title = "Named Entities Exported",
-      tags$p("Named entities have been prepared for qualitative coding."),
-      tags$ul(
-        tags$li("All detected entities with document and sentence context"),
-        tags$li("Custom entities and labels"),
-        tags$li("Ready for import into coding software (NVivo, MAXQDA, Atlas.ti)")
-      ),
-      tags$p(tags$strong("File location:"), tags$code(output_file)),
-      easyClose = TRUE,
-      footer = modalButton("Close")
-    ))
-
-    showNotification(
-      paste("Entities exported to:", output_file),
-      type = "message",
-      duration = 10
-    )
-  })
+  )
 
   output$spacyr_full_table <- DT::renderDataTable({
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
@@ -4304,11 +4440,19 @@ server <- shinyServer(function(input, output, session) {
       stringsAsFactors = FALSE
     )
 
+    # Clean entity column if present (remove _B/_I suffixes)
+    if ("entity" %in% names(parsed)) {
+      parsed <- parsed %>% dplyr::mutate(entity = gsub("_[BI]$", "", entity))
+    }
+
+    # Select available columns - any_of() gracefully handles missing ones
     result <- parsed %>%
-      dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
-      dplyr::select(doc_id, sentence_id, token_id, token, lemma, pos, tag, entity = entity_clean, head_token_id, dep_rel) %>%
+      dplyr::select(dplyr::any_of(c("doc_id", "sentence_id", "token_id", "token",
+                                     "lemma", "pos", "tag", "entity",
+                                     "head_token_id", "dep_rel"))) %>%
       dplyr::left_join(doc_number_mapping, by = "doc_id")
 
+    # Add Document ID if selected
     if (!is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
       doc_vars <- quanteda::docvars(tokens_obj)
       if (!is.null(doc_vars) && input$lemma_doc_id_var %in% names(doc_vars)) {
@@ -4318,20 +4462,14 @@ server <- shinyServer(function(input, output, session) {
           stringsAsFactors = FALSE,
           check.names = FALSE
         )
-
-        result <- result %>%
-          dplyr::left_join(doc_id_mapping, by = "doc_id") %>%
-          dplyr::select(Document, `Document ID`, sentence_id, token_id, token, lemma, pos, tag, entity, head_token_id, dep_rel)
-      } else {
-        result <- result %>%
-          dplyr::select(Document, sentence_id, token_id, token, lemma, pos, tag, entity, head_token_id, dep_rel)
+        result <- result %>% dplyr::left_join(doc_id_mapping, by = "doc_id")
       }
-    } else {
-      result <- result %>%
-        dplyr::select(Document, sentence_id, token_id, token, lemma, pos, tag, entity, head_token_id, dep_rel)
     }
 
-    result
+    # Final column ordering - any_of() handles missing columns
+    final_cols <- c("Document", "Document ID", "sentence_id", "token_id", "token",
+                    "lemma", "pos", "tag", "entity", "head_token_id", "dep_rel")
+    result %>% dplyr::select(dplyr::any_of(final_cols))
   },
   rownames = FALSE,
   extensions = 'Buttons',
@@ -4656,16 +4794,6 @@ server <- shinyServer(function(input, output, session) {
     }
     req(dfm_to_use)
 
-    if (!is.null(params$doc_var) && params$doc_var %in% names(dfm_to_use@docvars)) {
-      if (isTRUE(params$use_category_specific)) {
-        showNotification(
-          "Category-specific network analysis with different parameters per category is not yet supported. Showing overall network with selected category variable.",
-          type = "warning",
-          duration = 5
-        )
-      }
-    }
-
     show_loading_notification("Computing co-occurrence network...", id = "cooccur_network_loading")
     shinybusy::show_spinner()
 
@@ -4685,42 +4813,129 @@ server <- shinyServer(function(input, output, session) {
 
         embeddings_mat <- if (feature_type == "embeddings") embeddings_cache$embeddings else NULL
 
-        result <- TextAnalysisR::semantic_cooccurrence_network(
-          dfm_object = dfm_to_use,
-          doc_var = params$doc_var,
-          co_occur_n = params$co_occur_n %||% input$co_occurence_number_global,
-          top_node_n = params$top_node_n %||% input$top_node_n_co_occurrence_global,
-          node_label_size = 16,
-          pattern = NULL,
-          showlegend = TRUE,
-          seed = 2025,
-          feature_type = feature_type,
-          ngram_range = ngram_range,
-          texts = texts_vec,
-          embeddings = embeddings_mat
-        )
+        # Category-specific network analysis
+        if (isTRUE(params$use_category_specific) && !is.null(params$doc_var) &&
+            params$doc_var %in% names(dfm_to_use@docvars)) {
 
-        incProgress(0.9, detail = "Finalizing...")
+          categories <- params$selected_categories
+          results_list <- list()
+          n_cats <- length(categories)
 
-        if (is.null(result)) {
-          showNotification(
-            "No co-occurrence network generated. Try lowering thresholds.",
-            type = "warning",
-            duration = 5
-          )
-          cooccur_network_data(NULL)
-          remove_notification_by_id("cooccur_network_loading")
-          shinybusy::hide_spinner()
+          for (i in seq_along(categories)) {
+            cat_name <- categories[i]
+            cat_params <- params$category_params[[cat_name]]
+
+            incProgress(0.1 + (0.7 * i / n_cats), detail = paste("Processing", cat_name, "..."))
+
+            # Get document indices for this category
+            doc_indices <- which(dfm_to_use@docvars[[params$doc_var]] == cat_name)
+
+            # Subset DFM by category
+            dfm_subset <- tryCatch({
+              if (length(doc_indices) > 0) {
+                quanteda::dfm_subset(dfm_to_use, dfm_to_use@docvars[[params$doc_var]] == cat_name)
+              } else {
+                NULL
+              }
+            }, error = function(e) NULL)
+
+            if (is.null(dfm_subset) || quanteda::ndoc(dfm_subset) < 2) {
+              showNotification(
+                paste("Category", cat_name, "has too few documents. Skipping."),
+                type = "warning", duration = 3
+              )
+              next
+            }
+
+            cat_result <- tryCatch({
+              TextAnalysisR::semantic_cooccurrence_network(
+                dfm_object = dfm_subset,
+                doc_var = NULL,
+                co_occur_n = cat_params$co_occur_n %||% input$co_occurence_number_global,
+                top_node_n = cat_params$top_node_n %||% input$top_node_n_co_occurrence_global,
+                node_label_size = input$node_label_size_cooccur %||% 22,
+                pattern = NULL,
+                showlegend = TRUE,
+                seed = 2025,
+                feature_type = feature_type,
+                ngram_range = ngram_range,
+                texts = if (!is.null(texts_vec)) texts_vec[doc_indices] else NULL,
+                embeddings = embeddings_mat,
+                embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
+                community_method = input$community_method_cooccur %||% "leiden"
+              )
+            }, error = function(e) {
+              message("Error processing category ", cat_name, ": ", e$message)
+              NULL
+            })
+
+            if (!is.null(cat_result)) {
+              results_list[[cat_name]] <- cat_result
+            }
+          }
+
+          incProgress(0.9, detail = "Finalizing...")
+
+          if (length(results_list) == 0) {
+            showNotification(
+              "No networks generated for any category. Try adjusting thresholds.",
+              type = "warning", duration = 5
+            )
+            cooccur_network_data(NULL)
+          } else {
+            cooccur_network_data(list(
+              mode = "category_specific",
+              categories = names(results_list),
+              results = results_list
+            ))
+            showNotification(
+              paste("Successfully computed networks for", length(results_list), "categories"),
+              type = "message", duration = 3
+            )
+          }
+
         } else {
-          cooccur_network_data(result)
-          remove_notification_by_id("cooccur_network_loading")
-          shinybusy::hide_spinner()
-          showNotification(
-            "Successfully computed co-occurrence network",
-            type = "message",
-            duration = 3
+          # Single network mode (existing behavior)
+          result <- TextAnalysisR::semantic_cooccurrence_network(
+            dfm_object = dfm_to_use,
+            doc_var = params$doc_var,
+            co_occur_n = params$co_occur_n %||% input$co_occurence_number_global,
+            top_node_n = params$top_node_n %||% input$top_node_n_co_occurrence_global,
+            node_label_size = input$node_label_size_cooccur %||% 22,
+            pattern = NULL,
+            showlegend = TRUE,
+            seed = 2025,
+            feature_type = feature_type,
+            ngram_range = ngram_range,
+            texts = texts_vec,
+            embeddings = embeddings_mat,
+            embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
+            community_method = input$community_method_cooccur %||% "leiden"
           )
+
+          incProgress(0.9, detail = "Finalizing...")
+
+          if (is.null(result)) {
+            showNotification(
+              "No co-occurrence network generated. Try lowering thresholds.",
+              type = "warning", duration = 5
+            )
+            cooccur_network_data(NULL)
+          } else {
+            cooccur_network_data(list(
+              mode = "single",
+              result = result
+            ))
+            showNotification(
+              "Successfully computed co-occurrence network",
+              type = "message", duration = 3
+            )
+          }
         }
+
+        remove_notification_by_id("cooccur_network_loading")
+        shinybusy::hide_spinner()
+
       }, error = function(e) {
         remove_notification_by_id("cooccur_network_loading")
         shinybusy::hide_spinner()
@@ -4728,12 +4943,25 @@ server <- shinyServer(function(input, output, session) {
         cooccur_network_data(NULL)
       })
     })
-  })
 
   output$word_co_occurrence_network_plot <- visNetwork::renderVisNetwork({
     data <- cooccur_network_data()
     req(data)
-    data$plot
+
+    # Handle both single and category-specific modes
+    if (!is.null(data$mode) && data$mode == "single") {
+      data$result$plot
+    } else if (!is.null(data$mode) && data$mode == "category_specific") {
+      # For category mode, show first category by default
+      if (length(data$results) > 0) {
+        data$results[[1]]$plot
+      } else {
+        NULL
+      }
+    } else {
+      # Legacy format (direct result)
+      data$plot
+    }
   })
 
   output$word_co_occurrence_network_plot_uiOutput <- renderUI({
@@ -4752,18 +4980,59 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    tags$div(
+    # Handle category-specific mode with tabs
+    if (!is.null(data$mode) && data$mode == "category_specific") {
+      tabs <- lapply(names(data$results), function(cat_name) {
+        cat_data <- data$results[[cat_name]]
+        tabPanel(
+          cat_name,
+          tags$div(
+            style = "margin-top: 15px;",
+            tags$div(
+              style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
+              paste0("Network: ", cat_data$stats$nodes, " nodes, ", cat_data$stats$edges, " edges | ",
+                     "Modularity: ", ifelse(is.null(cat_data$stats$modularity) || is.na(cat_data$stats$modularity), "N/A", cat_data$stats$modularity), " | ",
+                     "Clustering: ", ifelse(is.null(cat_data$stats$global_clustering) || is.na(cat_data$stats$global_clustering), "N/A", cat_data$stats$global_clustering))
+            ),
+            visNetwork::visNetworkOutput(paste0("cooccur_net_", make.names(cat_name)),
+                                         height = paste0(input$height_word_co_occurrence_network_plot, "px"),
+                                         width = paste0(input$width_word_co_occurrence_network_plot, "px"))
+          )
+        )
+      })
+      do.call(tabsetPanel, c(list(id = "cooccur_category_tabs"), tabs))
+    } else {
+      # Single mode
+      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+
       tags$div(
-        style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
-        paste0("Network with ", data$stats$nodes,
-               " nodes and ", data$stats$edges, " edges. ",
-               "Density: ", data$stats$density, ". ",
-               "Diameter: ", data$stats$diameter, ".")
-      ),
-      visNetwork::visNetworkOutput("word_co_occurrence_network_plot",
-                                   height = paste0(input$height_word_co_occurrence_network_plot, "px"),
-                                   width = paste0(input$width_word_co_occurrence_network_plot, "px"))
-    )
+        tags$div(
+          style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
+          paste0("Network: ", result_data$stats$nodes, " nodes, ", result_data$stats$edges, " edges | ",
+                 "Modularity: ", ifelse(is.null(result_data$stats$modularity) || is.na(result_data$stats$modularity), "N/A", result_data$stats$modularity), " | ",
+                 "Clustering: ", ifelse(is.null(result_data$stats$global_clustering) || is.na(result_data$stats$global_clustering), "N/A", result_data$stats$global_clustering))
+        ),
+        visNetwork::visNetworkOutput("word_co_occurrence_network_plot",
+                                     height = paste0(input$height_word_co_occurrence_network_plot, "px"),
+                                     width = paste0(input$width_word_co_occurrence_network_plot, "px"))
+      )
+    }
+  })
+
+  # Dynamic observers for category-specific network plots
+  observe({
+    data <- cooccur_network_data()
+    req(!is.null(data$mode) && data$mode == "category_specific")
+
+    for (cat_name in names(data$results)) {
+      local({
+        cn <- cat_name
+        output_id <- paste0("cooccur_net_", make.names(cn))
+        output[[output_id]] <- visNetwork::renderVisNetwork({
+          data$results[[cn]]$plot
+        })
+      })
+    }
   })
 
   output$word_co_occurrence_network_table_uiOutput <- renderUI({
@@ -4782,18 +5051,44 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    DT::datatable(
-      data$table,
-      rownames = FALSE,
-      extensions = 'Buttons',
-      options = list(
-        scrollX = TRUE,
-        pageLength = 25,
-        dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-      )
-    ) %>%
-      DT::formatStyle(columns = 1:ncol(data$table), fontSize = "16px")
+    # Handle category-specific mode
+    if (!is.null(data$mode) && data$mode == "category_specific") {
+      tabs <- lapply(names(data$results), function(cat_name) {
+        cat_data <- data$results[[cat_name]]
+        tabPanel(
+          cat_name,
+          DT::datatable(
+            cat_data$table,
+            rownames = FALSE,
+            extensions = 'Buttons',
+            options = list(
+              scrollX = TRUE,
+              pageLength = 25,
+              dom = 'Bfrtip',
+              buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+            )
+          ) %>%
+            DT::formatStyle(columns = 1:ncol(cat_data$table), fontSize = "16px")
+        )
+      })
+      do.call(tabsetPanel, c(list(id = "cooccur_table_tabs"), tabs))
+    } else {
+      # Single mode
+      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+
+      DT::datatable(
+        result_data$table,
+        rownames = FALSE,
+        extensions = 'Buttons',
+        options = list(
+          scrollX = TRUE,
+          pageLength = 25,
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+        )
+      ) %>%
+        DT::formatStyle(columns = 1:ncol(result_data$table), fontSize = "16px")
+    }
   })
 
   output$word_co_occurrence_network_summary_uiOutput <- renderUI({
@@ -4812,128 +5107,113 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    stats_df <- data.frame(
-      Metric = c("Nodes", "Edges", "Density", "Diameter"),
-      Value = c(
-        data$stats$nodes,
-        data$stats$edges,
-        data$stats$density,
-        data$stats$diameter
-      ),
-      stringsAsFactors = FALSE
-    )
-
-    DT::datatable(
-      stats_df,
-      rownames = FALSE,
-      options = list(
-        scrollX = TRUE,
-        dom = 't'
-      )
-    ) %>%
-      DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
-  })
-
-  observe({
-    req(colnames_cat())
-    updateSelectizeInput(session,
-                         "doc_var_correlation",
-                         choices = c("None" = "None", colnames_cat()),
-                         selected = "None"
-    )
-  })
-
-  output$top_n_selector_corr <- renderUI({
-    req(input$doc_var_correlation, input$doc_var_correlation != "None")
-
-    cat_levels <- unique(mydata()[[input$doc_var_correlation]])
-    cat_levels <- cat_levels[!is.na(cat_levels)]
-    n_cats <- length(cat_levels)
-
-    if (n_cats == 0) return(NULL)
-
-    sliderInput(
-      "top_n_corr",
-      "Top categories to analyze",
-      value = min(3, n_cats),
-      min = 1,
-      max = min(20, n_cats),
-      step = 1
-    )
-  })
-
-  output$category_selector_corr <- renderUI({
-    req(input$doc_var_correlation, input$doc_var_correlation != "None")
-    req(input$top_n_corr)
-
-    cat_levels <- unique(mydata()[[input$doc_var_correlation]])
-    cat_levels <- cat_levels[!is.na(cat_levels)]
-
-    doc_counts <- sapply(cat_levels, function(level) {
-      sum(mydata()[[input$doc_var_correlation]] == level, na.rm = TRUE)
-    })
-
-    sorted_cats <- names(sort(doc_counts, decreasing = TRUE))
-    top_n <- min(input$top_n_corr, length(sorted_cats))
-    top_cats <- head(sorted_cats, top_n)
-
-    if (length(top_cats) == 0) {
-      return(tags$div(
-        style = "background-color: #FEE2E2; border: 1px solid #DC2626; color: #7F1D1D; border-radius: 4px; padding: 10px; margin: 10px 0; font-size: 16px;",
-        "No categories available for analysis."
-      ))
+    # Helper function to safely format values
+    format_stat <- function(x) {
+      if (is.null(x) || is.na(x) || is.nan(x)) return("N/A")
+      if (is.numeric(x)) {
+        if (x == round(x)) return(as.character(as.integer(x)))
+        return(as.character(x))
+      }
+      as.character(x)
     }
 
-    choices <- setNames(sorted_cats, paste0(sorted_cats, " (", doc_counts[sorted_cats], " docs)"))
-
-    tags$div(
-      tags$div(
-        style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;",
-        tags$label("Selected categories (ranked by document count):", style = "font-weight: bold; font-size: 16px;"),
-        tags$div(
-          style = "font-size: 16px;",
-          actionLink("select_all_corr", "Select All", style = "margin-right: 10px; color: #337ab7;"),
-          "|",
-          actionLink("select_none_corr", "Clear All", style = "margin-left: 10px; color: #337ab7;")
+    # Handle category-specific mode
+    if (!is.null(data$mode) && data$mode == "category_specific") {
+      tabs <- lapply(names(data$results), function(cat_name) {
+        cat_data <- data$results[[cat_name]]
+        stats_df <- data.frame(
+          Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
+                     "Global Clustering", "Avg Local Clustering",
+                     "Modularity", "Assortativity", "Avg Path Length"),
+          Value = c(
+            format_stat(cat_data$stats$nodes),
+            format_stat(cat_data$stats$edges),
+            format_stat(cat_data$stats$density),
+            format_stat(cat_data$stats$diameter),
+            format_stat(cat_data$stats$global_clustering),
+            format_stat(cat_data$stats$avg_local_clustering),
+            format_stat(cat_data$stats$modularity),
+            format_stat(cat_data$stats$assortativity),
+            format_stat(cat_data$stats$avg_path_length)
+          ),
+          Description = c(
+            "Total unique words in network",
+            "Total connections between words",
+            "Proportion of possible edges present",
+            "Longest shortest path in network",
+            "Overall network clustering tendency",
+            "Average of local clustering coefficients",
+            "Quality of community structure",
+            "Tendency of similar nodes to connect",
+            "Average distance between nodes"
+          ),
+          stringsAsFactors = FALSE
         )
-      ),
-      tags$div(
-        style = "background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto; font-size: 16px;",
-        checkboxGroupInput(
-          "selected_categories_corr",
-          NULL,
-          choices = choices,
-          selected = top_cats
+        tabPanel(
+          cat_name,
+          DT::datatable(
+            stats_df,
+            rownames = FALSE,
+            extensions = 'Buttons',
+            options = list(
+              scrollX = TRUE,
+              dom = 'Bfrtip',
+              buttons = c('copy', 'csv', 'excel')
+            )
+          ) %>%
+            DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
         )
-      ),
-      tags$div(
-        style = "margin-top: 10px; padding: 8px; background-color: #E0F2FE; border-radius: 4px; font-size: 16px;",
-        tags$strong(textOutput("corr_selection_summary", inline = TRUE))
-      )
-    )
-  })
-
-  output$corr_selection_summary <- renderText({
-    n_selected <- length(input$selected_categories_corr %||% character(0))
-    if (n_selected == 0) {
-      "No categories selected. Please select at least one category to analyze."
-    } else if (n_selected == 1) {
-      paste("1 category selected for analysis")
+      })
+      do.call(tabsetPanel, c(list(id = "cooccur_stats_tabs"), tabs))
     } else {
-      paste(n_selected, "categories selected for analysis")
+      # Single mode
+      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+
+      stats_df <- data.frame(
+        Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
+                   "Global Clustering", "Avg Local Clustering",
+                   "Modularity", "Assortativity", "Avg Path Length"),
+        Value = c(
+          format_stat(result_data$stats$nodes),
+          format_stat(result_data$stats$edges),
+          format_stat(result_data$stats$density),
+          format_stat(result_data$stats$diameter),
+          format_stat(result_data$stats$global_clustering),
+          format_stat(result_data$stats$avg_local_clustering),
+          format_stat(result_data$stats$modularity),
+          format_stat(result_data$stats$assortativity),
+          format_stat(result_data$stats$avg_path_length)
+        ),
+        Description = c(
+          "Total unique words in network",
+          "Total connections between words",
+          "Proportion of possible edges present",
+          "Longest shortest path in network",
+          "Overall network clustering tendency",
+          "Average of local clustering coefficients",
+          "Quality of community structure",
+          "Tendency of similar nodes to connect",
+          "Average distance between nodes"
+        ),
+        stringsAsFactors = FALSE
+      )
+
+      DT::datatable(
+        stats_df,
+        rownames = FALSE,
+        extensions = 'Buttons',
+        options = list(
+          scrollX = TRUE,
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel')
+        )
+      ) %>%
+        DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
     }
   })
 
-  observeEvent(input$select_all_corr, {
-    req(input$doc_var_correlation, input$doc_var_correlation != "None")
-    cat_levels <- unique(mydata()[[input$doc_var_correlation]])
-    cat_levels <- cat_levels[!is.na(cat_levels)]
-    doc_counts <- sapply(cat_levels, function(level) {
-      sum(mydata()[[input$doc_var_correlation]] == level, na.rm = TRUE)
-    })
-    sorted_cats <- names(sort(doc_counts, decreasing = TRUE))
-    updateCheckboxGroupInput(session, "selected_categories_corr", selected = sorted_cats)
   })
+
 
   observeEvent(input$select_none_corr, {
     updateCheckboxGroupInput(session, "selected_categories_corr", selected = character(0))
@@ -5048,16 +5328,6 @@ server <- shinyServer(function(input, output, session) {
     }
     req(dfm_to_use)
 
-    if (!is.null(params$doc_var) && params$doc_var %in% names(dfm_to_use@docvars)) {
-      if (isTRUE(params$use_category_specific)) {
-        showNotification(
-          "Category-specific network analysis with different parameters per category is not yet supported. Showing overall network with selected category variable.",
-          type = "warning",
-          duration = 5
-        )
-      }
-    }
-
     show_loading_notification("Computing correlation network...", id = "corr_network_loading")
     shinybusy::show_spinner()
 
@@ -5077,43 +5347,131 @@ server <- shinyServer(function(input, output, session) {
 
         embeddings_mat <- if (feature_type == "embeddings") embeddings_cache$embeddings else NULL
 
-        result <- TextAnalysisR::semantic_correlation_network(
-          dfm_object = dfm_to_use,
-          doc_var = params$doc_var,
-          common_term_n = params$common_term_n %||% input$common_term_n_global,
-          corr_n = params$corr_n %||% input$corr_n_global,
-          top_node_n = params$top_node_n %||% input$top_node_n_correlation_global,
-          node_label_size = 16,
-          pattern = NULL,
-          showlegend = TRUE,
-          seed = 2025,
-          feature_type = feature_type,
-          ngram_range = ngram_range,
-          texts = texts_vec,
-          embeddings = embeddings_mat
-        )
+        # Category-specific network analysis
+        if (isTRUE(params$use_category_specific) && !is.null(params$doc_var) &&
+            params$doc_var %in% names(dfm_to_use@docvars)) {
 
-        incProgress(0.9, detail = "Finalizing...")
+          categories <- names(params$category_params)
+          results_list <- list()
+          n_cats <- length(categories)
 
-        if (is.null(result)) {
-          showNotification(
-            "No correlation network generated. Try lowering thresholds.",
-            type = "warning",
-            duration = 5
-          )
-          corr_network_data(NULL)
-          remove_notification_by_id("corr_network_loading")
-          shinybusy::hide_spinner()
+          for (i in seq_along(categories)) {
+            cat_name <- categories[i]
+            cat_params <- params$category_params[[cat_name]]
+
+            incProgress(0.1 + (0.7 * i / n_cats), detail = paste("Processing", cat_name, "..."))
+
+            # Get document indices for this category
+            doc_indices <- which(dfm_to_use@docvars[[params$doc_var]] == cat_name)
+
+            # Subset DFM by category
+            dfm_subset <- tryCatch({
+              if (length(doc_indices) > 0) {
+                quanteda::dfm_subset(dfm_to_use, dfm_to_use@docvars[[params$doc_var]] == cat_name)
+              } else {
+                NULL
+              }
+            }, error = function(e) NULL)
+
+            if (is.null(dfm_subset) || quanteda::ndoc(dfm_subset) < 2) {
+              showNotification(
+                paste("Category", cat_name, "has too few documents. Skipping."),
+                type = "warning", duration = 3
+              )
+              next
+            }
+
+            cat_result <- tryCatch({
+              TextAnalysisR::semantic_correlation_network(
+                dfm_object = dfm_subset,
+                doc_var = NULL,
+                common_term_n = cat_params$common_term_n %||% input$common_term_n_global,
+                corr_n = cat_params$corr_n %||% input$corr_n_global,
+                top_node_n = cat_params$top_node_n %||% input$top_node_n_correlation_global,
+                node_label_size = input$node_label_size_corr %||% 22,
+                pattern = NULL,
+                showlegend = TRUE,
+                seed = 2025,
+                feature_type = feature_type,
+                ngram_range = ngram_range,
+                texts = if (!is.null(texts_vec)) texts_vec[doc_indices] else NULL,
+                embeddings = embeddings_mat,
+                embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
+                community_method = input$community_method_corr %||% "leiden"
+              )
+            }, error = function(e) {
+              message("Error processing category ", cat_name, ": ", e$message)
+              NULL
+            })
+
+            if (!is.null(cat_result)) {
+              results_list[[cat_name]] <- cat_result
+            }
+          }
+
+          incProgress(0.9, detail = "Finalizing...")
+
+          if (length(results_list) == 0) {
+            showNotification(
+              "No networks generated for any category. Try adjusting thresholds.",
+              type = "warning", duration = 5
+            )
+            corr_network_data(NULL)
+          } else {
+            corr_network_data(list(
+              mode = "category_specific",
+              categories = names(results_list),
+              results = results_list
+            ))
+            showNotification(
+              paste("Successfully computed networks for", length(results_list), "categories"),
+              type = "message", duration = 3
+            )
+          }
+
         } else {
-          corr_network_data(result)
-          remove_notification_by_id("corr_network_loading")
-          shinybusy::hide_spinner()
-          showNotification(
-            "Successfully computed correlation network",
-            type = "message",
-            duration = 3
+          # Single network mode (existing behavior)
+          result <- TextAnalysisR::semantic_correlation_network(
+            dfm_object = dfm_to_use,
+            doc_var = params$doc_var,
+            common_term_n = params$common_term_n %||% input$common_term_n_global,
+            corr_n = params$corr_n %||% input$corr_n_global,
+            top_node_n = params$top_node_n %||% input$top_node_n_correlation_global,
+            node_label_size = input$node_label_size_corr %||% 22,
+            pattern = NULL,
+            showlegend = TRUE,
+            seed = 2025,
+            feature_type = feature_type,
+            ngram_range = ngram_range,
+            texts = texts_vec,
+            embeddings = embeddings_mat,
+            embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
+            community_method = input$community_method_corr %||% "leiden"
           )
+
+          incProgress(0.9, detail = "Finalizing...")
+
+          if (is.null(result)) {
+            showNotification(
+              "No correlation network generated. Try lowering thresholds.",
+              type = "warning", duration = 5
+            )
+            corr_network_data(NULL)
+          } else {
+            corr_network_data(list(
+              mode = "single",
+              result = result
+            ))
+            showNotification(
+              "Successfully computed correlation network",
+              type = "message", duration = 3
+            )
+          }
         }
+
+        remove_notification_by_id("corr_network_loading")
+        shinybusy::hide_spinner()
+
       }, error = function(e) {
         remove_notification_by_id("corr_network_loading")
         shinybusy::hide_spinner()
@@ -5123,10 +5481,25 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
+
   output$word_correlation_network_plot <- visNetwork::renderVisNetwork({
     data <- corr_network_data()
     req(data)
-    data$plot
+
+    # Handle both single and category-specific modes
+    if (!is.null(data$mode) && data$mode == "single") {
+      data$result$plot
+    } else if (!is.null(data$mode) && data$mode == "category_specific") {
+      # For category mode, show first category by default
+      if (length(data$results) > 0) {
+        data$results[[1]]$plot
+      } else {
+        NULL
+      }
+    } else {
+      # Legacy format (direct result)
+      data$plot
+    }
   })
 
   output$word_correlation_network_plot_uiOutput <- renderUI({
@@ -5145,17 +5518,59 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    tags$div(
+    # Handle category-specific mode with tabs
+    if (!is.null(data$mode) && data$mode == "category_specific") {
+      tabs <- lapply(names(data$results), function(cat_name) {
+        cat_data <- data$results[[cat_name]]
+        tabPanel(
+          cat_name,
+          tags$div(
+            style = "margin-top: 15px;",
+            tags$div(
+              style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
+              paste0("Network: ", cat_data$stats$nodes, " nodes, ", cat_data$stats$edges, " edges | ",
+                     "Modularity: ", ifelse(is.null(cat_data$stats$modularity) || is.na(cat_data$stats$modularity), "N/A", cat_data$stats$modularity), " | ",
+                     "Clustering: ", ifelse(is.null(cat_data$stats$global_clustering) || is.na(cat_data$stats$global_clustering), "N/A", cat_data$stats$global_clustering))
+            ),
+            visNetwork::visNetworkOutput(paste0("corr_net_", make.names(cat_name)),
+                                         height = paste0(input$height_word_correlation_network_plot, "px"),
+                                         width = paste0(input$width_word_correlation_network_plot, "px"))
+          )
+        )
+      })
+      do.call(tabsetPanel, c(list(id = "corr_category_tabs"), tabs))
+    } else {
+      # Single mode
+      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+
       tags$div(
-        style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
-        paste0("Network with ", data$stats$nodes,
-               " nodes and ", data$stats$edges, " edges. ",
-               "Density: ", data$stats$density, ".")
-      ),
-      visNetwork::visNetworkOutput("word_correlation_network_plot",
-                                   height = paste0(input$height_word_correlation_network_plot, "px"),
-                                   width = paste0(input$width_word_correlation_network_plot, "px"))
-    )
+        tags$div(
+          style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
+          paste0("Network: ", result_data$stats$nodes, " nodes, ", result_data$stats$edges, " edges | ",
+                 "Modularity: ", ifelse(is.null(result_data$stats$modularity) || is.na(result_data$stats$modularity), "N/A", result_data$stats$modularity), " | ",
+                 "Clustering: ", ifelse(is.null(result_data$stats$global_clustering) || is.na(result_data$stats$global_clustering), "N/A", result_data$stats$global_clustering))
+        ),
+        visNetwork::visNetworkOutput("word_correlation_network_plot",
+                                     height = paste0(input$height_word_correlation_network_plot, "px"),
+                                     width = paste0(input$width_word_correlation_network_plot, "px"))
+      )
+    }
+  })
+
+  # Dynamic observers for category-specific correlation network plots
+  observe({
+    data <- corr_network_data()
+    req(!is.null(data$mode) && data$mode == "category_specific")
+
+    for (cat_name in names(data$results)) {
+      local({
+        cn <- cat_name
+        output_id <- paste0("corr_net_", make.names(cn))
+        output[[output_id]] <- visNetwork::renderVisNetwork({
+          data$results[[cn]]$plot
+        })
+      })
+    }
   })
 
   output$word_correlation_network_table_uiOutput <- renderUI({
@@ -5174,18 +5589,44 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    DT::datatable(
-      data$table,
-      rownames = FALSE,
-      extensions = 'Buttons',
-      options = list(
-        scrollX = TRUE,
-        pageLength = 25,
-        dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-      )
-    ) %>%
-      DT::formatStyle(columns = 1:ncol(data$table), fontSize = "16px")
+    # Handle category-specific mode
+    if (!is.null(data$mode) && data$mode == "category_specific") {
+      tabs <- lapply(names(data$results), function(cat_name) {
+        cat_data <- data$results[[cat_name]]
+        tabPanel(
+          cat_name,
+          DT::datatable(
+            cat_data$table,
+            rownames = FALSE,
+            extensions = 'Buttons',
+            options = list(
+              scrollX = TRUE,
+              pageLength = 25,
+              dom = 'Bfrtip',
+              buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+            )
+          ) %>%
+            DT::formatStyle(columns = 1:ncol(cat_data$table), fontSize = "16px")
+        )
+      })
+      do.call(tabsetPanel, c(list(id = "corr_table_tabs"), tabs))
+    } else {
+      # Single mode
+      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+
+      DT::datatable(
+        result_data$table,
+        rownames = FALSE,
+        extensions = 'Buttons',
+        options = list(
+          scrollX = TRUE,
+          pageLength = 25,
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
+        )
+      ) %>%
+        DT::formatStyle(columns = 1:ncol(result_data$table), fontSize = "16px")
+    }
   })
 
   output$word_correlation_network_summary_uiOutput <- renderUI({
@@ -5204,27 +5645,110 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    stats_df <- data.frame(
-      Metric = c("Nodes", "Edges", "Density"),
-      Value = c(
-        data$stats$nodes,
-        data$stats$edges,
-        data$stats$density
-      ),
-      stringsAsFactors = FALSE
-    )
+    # Helper function to safely format values
+    format_stat <- function(x) {
+      if (is.null(x) || is.na(x) || is.nan(x)) return("N/A")
+      if (is.numeric(x)) {
+        if (x == round(x)) return(as.character(as.integer(x)))
+        return(as.character(x))
+      }
+      as.character(x)
+    }
 
-    DT::datatable(
-      stats_df,
-      rownames = FALSE,
-      options = list(
-        scrollX = TRUE,
-        dom = 't'
+    # Handle category-specific mode
+    if (!is.null(data$mode) && data$mode == "category_specific") {
+      tabs <- lapply(names(data$results), function(cat_name) {
+        cat_data <- data$results[[cat_name]]
+        stats_df <- data.frame(
+          Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
+                     "Global Clustering", "Avg Local Clustering",
+                     "Modularity", "Assortativity", "Avg Path Length"),
+          Value = c(
+            format_stat(cat_data$stats$nodes),
+            format_stat(cat_data$stats$edges),
+            format_stat(cat_data$stats$density),
+            format_stat(cat_data$stats$diameter),
+            format_stat(cat_data$stats$global_clustering),
+            format_stat(cat_data$stats$avg_local_clustering),
+            format_stat(cat_data$stats$modularity),
+            format_stat(cat_data$stats$assortativity),
+            format_stat(cat_data$stats$avg_path_length)
+          ),
+          Description = c(
+            "Total unique words in network",
+            "Total connections between words",
+            "Proportion of possible edges present",
+            "Longest shortest path in network",
+            "Overall network clustering tendency",
+            "Average of local clustering coefficients",
+            "Quality of community structure",
+            "Tendency of similar nodes to connect",
+            "Average distance between nodes"
+          ),
+          stringsAsFactors = FALSE
+        )
+        tabPanel(
+          cat_name,
+          DT::datatable(
+            stats_df,
+            rownames = FALSE,
+            extensions = 'Buttons',
+            options = list(
+              scrollX = TRUE,
+              dom = 'Bfrtip',
+              buttons = c('copy', 'csv', 'excel')
+            )
+          ) %>%
+            DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
+        )
+      })
+      do.call(tabsetPanel, c(list(id = "corr_stats_tabs"), tabs))
+    } else {
+      # Single mode
+      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+
+      stats_df <- data.frame(
+        Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
+                   "Global Clustering", "Avg Local Clustering",
+                   "Modularity", "Assortativity", "Avg Path Length"),
+        Value = c(
+          format_stat(result_data$stats$nodes),
+          format_stat(result_data$stats$edges),
+          format_stat(result_data$stats$density),
+          format_stat(result_data$stats$diameter),
+          format_stat(result_data$stats$global_clustering),
+          format_stat(result_data$stats$avg_local_clustering),
+          format_stat(result_data$stats$modularity),
+          format_stat(result_data$stats$assortativity),
+          format_stat(result_data$stats$avg_path_length)
+        ),
+        Description = c(
+          "Total unique words in network",
+          "Total connections between words",
+          "Proportion of possible edges present",
+          "Longest shortest path in network",
+          "Overall network clustering tendency",
+          "Average of local clustering coefficients",
+          "Quality of community structure",
+          "Tendency of similar nodes to connect",
+          "Average distance between nodes"
+        ),
+        stringsAsFactors = FALSE
       )
-    ) %>%
-      DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
-  })
 
+      DT::datatable(
+        stats_df,
+        rownames = FALSE,
+        extensions = 'Buttons',
+        options = list(
+          scrollX = TRUE,
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel')
+        )
+      ) %>%
+        DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
+    }
+  })
 
 
   colnames_con <- reactive({
@@ -8937,6 +9461,21 @@ server <- shinyServer(function(input, output, session) {
           ),
           selected = "2"
         )
+      ),
+      conditionalPanel(
+        condition = "input.semantic_feature_space == 'embeddings'",
+        sliderInput(
+          "embedding_sim_threshold",
+          "Document similarity threshold:",
+          min = 0.3,
+          max = 0.9,
+          value = 0.5,
+          step = 0.05
+        ),
+        tags$div(
+          style = "font-size: 14px; color: #64748B; margin-top: -8px; margin-bottom: 8px;",
+          "Higher values = fewer, stronger document connections"
+        )
       )
     )
   })
@@ -11715,15 +12254,13 @@ server <- shinyServer(function(input, output, session) {
     docs_data <- document_display_data()
     category_var <- input$doc_category_var
 
-    if (is.null(docs_data) || is.null(category_var) || category_var == "" || !category_var %in% names(docs_data)) {
-      return(tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 8px 12px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-info-circle", style = "margin-right: 5px;"),
-        "Select a category variable first."
-      ))
+    # Check for category_display column (created by document_display_data)
+    if (is.null(docs_data) || is.null(category_var) || category_var == "" || 
+        !"category_display" %in% names(docs_data) || all(docs_data$category_display == "Document")) {
+      return(NULL)
     }
 
-    categories <- unique(docs_data[[category_var]])
+    categories <- unique(docs_data$category_display)
     if (length(categories) < 2) {
       return(tags$div(
         style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 8px 12px; font-size: 16px; border-radius: 4px;",
@@ -11753,7 +12290,15 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observeEvent(input$run_gap_analysis, {
-    req(similarity_analysis_triggered())
+    # Check if similarity analysis has been run
+    if (!isTRUE(similarity_analysis_triggered())) {
+      showNotification(
+        "Please calculate document similarity first (click 'Calculate Similarity' button).",
+        type = "warning",
+        duration = 5
+      )
+      return(NULL)
+    }
 
     feature_type <- isolate(input$semantic_feature_space %||% "words")
     similarity_data <- get_similarity_data_for_plot(feature_type)
@@ -11774,12 +12319,14 @@ server <- shinyServer(function(input, output, session) {
     }
 
     category_var <- isolate(input$doc_category_var)
-    if (is.null(category_var) || category_var == "" || !category_var %in% names(docs_data)) {
+    # Check for category_display column (created by document_display_data from doc_category_var)
+    if (is.null(category_var) || category_var == "" || !"category_display" %in% names(docs_data) ||
+        all(docs_data$category_display == "Document")) {
       showNotification("Please select a category variable for contrastive analysis.", type = "warning", duration = 5)
       return(NULL)
     }
 
-    categories <- unique(docs_data[[category_var]])
+    categories <- unique(docs_data$category_display)
     if (length(categories) < 2) {
       showNotification("Contrastive analysis requires at least 2 categories.", type = "warning", duration = 5)
       return(NULL)
@@ -11808,8 +12355,8 @@ server <- shinyServer(function(input, output, session) {
         ref_category <- categories[1]
       }
 
-      ref_indices <- which(docs_data[[category_var]] == ref_category)
-      other_indices <- which(docs_data[[category_var]] != ref_category)
+      ref_indices <- which(docs_data$category_display == ref_category)
+      other_indices <- which(docs_data$category_display != ref_category)
 
       if (length(ref_indices) == 0 || length(other_indices) == 0) {
         showNotification("Cannot perform analysis: need documents in both reference and comparison categories.", type = "error", duration = 5)
@@ -11823,7 +12370,7 @@ server <- shinyServer(function(input, output, session) {
         dplyr::mutate(
           ref_id = docs_data[[doc_id_var]][ref_idx],
           other_id = docs_data[[doc_id_var]][other_idx],
-          other_category = docs_data[[category_var]][other_idx],
+          other_category = docs_data$category_display[other_idx],
           similarity = purrr::map2_dbl(ref_idx, other_idx, ~similarity_matrix[.x, .y])
         ) %>%
         dplyr::select(-ref_idx, -other_idx)
@@ -11858,6 +12405,9 @@ server <- shinyServer(function(input, output, session) {
     req(comparison_results$gap_analysis)
     gap_result <- comparison_results$gap_analysis
 
+    # Get numeric columns for formatting
+    numeric_cols <- names(gap_result$summary_stats)[sapply(gap_result$summary_stats, is.numeric)]
+
     DT::datatable(
       gap_result$summary_stats,
       rownames = FALSE,
@@ -11867,7 +12417,7 @@ server <- shinyServer(function(input, output, session) {
         dom = "Bfrtip",
         buttons = c("copy", "csv", "excel")
       )
-    )
+    ) %>% DT::formatRound(columns = numeric_cols, digits = 3)
   })
 
   output$gap_unique_items <- DT::renderDataTable({
@@ -11882,6 +12432,8 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
+    numeric_cols <- names(gap_result$unique_items)[sapply(gap_result$unique_items, is.numeric)]
+
     DT::datatable(
       gap_result$unique_items,
       rownames = FALSE,
@@ -11892,7 +12444,7 @@ server <- shinyServer(function(input, output, session) {
         buttons = c("copy", "csv", "excel"),
         pageLength = 10
       )
-    )
+    ) %>% DT::formatRound(columns = numeric_cols, digits = 3)
   })
 
   output$gap_missing_items <- DT::renderDataTable({
@@ -11907,6 +12459,8 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
+    numeric_cols <- names(gap_result$missing_items)[sapply(gap_result$missing_items, is.numeric)]
+
     DT::datatable(
       gap_result$missing_items,
       rownames = FALSE,
@@ -11917,7 +12471,7 @@ server <- shinyServer(function(input, output, session) {
         buttons = c("copy", "csv", "excel"),
         pageLength = 10
       )
-    )
+    ) %>% DT::formatRound(columns = numeric_cols, digits = 3)
   })
 
   output$gap_cross_policy <- DT::renderDataTable({
@@ -11932,6 +12486,8 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
+    numeric_cols <- names(gap_result$cross_policy)[sapply(gap_result$cross_policy, is.numeric)]
+
     DT::datatable(
       gap_result$cross_policy,
       rownames = FALSE,
@@ -11942,7 +12498,7 @@ server <- shinyServer(function(input, output, session) {
         buttons = c("copy", "csv", "excel"),
         pageLength = 10
       )
-    )
+    ) %>% DT::formatRound(columns = numeric_cols, digits = 3)
   })
 
   observeEvent(input$showDimRedInfo, {
@@ -15368,8 +15924,8 @@ server <- shinyServer(function(input, output, session) {
 
       text <- gsub("\\\\\\(\\s*", "", text)
       text <- gsub("\\s*\\\\\\)", "", text)
-      text <- gsub("\\$\\$", "", text)
-      text <- gsub("\\$", "", text)
+      text <- gsub("$$", "", text)
+      text <- gsub("$", "", text)
       text <- gsub("K\\s*=\\s*(\\d+)", "<strong>K = \\1</strong>", text)
       text <- gsub("\\*\\*(.+?)\\*\\*", "<strong>\\1</strong>", text)
       text <- gsub("__(.+?)__", "<strong>\\1</strong>", text)
@@ -15757,7 +16313,7 @@ server <- shinyServer(function(input, output, session) {
             sigma.prior = 0,
             kappa.prior = input$kappa_prior_K,
             max.em.its = input$max_em_its_K,
-            emtol = 1e-04,  # Relaxed tolerance for faster convergence
+            emtol = 1e-04,
             control = list(alpha = 50/K_num)
           )
         }, error = function(init_error) {
@@ -15775,7 +16331,7 @@ server <- shinyServer(function(input, output, session) {
               sigma.prior = 0,
               kappa.prior = input$kappa_prior_K,
               max.em.its = input$max_em_its_K,
-              emtol = 1e-04,  # Relaxed tolerance for faster convergence
+              emtol = 1e-04,
               control = list(alpha = 50/K_num)
             )
           } else {
