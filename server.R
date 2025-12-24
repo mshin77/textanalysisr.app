@@ -50,10 +50,14 @@ server <- shinyServer(function(input, output, session) {
     TextAnalysisR::get_feature_status()
   })
 
-  # Lazy spaCy initialization - only when needed
-
+  # spaCy initialization status
   spacy_initialized <- reactiveVal(FALSE)
+  spacy_init_attempted <- reactiveVal(FALSE)
+  spacy_init_error <- reactiveVal(NULL)
 
+  # Lazy spaCy initialization - only when user needs POS/NER (faster startup)
+
+  # Helper function for on-demand initialization (fallback)
   ensure_spacy <- function() {
     if (!spacy_initialized()) {
       tryCatch({
@@ -485,8 +489,6 @@ server <- shinyServer(function(input, output, session) {
             }
           )
 
-
-
           return(example_data)
         } else if (input$dataset_choice == "Copy and Paste Text") {
           if (is.null(input$text_input) || is.na(input$text_input) ||
@@ -526,11 +528,9 @@ server <- shinyServer(function(input, output, session) {
             return(NULL)
           }
 
-
           if (text_size_mb > 5 || nchar(text_content) > 100000) {
             show_loading_notification("Processing large content...", id = "loadingText")
           }
-
 
           tryCatch(
             {
@@ -958,7 +958,6 @@ server <- shinyServer(function(input, output, session) {
   })
   outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
 
-
   colnames <- reactive({
     data <- mydata()
     if (is.data.frame(data)) {
@@ -1003,7 +1002,6 @@ server <- shinyServer(function(input, output, session) {
       }
     }
   })
-
 
   listed_vars <- eventReactive(input$show_vars, {
     input$show_vars
@@ -1341,8 +1339,6 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
-
-
   custom_dict_terms <- reactive({
     req(input$custom_dict)
     ext <- tools::file_ext(input$custom_dict$name)
@@ -1355,7 +1351,6 @@ server <- shinyServer(function(input, output, session) {
     terms <- terms[nzchar(terms)]
     terms
   })
-
 
   use_custom_dict <- reactive({
     isTRUE(input$use_custom_dict)
@@ -1956,8 +1951,6 @@ server <- shinyServer(function(input, output, session) {
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
   ))
 
-
-
   dfm_init <- eventReactive(input$dfm_btn, {
     tokens_to_use <- if (!is.null(processed_tokens())) {
       processed_tokens()
@@ -2536,6 +2529,10 @@ server <- shinyServer(function(input, output, session) {
     }
 
     req(tokens_to_use)
+    
+    # Debug: check what tokens_to_use contains
+
+    first_doc_tokens <- as.character(tokens_to_use[[1]])
 
     # Create cache key based on token content
     current_cache_key <- digest::digest(as.list(tokens_to_use), algo = "md5")
@@ -2593,6 +2590,7 @@ server <- shinyServer(function(input, output, session) {
       }
 
       texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
+      doc_names <- quanteda::docnames(tokens_to_use)
 
       # Only extract lemma for performance - other features extracted separately when needed
       parsed <- spacyr::spacy_parse(
@@ -2603,6 +2601,16 @@ server <- shinyServer(function(input, output, session) {
         entity = FALSE,
         dependency = FALSE
       )
+
+      # Align doc_id with quanteda document names for batch entity matching
+      if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
+        doc_id_map <- data.frame(
+          old_id = paste0("text", seq_along(doc_names)),
+          new_id = doc_names,
+          stringsAsFactors = FALSE
+        )
+        parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
+      }
 
       spacyr_processed(parsed)
 
@@ -2988,8 +2996,8 @@ server <- shinyServer(function(input, output, session) {
       # No entity data available - only use custom entities if any
       if (nrow(custom_entities()) > 0) {
         entity_counts <- custom_entities() %>%
-          dplyr::count(`Construct`, name = "n") %>%
-          dplyr::rename(entity = `Construct`) %>%
+          dplyr::count(`Variable`, name = "n") %>%
+          dplyr::rename(entity = `Variable`) %>%
           dplyr::arrange(dplyr::desc(n))
 
         ordered_entities <- entity_counts$entity
@@ -3012,8 +3020,8 @@ server <- shinyServer(function(input, output, session) {
 
     if (nrow(custom_entities()) > 0) {
       custom_counts <- custom_entities() %>%
-        dplyr::count(`Construct`, name = "n") %>%
-        dplyr::rename(entity = `Construct`)
+        dplyr::count(`Variable`, name = "n") %>%
+        dplyr::rename(entity = `Variable`)
 
       entity_counts <- dplyr::bind_rows(entity_counts, custom_counts) %>%
         dplyr::group_by(entity) %>%
@@ -3065,8 +3073,31 @@ server <- shinyServer(function(input, output, session) {
         tags$span(" version.", style = "color: #0369A1;")
       )
     } else {
-      # Local - show option to use Python or R
+      # Local - show option to use Python or R with status indicator
+      spacy_ready <- spacy_initialized()
+      spacy_error <- spacy_init_error()
+      
       tagList(
+        # spaCy status indicator
+        if (!is.null(spacy_error)) {
+          tags$div(
+            style = "margin-bottom: 10px; padding: 8px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 12px;",
+            tags$i(class = "fa fa-exclamation-triangle", style = "color: #D97706; margin-right: 5px;"),
+            tags$span("R spacyr will be used (Python spaCy unavailable)", style = "color: #92400E;")
+          )
+        } else if (spacy_ready) {
+          tags$div(
+            style = "margin-bottom: 10px; padding: 8px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 12px;",
+            tags$i(class = "fa fa-check-circle", style = "color: #059669; margin-right: 5px;"),
+            tags$span("spaCy ready", style = "color: #047857;")
+          )
+        } else {
+          tags$div(
+            style = "margin-bottom: 10px; padding: 8px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px; font-size: 12px;",
+            tags$i(class = "fa fa-spinner fa-spin", style = "color: #0284C7; margin-right: 5px;"),
+            tags$span("Initializing spaCy...", style = "color: #0369A1;")
+          )
+        },
         radioButtons(
           "spacy_mode",
           "Analysis Engine:",
@@ -3111,7 +3142,7 @@ server <- shinyServer(function(input, output, session) {
     use_python <- !is_web && isTRUE(input$spacy_mode == "python")
 
     if (use_python) {
-      # Use Python-based spacy_parse_full for morphology support
+      # Use spacyr::spacy_parse (reliable)
       showNotification("Extracting POS tags with morphology (Python/spaCy)...", type = "message", duration = 3)
 
       tryCatch({
@@ -3119,29 +3150,39 @@ server <- shinyServer(function(input, output, session) {
         if (inherits(tokens_to_use, "tokens")) {
           texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
           doc_names <- quanteda::docnames(tokens_to_use)
+
         } else {
           texts <- as.character(tokens_to_use)
           doc_names <- paste0("text", seq_along(texts))
+
         }
 
-        parsed <- TextAnalysisR::spacy_parse_full(
+        parsed <- spacyr::spacy_parse(
           texts,
-          include_pos = TRUE,
-          include_lemma = TRUE,
-          include_entity = FALSE,
-          include_dependency = include_dep,
-          include_morphology = TRUE
+          pos = TRUE,
+          tag = TRUE,
+          lemma = TRUE,
+          entity = FALSE,
+          dependency = include_dep
         )
 
+        if (nrow(parsed) > 0) {
+
+        }
+
         # Align doc_id with quanteda document names for batch entity matching
+
+        
         if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
           doc_id_map <- data.frame(
             old_id = paste0("text", seq_along(doc_names)),
             new_id = doc_names,
             stringsAsFactors = FALSE
           )
+
           parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
-        }
+
+        } else {        }
 
         spacyr_processed(parsed)
         pos_applied(pos_applied() + 1)
@@ -3174,7 +3215,30 @@ server <- shinyServer(function(input, output, session) {
       showNotification("Extracting POS tags (spacyr)...", type = "message", duration = 3)
 
       tryCatch({
+        # Get document names for alignment
+        if (inherits(tokens_to_use, "tokens")) {
+          doc_names <- quanteda::docnames(tokens_to_use)
+        } else {
+          doc_names <- paste0("text", seq_along(tokens_to_use))
+        }
+
         parsed <- TextAnalysisR::extract_pos_tags(tokens_to_use, include_dependency = include_dep)
+
+        # Align doc_id with quanteda document names for batch entity matching
+
+        
+        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
+          doc_id_map <- data.frame(
+            old_id = paste0("text", seq_along(doc_names)),
+            new_id = doc_names,
+            stringsAsFactors = FALSE
+          )
+
+          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
+
+        } else {
+        }
+
         spacyr_processed(parsed)
         pos_applied(pos_applied() + 1)
 
@@ -3730,26 +3794,28 @@ server <- shinyServer(function(input, output, session) {
     use_python <- !is_web && isTRUE(input$spacy_mode == "python")
 
     if (use_python) {
-      # Use Python-based spacy_parse_full for morphology support
-      showNotification("Extracting named entities with morphology (Python/spaCy)...", type = "message", duration = 3)
+      # Use spacyr::spacy_parse (reliable)
+      showNotification("Extracting named entities (spaCy)...", type = "message", duration = 3)
 
       tryCatch({
         # Convert tokens to text for Python spaCy
         if (inherits(tokens_to_use, "tokens")) {
           texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
           doc_names <- quanteda::docnames(tokens_to_use)
+
         } else {
           texts <- as.character(tokens_to_use)
           doc_names <- paste0("text", seq_along(texts))
+
         }
 
-        parsed <- TextAnalysisR::spacy_parse_full(
+        parsed <- spacyr::spacy_parse(
           texts,
-          include_pos = TRUE,
-          include_lemma = TRUE,
-          include_entity = TRUE,
-          include_dependency = FALSE,
-          include_morphology = TRUE
+          pos = TRUE,
+          tag = TRUE,
+          lemma = TRUE,
+          entity = TRUE,
+          dependency = FALSE
         )
 
         # Align doc_id with quanteda document names for batch entity matching
@@ -3763,7 +3829,7 @@ server <- shinyServer(function(input, output, session) {
         }
 
         spacyr_processed(parsed)
-        showNotification("Named entity extraction with morphology completed!", type = "message", duration = 3)
+        showNotification("Named entity extraction completed!", type = "message", duration = 3)
       }, error = function(e) {
         # Show helpful error modal
         showModal(modalDialog(
@@ -3790,7 +3856,25 @@ server <- shinyServer(function(input, output, session) {
       showNotification("Extracting named entities (spacyr)...", type = "message", duration = 3)
 
       tryCatch({
+        # Get document names for alignment
+        if (inherits(tokens_to_use, "tokens")) {
+          doc_names <- quanteda::docnames(tokens_to_use)
+        } else {
+          doc_names <- paste0("text", seq_along(tokens_to_use))
+        }
+
         parsed <- TextAnalysisR::extract_named_entities(tokens_to_use)
+
+        # Align doc_id with quanteda document names for batch entity matching
+        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
+          doc_id_map <- data.frame(
+            old_id = paste0("text", seq_along(doc_names)),
+            new_id = doc_names,
+            stringsAsFactors = FALSE
+          )
+          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
+        }
+
         spacyr_processed(parsed)
         showNotification("Named entity extraction completed!", type = "message", duration = 3)
       }, error = function(e) {
@@ -3818,8 +3902,8 @@ server <- shinyServer(function(input, output, session) {
       # Use only custom entities if available
       if (nrow(custom_entities()) > 0) {
         entity_data <- custom_entities() %>%
-          dplyr::count(`Construct`, name = "n") %>%
-          dplyr::rename(entity = `Construct`)
+          dplyr::count(`Variable`, name = "n") %>%
+          dplyr::rename(entity = `Variable`)
 
         if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
           entity_data <- entity_data %>%
@@ -3851,8 +3935,8 @@ server <- shinyServer(function(input, output, session) {
 
       if (nrow(custom_entities()) > 0) {
         custom_counts <- custom_entities() %>%
-          dplyr::count(`Construct`, name = "n") %>%
-          dplyr::rename(entity = `Construct`)
+          dplyr::count(`Variable`, name = "n") %>%
+          dplyr::rename(entity = `Variable`)
 
         if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
           custom_counts <- custom_counts %>%
@@ -3883,16 +3967,39 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$entity_table <- DT::renderDataTable({
-    req(input$apply_ner_filter)
-    req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
-    req(spacyr_processed())
+    # Allow table to render if either:
+    # 1. NER filter was applied (spacyr_processed exists), OR
+    # 2. Custom entities were added via batch coding
+    has_ner <- isTRUE(input$apply_ner_filter > 0) && !is.null(spacyr_processed())
+    has_custom <- nrow(custom_entities()) > 0
 
+    if (has_custom) {
+
+    }
+    
+    req(has_ner || has_custom)
+    
+    # Trigger reactivity on custom_entities changes
     custom_entities()
+    
+    # If no NER data, return custom entities directly
+    if (has_custom) {
+      custom_df <- custom_entities()
+
+      return(custom_df %>%
+        dplyr::select(Document, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep))
+    }
 
     parsed <- spacyr_processed()
 
     # Check if entity column exists
     if (!"entity" %in% names(parsed)) {
+      # No NER entities, but might have custom entities
+      if (has_custom) {
+        custom_df <- custom_entities()
+        return(custom_df %>%
+          dplyr::select(Document, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep))
+      }
       return(NULL)
     }
 
@@ -3964,8 +4071,8 @@ server <- shinyServer(function(input, output, session) {
         dplyr::select(
           Document,
           `Document ID`,
-          `Construct` = entity,
-          `Operational Definition` = token,
+          `Variable` = entity,
+          `Coding` = token,
           Frequency,
           `First Sentence` = First_Sentence,
           Notes,
@@ -3975,8 +4082,8 @@ server <- shinyServer(function(input, output, session) {
       entity_detail <- entity_detail %>%
         dplyr::select(
           Document,
-          `Construct` = entity,
-          `Operational Definition` = token,
+          `Variable` = entity,
+          `Coding` = token,
           Frequency,
           `First Sentence` = First_Sentence,
           Notes,
@@ -3984,25 +4091,36 @@ server <- shinyServer(function(input, output, session) {
         )
     }
 
+    
     if (nrow(custom_entities()) > 0) {
       custom_df <- custom_entities()
 
       if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
+
         custom_df <- custom_df %>%
-          dplyr::filter(`Construct` %in% input$entity_type_filter)
+          dplyr::filter(`Variable` %in% input$entity_type_filter)
+
       }
 
       if (!is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
         custom_df <- custom_df %>%
           dplyr::mutate(`Document ID` = NA) %>%
-          dplyr::select(Document, `Document ID`, `Construct`, `Operational Definition`, Frequency, `First Sentence`, Notes, Keep)
+          dplyr::select(Document, `Document ID`, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep)
       } else {
         custom_df <- custom_df %>%
-          dplyr::select(Document, `Construct`, `Operational Definition`, Frequency, `First Sentence`, Notes, Keep)
+          dplyr::select(Document, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep)
       }
 
-      entity_detail <- dplyr::bind_rows(entity_detail, custom_df) %>%
-        dplyr::arrange(`Construct`, desc(Frequency))
+      # Add source column to sort custom entities first
+      entity_detail <- entity_detail %>%
+        dplyr::mutate(.source = "NER")
+      custom_df <- custom_df %>%
+        dplyr::mutate(.source = "Custom")
+      
+      entity_detail <- dplyr::bind_rows(custom_df, entity_detail) %>%
+        dplyr::arrange(.source, `Variable`, desc(Frequency)) %>%
+        dplyr::select(-.source)
+
     }
 
     entity_detail
@@ -4046,16 +4164,41 @@ server <- shinyServer(function(input, output, session) {
       search_terms_lower <- tolower(search_terms)
 
       if (use_regex) {
+        # Track which term matched
         matching_tokens <- parsed %>%
-          dplyr::mutate(token_lower = tolower(token)) %>%
-          dplyr::filter(token_lower %in% search_terms_lower | lemma %in% search_terms_lower)
+          dplyr::mutate(
+            token_lower = tolower(token),
+            lemma_lower = tolower(lemma),
+            matched_term = dplyr::case_when(
+              token_lower %in% search_terms_lower ~ token_lower,
+              lemma_lower %in% search_terms_lower ~ lemma_lower,
+              TRUE ~ NA_character_
+            )
+          ) %>%
+          dplyr::filter(!is.na(matched_term))
       } else {
+        # Track which term matched
         matching_tokens <- parsed %>%
-          dplyr::mutate(token_lower = tolower(token)) %>%
-          dplyr::filter(token_lower %in% search_terms_lower)
+          dplyr::mutate(
+            token_lower = tolower(token),
+            matched_term = dplyr::if_else(token_lower %in% search_terms_lower, token_lower, NA_character_)
+          ) %>%
+          dplyr::filter(!is.na(matched_term))
       }
 
       if (nrow(matching_tokens) > 0) {
+        # Get unique matched terms with their frequencies
+        matched_terms_summary <- matching_tokens %>%
+          dplyr::count(matched_term, name = "term_freq") %>%
+          dplyr::arrange(dplyr::desc(term_freq))
+
+        # Format matched terms with frequencies
+        matched_terms_str <- paste0(
+          matched_terms_summary$matched_term,
+          " (", matched_terms_summary$term_freq, ")",
+          collapse = ", "
+        )
+
         entity_summary <- matching_tokens %>%
           dplyr::group_by(doc_id) %>%
           dplyr::summarise(
@@ -4097,8 +4240,9 @@ server <- shinyServer(function(input, output, session) {
         operational_def <- paste(search_terms, collapse = ", ")
 
         new_entity <- data.frame(
-          `Construct` = construct_label,
-          `Operational Definition` = operational_def,
+          `Variable` = construct_label,
+          `Coding` = operational_def,
+          `Matched Terms` = matched_terms_str,
           Document = doc_list,
           Frequency = total_frequency,
           `First Sentence` = entity_summary$first_sentence[1],
@@ -4109,7 +4253,7 @@ server <- shinyServer(function(input, output, session) {
         )
 
         showNotification(
-          paste0("Construct '", construct_label, "': Found ", total_frequency, " occurrence(s) across ", nrow(entity_summary), " document(s)"),
+          paste0("Variable '", construct_label, "': Found ", total_frequency, " occurrence(s) across ", nrow(entity_summary), " document(s)"),
           type = "message",
           duration = 5
         )
@@ -4117,8 +4261,9 @@ server <- shinyServer(function(input, output, session) {
         operational_def <- paste(search_terms, collapse = ", ")
 
         new_entity <- data.frame(
-          `Construct` = construct_label,
-          `Operational Definition` = operational_def,
+          `Variable` = construct_label,
+          `Coding` = operational_def,
+          `Matched Terms` = "(none)",
           Document = "Not found",
           Frequency = 0,
           `First Sentence` = NA,
@@ -4129,7 +4274,7 @@ server <- shinyServer(function(input, output, session) {
         )
 
         showNotification(
-          paste0("Construct '", construct_label, "' not found in documents"),
+          paste0("Variable '", construct_label, "' not found in documents"),
           type = "warning",
           duration = 5
         )
@@ -4138,8 +4283,9 @@ server <- shinyServer(function(input, output, session) {
       operational_def <- paste(search_terms, collapse = ", ")
 
       new_entity <- data.frame(
-        `Construct` = construct_label,
-        `Operational Definition` = operational_def,
+        `Variable` = construct_label,
+        `Coding` = operational_def,
+        `Matched Terms` = "(pending)",
         Document = "Manual",
         Frequency = 0,
         `First Sentence` = NA,
@@ -4150,7 +4296,7 @@ server <- shinyServer(function(input, output, session) {
       )
 
       showNotification(
-        paste0("Construct '", construct_label, "' added (text not yet processed)"),
+        paste0("Variable '", construct_label, "' added (text not yet processed)"),
         type = "message",
         duration = 3
       )
@@ -4161,7 +4307,7 @@ server <- shinyServer(function(input, output, session) {
     if (nrow(current_custom) == 0) {
       custom_entities(new_entity)
     } else {
-      existing_idx <- which(current_custom$Construct == construct_label)
+      existing_idx <- which(current_custom$Variable == construct_label)
       if (length(existing_idx) > 0) {
         current_custom[existing_idx, ] <- new_entity
         custom_entities(current_custom)
@@ -4221,31 +4367,85 @@ server <- shinyServer(function(input, output, session) {
         if (!is.null(spacyr_processed())) {
           parsed <- spacyr_processed()
 
+          # Debug: Check columns
+          if (i == 1) {
+            message("spacyr_processed columns: ", paste(names(parsed), collapse = ", "))
+            message("Sample doc_ids: ", paste(head(unique(parsed$doc_id), 3), collapse = ", "))
+          }
+
+          # Check required columns exist
+          if (!"token" %in% names(parsed)) {
+            showNotification("Error: 'token' column not found in parsed data", type = "error")
+            next
+          }
+
           search_terms_lower <- tolower(search_terms)
 
           if (use_regex && "lemma" %in% names(parsed)) {
             # Include lemmas - match both token and lemma (both lowercased)
+            # Track which search term matched
             matching_tokens <- parsed %>%
               dplyr::mutate(
                 token_lower = tolower(token),
-                lemma_lower = tolower(lemma)
+                lemma_lower = tolower(lemma),
+                matched_term = dplyr::case_when(
+                  token_lower %in% search_terms_lower ~ token_lower,
+                  lemma_lower %in% search_terms_lower ~ lemma_lower,
+                  TRUE ~ NA_character_
+                )
               ) %>%
-              dplyr::filter(token_lower %in% search_terms_lower | lemma_lower %in% search_terms_lower)
+              dplyr::filter(!is.na(matched_term))
           } else {
-            # Exact token match only
+            # Exact token match only - track which term matched
             matching_tokens <- parsed %>%
-              dplyr::mutate(token_lower = tolower(token)) %>%
-              dplyr::filter(token_lower %in% search_terms_lower)
+              dplyr::mutate(
+                token_lower = tolower(token),
+                matched_term = dplyr::if_else(token_lower %in% search_terms_lower, token_lower, NA_character_)
+              ) %>%
+              dplyr::filter(!is.na(matched_term))
+          }
+
+          # Debug: Show matching info
+          message("Searching for: ", paste(search_terms_lower, collapse = ", "))
+          message("Found ", nrow(matching_tokens), " matching tokens")
+
+          # Show sample tokens for debugging
+          if (nrow(matching_tokens) == 0 && i == 1) {
+            sample_tokens <- head(unique(tolower(parsed$token)), 50)
+            message("Sample tokens in data: ", paste(sample_tokens, collapse = ", "))
           }
 
           if (nrow(matching_tokens) > 0) {
-            entity_summary <- matching_tokens %>%
-              dplyr::group_by(doc_id) %>%
-              dplyr::summarise(
-                doc_frequency = dplyr::n(),
-                first_sentence = dplyr::first(sentence_id),
-                .groups = "drop"
-              )
+            # Get unique matched terms with their frequencies
+            matched_terms_summary <- matching_tokens %>%
+              dplyr::count(matched_term, name = "term_freq") %>%
+              dplyr::arrange(dplyr::desc(term_freq))
+
+            # Format matched terms with frequencies
+            matched_terms_str <- paste0(
+              matched_terms_summary$matched_term,
+              " (", matched_terms_summary$term_freq, ")",
+              collapse = ", "
+            )
+
+            # Handle case where sentence_id might not exist
+            if ("sentence_id" %in% names(matching_tokens)) {
+              entity_summary <- matching_tokens %>%
+                dplyr::group_by(doc_id) %>%
+                dplyr::summarise(
+                  doc_frequency = dplyr::n(),
+                  first_sentence = dplyr::first(sentence_id),
+                  .groups = "drop"
+                )
+            } else {
+              entity_summary <- matching_tokens %>%
+                dplyr::group_by(doc_id) %>%
+                dplyr::summarise(
+                  doc_frequency = dplyr::n(),
+                  first_sentence = NA_integer_,
+                  .groups = "drop"
+                )
+            }
 
             tokens_obj <- if (!is.null(final_tokens())) {
               final_tokens()
@@ -4265,6 +4465,8 @@ server <- shinyServer(function(input, output, session) {
             }
 
             all_doc_ids <- quanteda::docnames(tokens_obj)
+            
+            # Simple mapping - same as single entity add
             doc_number_mapping <- data.frame(
               doc_id = all_doc_ids,
               Document = paste0("Doc ", seq_along(all_doc_ids)),
@@ -4275,18 +4477,18 @@ server <- shinyServer(function(input, output, session) {
               dplyr::left_join(doc_number_mapping, by = "doc_id")
 
             total_frequency <- sum(entity_summary$doc_frequency)
-            doc_list <- paste(entity_summary$Document, collapse = ", ")
-
             operational_def <- paste(search_terms, collapse = ", ")
 
+            # Create one row per document instead of concatenating all docs
             new_entity <- data.frame(
-              `Construct` = construct_label,
-              `Operational Definition` = operational_def,
-              Document = doc_list,
-              Frequency = total_frequency,
-              `First Sentence` = entity_summary$first_sentence[1],
-              Notes = paste0("Found in ", nrow(entity_summary), " document(s)", if (use_regex) " (with lemmas)" else " (exact match)"),
-              Keep = TRUE,
+              `Variable` = rep(construct_label, nrow(entity_summary)),
+              `Coding` = rep(operational_def, nrow(entity_summary)),
+              `Matched Terms` = rep(matched_terms_str, nrow(entity_summary)),
+              Document = entity_summary$Document,
+              Frequency = entity_summary$doc_frequency,
+              `First Sentence` = entity_summary$first_sentence,
+              Notes = rep(if (use_regex) "with lemmas" else "exact match", nrow(entity_summary)),
+              Keep = rep(TRUE, nrow(entity_summary)),
               check.names = FALSE,
               stringsAsFactors = FALSE
             )
@@ -4297,8 +4499,9 @@ server <- shinyServer(function(input, output, session) {
             operational_def <- paste(search_terms, collapse = ", ")
 
             new_entity <- data.frame(
-              `Construct` = construct_label,
-              `Operational Definition` = operational_def,
+              `Variable` = construct_label,
+              `Coding` = operational_def,
+              `Matched Terms` = "(none)",
               Document = "Not found",
               Frequency = 0,
               `First Sentence` = NA,
@@ -4313,8 +4516,9 @@ server <- shinyServer(function(input, output, session) {
           operational_def <- paste(search_terms, collapse = ", ")
 
           new_entity <- data.frame(
-            `Construct` = construct_label,
-            `Operational Definition` = operational_def,
+            `Variable` = construct_label,
+            `Coding` = operational_def,
+            `Matched Terms` = "(pending)",
             Document = "Manual",
             Frequency = 0,
             `First Sentence` = NA,
@@ -4337,8 +4541,8 @@ server <- shinyServer(function(input, output, session) {
       custom_entities(new_entities_df)
     } else {
       for (i in seq_len(nrow(new_entities_df))) {
-        new_construct <- new_entities_df$Construct[i]
-        existing_idx <- which(current_custom$Construct == new_construct)
+        new_construct <- new_entities_df$Variable[i]
+        existing_idx <- which(current_custom$Variable == new_construct)
 
         if (length(existing_idx) > 0) {
           current_custom[existing_idx, ] <- new_entities_df[i, ]
@@ -4349,12 +4553,44 @@ server <- shinyServer(function(input, output, session) {
       custom_entities(current_custom)
     }
 
+    # Calculate documents count
+    docs_with_matches <- if (nrow(new_entities_df) > 0) length(unique(new_entities_df$Document)) else 0
+    
     showNotification(
-      paste0("Batch coding complete: ", length(lines), " constructs processed. ",
-             found_count, " found (", total_occurrences, " total occurrences), ",
-             not_found_count, " not found."),
+      paste0("Coding complete: ", total_occurrences, " matches in ", docs_with_matches, " documents"),
       type = "message",
-      duration = 7
+      duration = 5
+    )
+
+    # Update filter to show only the newly coded constructs
+    new_constructs <- unique(new_entities_df$Variable)
+    current_choices <- c("All Types" = "")
+
+    # Get all entity types (NER + custom)
+    if (!is.null(spacyr_processed())) {
+      parsed <- spacyr_processed()
+      if ("entity" %in% names(parsed)) {
+        ner_types <- parsed %>%
+          dplyr::filter(!is.na(entity), entity != "") %>%
+          dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
+          dplyr::pull(entity_clean) %>%
+          unique()
+        current_choices <- c(current_choices, setNames(ner_types, ner_types))
+      }
+    }
+
+    # Add custom construct types
+    all_custom <- custom_entities()
+    if (nrow(all_custom) > 0) {
+      custom_types <- unique(all_custom$Variable)
+      current_choices <- c(current_choices, setNames(custom_types, custom_types))
+    }
+
+    updateSelectizeInput(
+      session,
+      "entity_type_filter",
+      choices = current_choices,
+      selected = new_constructs  # Auto-select the new constructs
     )
 
     updateTextAreaInput(session, "batch_entity_text", value = "")
@@ -4450,8 +4686,8 @@ server <- shinyServer(function(input, output, session) {
               doc_list <- paste(entity_summary$Document, collapse = ", ")
 
               new_entity <- data.frame(
-                `Construct` = construct_label,
-                `Operational Definition` = operational_def,
+                `Variable` = construct_label,
+                `Coding` = operational_def,
                 Document = doc_list,
                 Frequency = total_frequency,
                 `First Sentence` = entity_summary$first_sentence[1],
@@ -4465,8 +4701,8 @@ server <- shinyServer(function(input, output, session) {
               total_occurrences <- total_occurrences + total_frequency
             } else {
               new_entity <- data.frame(
-                `Construct` = construct_label,
-                `Operational Definition` = operational_def,
+                `Variable` = construct_label,
+                `Coding` = operational_def,
                 Document = "Not found",
                 Frequency = 0,
                 `First Sentence` = NA,
@@ -4479,8 +4715,8 @@ server <- shinyServer(function(input, output, session) {
             }
           } else {
             new_entity <- data.frame(
-              `Construct` = construct_label,
-              `Operational Definition` = operational_def,
+              `Variable` = construct_label,
+              `Coding` = operational_def,
               Document = "Manual",
               Frequency = 0,
               `First Sentence` = NA,
@@ -4503,8 +4739,8 @@ server <- shinyServer(function(input, output, session) {
         custom_entities(new_entities_df)
       } else {
         for (i in seq_len(nrow(new_entities_df))) {
-          new_construct <- new_entities_df$Construct[i]
-          existing_idx <- which(current_custom$Construct == new_construct)
+          new_construct <- new_entities_df$Variable[i]
+          existing_idx <- which(current_custom$Variable == new_construct)
 
           if (length(existing_idx) > 0) {
             current_custom[existing_idx, ] <- new_entities_df[i, ]
@@ -4576,8 +4812,8 @@ server <- shinyServer(function(input, output, session) {
           # Export only custom entities
           custom_export <- custom_entities() %>%
             dplyr::select(
-              `Construct`,
-              `Operational Definition`,
+              `Variable`,
+              `Coding`,
               Frequency,
               Document,
               Notes,
@@ -4610,8 +4846,8 @@ server <- shinyServer(function(input, output, session) {
       if (!is.null(custom_entities()) && nrow(custom_entities()) > 0) {
         custom_export <- custom_entities() %>%
           dplyr::select(
-            `Construct`,
-            `Operational Definition`,
+            `Variable`,
+            `Coding`,
             Frequency,
             Document,
             Notes,
@@ -4698,8 +4934,6 @@ server <- shinyServer(function(input, output, session) {
     dom = 'Bfrtip',
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
   ))
-
-
 
   colnames_cat <- reactive({
     req(mydata())
@@ -5431,7 +5665,6 @@ server <- shinyServer(function(input, output, session) {
 
   })
 
-
   observeEvent(input$select_none_corr, {
     updateCheckboxGroupInput(session, "selected_categories_corr", selected = character(0))
   })
@@ -5697,7 +5930,6 @@ server <- shinyServer(function(input, output, session) {
       })
     })
   })
-
 
   output$word_correlation_network_plot <- visNetwork::renderVisNetwork({
     data <- corr_network_data()
@@ -5967,7 +6199,6 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-
   colnames_con <- reactive({
     req(mydata())
     continuous <- mydata() %>% dplyr::select(dplyr::where(is.numeric))
@@ -6016,7 +6247,6 @@ server <- shinyServer(function(input, output, session) {
       selected = ""
     )
   })
-
 
   observeEvent(input$plot_term, {
     suppressWarnings({
@@ -6385,7 +6615,6 @@ server <- shinyServer(function(input, output, session) {
         sentiment_results$grouped <- grouped_sentiment
       }
 
-
       current_plot_type <- input$category_plot_type %||% "bar"
       updateSelectInput(session, "category_plot_type",
                        choices = c("Bar Chart" = "bar",
@@ -6476,7 +6705,6 @@ server <- shinyServer(function(input, output, session) {
       easyClose = TRUE
     ))
   })
-
 
   observeEvent(input$sentiment_lexicon, {
     if (sentiment_results$analyzed) {
@@ -7879,8 +8107,6 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-
-
   processed_documents <- eventReactive(input$process_documents, {
     req(united_tbl())
 
@@ -8164,8 +8390,6 @@ server <- shinyServer(function(input, output, session) {
     return(dt_table)
   })
 
-
-
   base_similarity_results <- reactive({
     req(input$calculate_similarities)
     req(processed_documents())
@@ -8427,8 +8651,6 @@ server <- shinyServer(function(input, output, session) {
       }
     )
   })
-
-
 
   output$similarity_stats_table <- DT::renderDataTable({
     req(input$calculate_similarities)
@@ -9091,7 +9313,6 @@ server <- shinyServer(function(input, output, session) {
     })
   }
 
-
   semantic_search <- function(query, documents, embeddings = NULL, top_k = 5, use_embeddings = FALSE, search_method = "keyword") {
     if (is.null(query) || nchar(trimws(query)) == 0) {
       showNotification("Search query cannot be empty", type = "warning")
@@ -9503,8 +9724,6 @@ server <- shinyServer(function(input, output, session) {
       kurtosis = ifelse(requireNamespace("moments", quietly = TRUE), moments::kurtosis(off_diagonal, na.rm = TRUE), NA)
     )
 
-
-
     if (!is.null(method_info)) {
       metrics$method <- method_info$method
       metrics$model_name <- method_info$model_name %||% "N/A"
@@ -9794,7 +10013,6 @@ server <- shinyServer(function(input, output, session) {
     show_completion_notification("Documents configured successfully!")
     values$semantic_step <- 2
   })
-
 
   validate_semantic_prerequisites <- function() {
     tryCatch({
@@ -10902,7 +11120,6 @@ server <- shinyServer(function(input, output, session) {
 
     }
   })
-
 
   document_clustering_results <- reactiveValues(
     coordinates = NULL,
@@ -12167,8 +12384,6 @@ server <- shinyServer(function(input, output, session) {
     try(removeNotification("reducingOutliers"), silent = TRUE)
   })
 
-
-
   output$download_crossval_results <- downloadHandler(
     filename = function() {
       paste0("method_comparison_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".csv")
@@ -12388,8 +12603,6 @@ server <- shinyServer(function(input, output, session) {
             category_labels <- filtered_docs_data$category_display[1:n_docs]
           }
         }
-
-
 
         method_name <- if (feature_type == "embeddings") {
           paste("Embeddings (", input$embedding_model %||% "all-MiniLM-L6-v2", ")", sep = "")
@@ -13051,7 +13264,6 @@ server <- shinyServer(function(input, output, session) {
       )
     }
   })
-
 
   output$search_method_indicator <- renderUI({
     if (!is.null(search_results_reactive$method_used)) {
@@ -14033,7 +14245,6 @@ server <- shinyServer(function(input, output, session) {
       similarity_matrix <- calculate_cosine_similarity(feature_matrix)
     }
 
-
     if (!is.null(clustering_result$umap_embedding)) {
       umap_coords <- clustering_result$umap_embedding
       coords_x <- umap_coords[, 1]
@@ -14160,7 +14371,6 @@ server <- shinyServer(function(input, output, session) {
     }
 
     metrics_info <- paste(silhouette_info, davies_bouldin_info, calinski_harabasz_info, sep = " | ")
-
 
     dim_reduction_info <- if (cluster_method == "umap_dbscan") {
       umap_params <- clustering_result$umap_params
@@ -14675,7 +14885,6 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-
   output$clustering_warning <- renderUI({
     NULL
   })
@@ -14917,8 +15126,6 @@ server <- shinyServer(function(input, output, session) {
       )
     )
   })
-
-
 
   clean_similarity_matrix <- function(similarity_matrix) {
     similarity_matrix[!is.finite(similarity_matrix)] <- 0
@@ -15366,12 +15573,6 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
-
-
-
-
-
-
   # "Structural Topic Model" page
 
   # Step 1. Search K.
@@ -15701,9 +15902,6 @@ server <- shinyServer(function(input, output, session) {
       )
     )
   })
-
-
-
 
   output$quality_metrics_plot <- plotly::renderPlotly({
     req(K_search())
@@ -16124,7 +16322,6 @@ server <- shinyServer(function(input, output, session) {
       shiny::showNotification(error_msg, type = "error", duration = 5)
     })
   })
-
 
   output$ai_recommendation_output <- renderUI({
     req(ai_recommendation())
@@ -16935,7 +17132,6 @@ server <- shinyServer(function(input, output, session) {
         )
       })
 
-
       output$embedding_topics_info <- renderUI({
         NULL
       })
@@ -17538,10 +17734,6 @@ server <- shinyServer(function(input, output, session) {
     stm_topic_terms()
   })
 
-
-
-
-
   previous_system <- reactiveVal(NULL)
   previous_user <- reactiveVal(NULL)
   needs_label_generation <- reactiveVal(FALSE)
@@ -17641,7 +17833,6 @@ server <- shinyServer(function(input, output, session) {
       caption = "AI-generated topic labels"
     )
   })
-
 
   shiny::observeEvent(input$topic_generate_labels, {
     if (!is.null(generated_labels()) && input$system == previous_system() && input$user == previous_user()) {
@@ -18258,8 +18449,6 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-
-
   # Step 3: Display per-document-per topic probabilities by topics.
 
   output$topic_number_uiOutput <- renderUI({
@@ -18273,7 +18462,6 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-
   calculate_enhanced_clustering <- function(similarity_matrix, method = "kmeans", n_clusters = NULL,
                                             umap_params = list(), dbscan_params = list(),
                                             existing_embedding = NULL, embedding_method = NULL) {
@@ -18283,7 +18471,6 @@ server <- shinyServer(function(input, output, session) {
       n_docs <- nrow(similarity_matrix)
 
       result <- switch(method,
-
 
                        "dbscan" = {
                          if (!requireNamespace("dbscan", quietly = TRUE)) {
@@ -18549,7 +18736,6 @@ server <- shinyServer(function(input, output, session) {
       tn <- strsplit(input$label_topics, split = ",")[[1]]
     }
 
-
     observe({
       req(united_tbl())
 
@@ -18655,7 +18841,6 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-
   observeEvent(input$display, {
     if (input$label_topics == "") {
       tn <- NULL
@@ -18741,7 +18926,6 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-
   colnames_cat_3 <- reactive({
     req(out(), mydata())
     names(mydata())
@@ -18764,7 +18948,6 @@ server <- shinyServer(function(input, output, session) {
       )
     }
   })
-
 
   thoughts <- eventReactive(eventExpr = input$quote, {
     if (is.null(stm_K_number()) || is.null(out()) || is.null(input$topic_texts) || is.null(mydata())) {
@@ -18905,11 +19088,6 @@ server <- shinyServer(function(input, output, session) {
       selected = " "
     )
   })
-
-
-
-
-
 
   effect_stm_K_number <- eventReactive(eventExpr = input$effect, {
     if (is.null(stm_K_number()) || is.null(out())) {
@@ -19092,7 +19270,6 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-
   # Step 7: Plot topic prevalence effects by a continuous variable.
 
   observe({
@@ -19229,7 +19406,6 @@ server <- shinyServer(function(input, output, session) {
       )
     }
   })
-
 
   session$onSessionEnded(function() {
     stopApp()

@@ -972,7 +972,7 @@ Supports:
               condition = "input.coding_mode == 'type' || typeof input.coding_mode == 'undefined'",
               textAreaInput(
                 "batch_entity_text",
-                "Enter constructs:",
+                "Define variables:",
                 placeholder = "gender: female, male, women, men\nexplicit instruction: systematic, direct, guided practice",
                 rows = 8,
                 resize = "vertical"
