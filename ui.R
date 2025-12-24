@@ -701,6 +701,7 @@ Supports:
               max = 20,
               step = 5
             ),
+            uiOutput("spacy_mode_ui"),
             checkboxInput(
               "include_dependency",
               "Include dependency parsing (syntactic relations)",

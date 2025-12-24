@@ -3053,6 +3053,42 @@ server <- shinyServer(function(input, output, session) {
 
   pos_applied <- reactiveVal(0)
 
+  # Dynamic UI for spaCy mode selection
+  output$spacy_mode_ui <- renderUI({
+    if (is_web) {
+      # Web deployment - show info message
+      tags$div(
+        style = "margin-bottom: 15px; padding: 10px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px;",
+        tags$i(class = "fa fa-info-circle", style = "color: #0284C7; margin-right: 5px;"),
+        tags$span("Python spaCy with morphology features available in ", style = "color: #0369A1;"),
+        tags$strong("local R package", style = "color: #0369A1;"),
+        tags$span(" version.", style = "color: #0369A1;")
+      )
+    } else {
+      # Local - show option to use Python or R
+      tagList(
+        radioButtons(
+          "spacy_mode",
+          "Analysis Engine:",
+          choices = c(
+            "Python spaCy (with morphology)" = "python",
+            "R spacyr (basic POS/NER)" = "r"
+          ),
+          selected = "python",
+          inline = TRUE
+        ),
+        conditionalPanel(
+          condition = "input.spacy_mode == 'python'",
+          tags$div(
+            style = "margin-top: -10px; margin-bottom: 10px; font-size: 12px; color: #059669;",
+            tags$i(class = "fa fa-check-circle", style = "margin-right: 3px;"),
+            "Includes: Number, Tense, VerbForm, Person, Case"
+          )
+        )
+      )
+    }
+  })
+
   observeEvent(input$apply_pos, {
     tokens_to_use <- TextAnalysisR::get_available_tokens(
       final_tokens = final_tokens(),
@@ -3069,23 +3105,85 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    showNotification("Extracting POS tags...", type = "message", duration = 3)
-
     include_dep <- isTRUE(input$include_dependency)
-    
-    tryCatch({
-      parsed <- TextAnalysisR::extract_pos_tags(
-        tokens_to_use,
-        include_dependency = include_dep
-      )
-      spacyr_processed(parsed)
-      pos_applied(pos_applied() + 1)
-      
-      msg <- if (include_dep) "POS tagging with dependency parsing completed!" else "POS tagging completed!"
-      showNotification(msg, type = "message", duration = 3)
-    }, error = function(e) {
-      showNotification(paste("Error:", e$message), type = "error", duration = 5)
-    })
+
+    # Check user's mode selection (default to "r" for web or if not set)
+    use_python <- !is_web && isTRUE(input$spacy_mode == "python")
+
+    if (use_python) {
+      # Use Python-based spacy_parse_full for morphology support
+      showNotification("Extracting POS tags with morphology (Python/spaCy)...", type = "message", duration = 3)
+
+      tryCatch({
+        # Convert tokens to text for Python spaCy
+        if (inherits(tokens_to_use, "tokens")) {
+          texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
+          doc_names <- quanteda::docnames(tokens_to_use)
+        } else {
+          texts <- as.character(tokens_to_use)
+          doc_names <- paste0("text", seq_along(texts))
+        }
+
+        parsed <- TextAnalysisR::spacy_parse_full(
+          texts,
+          include_pos = TRUE,
+          include_lemma = TRUE,
+          include_entity = FALSE,
+          include_dependency = include_dep,
+          include_morphology = TRUE
+        )
+
+        # Align doc_id with quanteda document names for batch entity matching
+        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
+          doc_id_map <- data.frame(
+            old_id = paste0("text", seq_along(doc_names)),
+            new_id = doc_names,
+            stringsAsFactors = FALSE
+          )
+          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
+        }
+
+        spacyr_processed(parsed)
+        pos_applied(pos_applied() + 1)
+
+        msg <- if (include_dep) "POS tagging with morphology and dependency parsing completed!" else "POS tagging with morphology completed!"
+        showNotification(msg, type = "message", duration = 3)
+      }, error = function(e) {
+        # Show helpful error modal
+        showModal(modalDialog(
+          title = tags$div(style = "color: #DC2626;", icon("exclamation-triangle"), " Python spaCy Error"),
+          tags$div(
+            tags$p(tags$strong("Error: "), e$message),
+            tags$hr(),
+            tags$p(tags$strong("How to fix:")),
+            tags$ol(
+              tags$li("Switch to ", tags$strong("R spacyr"), " mode (select above and click Apply again)"),
+              tags$li("Or setup Python: Run ", tags$code("TextAnalysisR::setup_python_env()"), " in R console"),
+              tags$li("Install spaCy model: ", tags$code("python -m spacy download en_core_web_sm"))
+            ),
+            tags$hr(),
+            tags$p(style = "color: #6B7280; font-size: 12px;",
+              "Note: R spacyr provides basic POS/NER. Python spaCy adds morphology features.")
+          ),
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+      })
+    } else {
+      # Use spacyr R package (for web deployment or when Python unavailable)
+      showNotification("Extracting POS tags (spacyr)...", type = "message", duration = 3)
+
+      tryCatch({
+        parsed <- TextAnalysisR::extract_pos_tags(tokens_to_use, include_dependency = include_dep)
+        spacyr_processed(parsed)
+        pos_applied(pos_applied() + 1)
+
+        msg <- if (include_dep) "POS tagging with dependency parsing completed!" else "POS tagging completed!"
+        showNotification(msg, type = "message", duration = 3)
+      }, error = function(e) {
+        showNotification(paste("Error:", e$message), type = "error", duration = 5)
+      })
+    }
   })
 
   observeEvent(input$generate_pos_report, {
@@ -3118,13 +3216,19 @@ server <- shinyServer(function(input, output, session) {
     unique_pos <- length(unique(parsed$pos))
     top_pos <- pos_summary %>% dplyr::slice_head(n = 5)
 
+    # Check for morphology data
+    morph_cols <- grep("^morph_", names(parsed), value = TRUE)
+    has_morphology <- length(morph_cols) > 0
+
     report_lines <- c(
       "===========================================",
       "PART-OF-SPEECH ANALYSIS REPORT",
+      if (has_morphology) "(with Morphological Features)" else "",
       "===========================================",
       "",
       paste("Total Tokens Analyzed:", format(total_tokens, big.mark = ",")),
       paste("Unique POS Tags Found:", unique_pos),
+      if (has_morphology) paste("Morphology Features Available:", length(morph_cols)) else "",
       "",
       "Top 5 Most Frequent POS Tags:",
       "-------------------------------------------"
@@ -3139,6 +3243,30 @@ server <- shinyServer(function(input, output, session) {
           format(top_pos$Frequency[i], big.mark = ",")
         )
       )
+    }
+
+    # Add morphology summary if available
+    if (has_morphology) {
+      report_lines <- c(report_lines,
+        "",
+        "Morphological Features Summary:",
+        "-------------------------------------------"
+      )
+
+      # Summarize key morphology features
+      key_features <- c("morph_Number", "morph_Tense", "morph_VerbForm", "morph_Person")
+      for (feat in intersect(key_features, morph_cols)) {
+        feat_name <- gsub("morph_", "", feat)
+        feat_values <- parsed[[feat]]
+        feat_values <- feat_values[!is.na(feat_values) & feat_values != ""]
+        if (length(feat_values) > 0) {
+          value_counts <- sort(table(feat_values), decreasing = TRUE)
+          top_values <- head(value_counts, 3)
+          report_lines <- c(report_lines,
+            paste0("  ", feat_name, ": ", paste(names(top_values), collapse = ", "))
+          )
+        }
+      }
     }
 
     if (!is.null(input$pos_filter) && length(input$pos_filter) > 0) {
@@ -3536,15 +3664,42 @@ server <- shinyServer(function(input, output, session) {
         dplyr::filter(pos %in% input$pos_filter)
     }
 
-    pos_summary <- parsed %>%
-      dplyr::count(pos, tag, sort = TRUE) %>%
-      dplyr::rename(
-        `POS (Universal)` = pos,
-        `Tag (Detailed)` = tag,
-        Frequency = n
-      )
+    # Check for morphology columns (from Python spaCy)
+    morph_cols <- grep("^morph_", names(parsed), value = TRUE)
+    has_morphology <- length(morph_cols) > 0
 
-    pos_summary
+    if (has_morphology) {
+      # Include morphology in summary - show token-level detail
+      base_cols <- c("doc_id", "token", "lemma", "pos", "tag")
+      display_cols <- intersect(base_cols, names(parsed))
+
+      # Add key morphology columns if present
+      key_morph <- c("morph_Number", "morph_Tense", "morph_VerbForm", "morph_Person", "morph_Case")
+      available_morph <- intersect(key_morph, morph_cols)
+      display_cols <- c(display_cols, available_morph)
+
+      # If morph column exists, add it
+      if ("morph" %in% names(parsed)) {
+        display_cols <- c(display_cols, "morph")
+      }
+
+      pos_detail <- parsed %>%
+        dplyr::select(dplyr::all_of(display_cols)) %>%
+        dplyr::rename_with(~ gsub("morph_", "", .), starts_with("morph_"))
+
+      pos_detail
+    } else {
+      # Original summary view without morphology
+      pos_summary <- parsed %>%
+        dplyr::count(pos, tag, sort = TRUE) %>%
+        dplyr::rename(
+          `POS (Universal)` = pos,
+          `Tag (Detailed)` = tag,
+          Frequency = n
+        )
+
+      pos_summary
+    }
   },
   rownames = FALSE,
   extensions = 'Buttons',
@@ -3571,15 +3726,77 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    showNotification("Extracting named entities...", type = "message", duration = 3)
+    # Check user's mode selection (default to "r" for web or if not set)
+    use_python <- !is_web && isTRUE(input$spacy_mode == "python")
 
-    tryCatch({
-      parsed <- TextAnalysisR::extract_named_entities(tokens_to_use)
-      spacyr_processed(parsed)
-      showNotification("Named entity extraction completed!", type = "message", duration = 3)
-    }, error = function(e) {
-      showNotification(paste("Error:", e$message), type = "error", duration = 5)
-    })
+    if (use_python) {
+      # Use Python-based spacy_parse_full for morphology support
+      showNotification("Extracting named entities with morphology (Python/spaCy)...", type = "message", duration = 3)
+
+      tryCatch({
+        # Convert tokens to text for Python spaCy
+        if (inherits(tokens_to_use, "tokens")) {
+          texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
+          doc_names <- quanteda::docnames(tokens_to_use)
+        } else {
+          texts <- as.character(tokens_to_use)
+          doc_names <- paste0("text", seq_along(texts))
+        }
+
+        parsed <- TextAnalysisR::spacy_parse_full(
+          texts,
+          include_pos = TRUE,
+          include_lemma = TRUE,
+          include_entity = TRUE,
+          include_dependency = FALSE,
+          include_morphology = TRUE
+        )
+
+        # Align doc_id with quanteda document names for batch entity matching
+        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
+          doc_id_map <- data.frame(
+            old_id = paste0("text", seq_along(doc_names)),
+            new_id = doc_names,
+            stringsAsFactors = FALSE
+          )
+          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
+        }
+
+        spacyr_processed(parsed)
+        showNotification("Named entity extraction with morphology completed!", type = "message", duration = 3)
+      }, error = function(e) {
+        # Show helpful error modal
+        showModal(modalDialog(
+          title = tags$div(style = "color: #DC2626;", icon("exclamation-triangle"), " Python spaCy Error"),
+          tags$div(
+            tags$p(tags$strong("Error: "), e$message),
+            tags$hr(),
+            tags$p(tags$strong("How to fix:")),
+            tags$ol(
+              tags$li("Switch to ", tags$strong("R spacyr"), " mode in POS Tagging section and click Apply again"),
+              tags$li("Or setup Python: Run ", tags$code("TextAnalysisR::setup_python_env()"), " in R console"),
+              tags$li("Install spaCy model: ", tags$code("python -m spacy download en_core_web_sm"))
+            ),
+            tags$hr(),
+            tags$p(style = "color: #6B7280; font-size: 12px;",
+              "Note: R spacyr provides basic NER. Python spaCy adds morphology features.")
+          ),
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+      })
+    } else {
+      # Use spacyr R package (for web deployment or when Python unavailable)
+      showNotification("Extracting named entities (spacyr)...", type = "message", duration = 3)
+
+      tryCatch({
+        parsed <- TextAnalysisR::extract_named_entities(tokens_to_use)
+        spacyr_processed(parsed)
+        showNotification("Named entity extraction completed!", type = "message", duration = 3)
+      }, error = function(e) {
+        showNotification(paste("Error:", e$message), type = "error", duration = 5)
+      })
+    }
   })
 
   output$entity_plot <- plotly::renderPlotly({
