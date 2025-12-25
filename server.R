@@ -3061,62 +3061,74 @@ server <- shinyServer(function(input, output, session) {
 
   pos_applied <- reactiveVal(0)
 
-  # Dynamic UI for spaCy mode selection
-  output$spacy_mode_ui <- renderUI({
+  # Morphology analysis reactive values
+
+  morph_data <- reactiveVal(NULL)
+
+  output$morph_ready <- reactive({
+    !is.null(morph_data()) && nrow(morph_data()) > 0
+  })
+  outputOptions(output, "morph_ready", suspendWhenHidden = FALSE)
+
+  # Morphology status UI
+  output$morph_status_ui <- renderUI({
     if (is_web) {
-      # Web deployment - show info message
       tags$div(
-        style = "margin-bottom: 15px; padding: 10px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px;",
-        tags$i(class = "fa fa-info-circle", style = "color: #0284C7; margin-right: 5px;"),
-        tags$span("Python spaCy with morphology features available in ", style = "color: #0369A1;"),
-        tags$strong("local R package", style = "color: #0369A1;"),
-        tags$span(" version.", style = "color: #0369A1;")
+        style = "margin-bottom: 10px; padding: 6px 10px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 14px;",
+        tags$i(class = "fa fa-info-circle", style = "color: #D97706; margin-right: 4px;"),
+        tags$span("Morphology requires local/Docker", style = "color: #92400E;")
+      )
+    } else if (!is.null(morph_data()) && nrow(morph_data()) > 0) {
+      tags$div(
+        style = "margin-bottom: 10px; padding: 6px 10px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 14px;",
+        tags$i(class = "fa fa-check-circle", style = "color: #059669; margin-right: 4px;"),
+        tags$span(paste0("Morphology analyzed (", nrow(morph_data()), " tokens)"), style = "color: #047857;")
       )
     } else {
-      # Local - show option to use Python or R with status indicator
+      tags$div(
+        style = "margin-bottom: 10px; padding: 10px 12px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px; font-size: 14px;",
+        tags$i(class = "fa fa-info-circle", style = "color: #0284C7; margin-right: 4px;"),
+        tags$span("Click 'Analyze Morphology' after running POS", style = "color: #0369A1; font-size: 14px;")
+      )
+    }
+  })
+
+  # Dynamic UI for spaCy status (simplified - no toggle)
+  output$spacy_mode_ui <- renderUI({
+    if (is_web) {
+      # Restricted web deployment - show info message
+      tags$div(
+        style = "margin-bottom: 15px; padding: 10px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px;",
+        tags$i(class = "fa fa-info-circle", style = "color: #D97706; margin-right: 5px;"),
+        tags$span("Basic POS/NER available. Full morphology requires ", style = "color: #92400E;"),
+        tags$strong("local R package", style = "color: #92400E;"),
+        tags$span(" or Docker deployment.", style = "color: #92400E;")
+      )
+    } else {
+      # Local or Docker - show spaCy status
       spacy_ready <- spacy_initialized()
       spacy_error <- spacy_init_error()
-      
-      tagList(
-        # spaCy status indicator
-        if (!is.null(spacy_error)) {
-          tags$div(
-            style = "margin-bottom: 10px; padding: 8px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 12px;",
-            tags$i(class = "fa fa-exclamation-triangle", style = "color: #D97706; margin-right: 5px;"),
-            tags$span("R spacyr will be used (Python spaCy unavailable)", style = "color: #92400E;")
-          )
-        } else if (spacy_ready) {
-          tags$div(
-            style = "margin-bottom: 10px; padding: 8px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 12px;",
-            tags$i(class = "fa fa-check-circle", style = "color: #059669; margin-right: 5px;"),
-            tags$span("spaCy ready", style = "color: #047857;")
-          )
-        } else {
-          tags$div(
-            style = "margin-bottom: 10px; padding: 8px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px; font-size: 12px;",
-            tags$i(class = "fa fa-spinner fa-spin", style = "color: #0284C7; margin-right: 5px;"),
-            tags$span("Initializing spaCy...", style = "color: #0369A1;")
-          )
-        },
-        radioButtons(
-          "spacy_mode",
-          "Analysis Engine:",
-          choices = c(
-            "Python spaCy (with morphology)" = "python",
-            "R spacyr (basic POS/NER)" = "r"
-          ),
-          selected = "python",
-          inline = TRUE
-        ),
-        conditionalPanel(
-          condition = "input.spacy_mode == 'python'",
-          tags$div(
-            style = "margin-top: -10px; margin-bottom: 10px; font-size: 12px; color: #059669;",
-            tags$i(class = "fa fa-check-circle", style = "margin-right: 3px;"),
-            "Includes: Number, Tense, VerbForm, Person, Case"
-          )
+
+      if (!is.null(spacy_error)) {
+        tags$div(
+          style = "margin-bottom: 10px; padding: 8px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 12px;",
+          tags$i(class = "fa fa-exclamation-triangle", style = "color: #D97706; margin-right: 5px;"),
+          tags$span("spaCy unavailable - basic features only", style = "color: #92400E;")
         )
-      )
+      } else if (spacy_ready) {
+        tags$div(
+          style = "margin-bottom: 10px; padding: 8px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 12px;",
+          tags$i(class = "fa fa-check-circle", style = "color: #059669; margin-right: 5px;"),
+          tags$span("spaCy ready - full features available", style = "color: #047857;")
+        )
+      } else {
+        # spaCy not yet initialized - show neutral status (not spinning)
+        tags$div(
+          style = "margin-bottom: 10px; padding: 10px 12px; background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 4px;",
+          tags$i(class = "fa fa-circle", style = "color: #9CA3AF; margin-right: 6px; font-size: 8px;"),
+          tags$span("spaCy available - click Apply to start", style = "color: #4B5563; font-size: 14px;")
+        )
+      }
     }
   })
 
@@ -3138,8 +3150,8 @@ server <- shinyServer(function(input, output, session) {
 
     include_dep <- isTRUE(input$include_dependency)
 
-    # Check user's mode selection (default to "r" for web or if not set)
-    use_python <- !is_web && isTRUE(input$spacy_mode == "python")
+    # Use Python spaCy when available (local or Docker), fallback to R spacyr for web
+    use_python <- !is_web
 
     if (use_python) {
       # Use spacyr::spacy_parse (reliable)
@@ -3203,7 +3215,7 @@ server <- shinyServer(function(input, output, session) {
               tags$li("Install spaCy model: ", tags$code("python -m spacy download en_core_web_sm"))
             ),
             tags$hr(),
-            tags$p(style = "color: #6B7280; font-size: 12px;",
+            tags$p(style = "color: #92400E; font-size: 14px; background-color: #FEF3C7; padding: 8px 12px; border-radius: 4px; margin-top: 10px;",
               "Note: R spacyr provides basic POS/NER. Python spaCy adds morphology features.")
           ),
           easyClose = TRUE,
@@ -3248,6 +3260,153 @@ server <- shinyServer(function(input, output, session) {
         showNotification(paste("Error:", e$message), type = "error", duration = 5)
       })
     }
+  })
+
+  # Morphology Analysis Observer
+  observeEvent(input$analyze_morphology, {
+    req(!is_web)  # Morphology requires Python (local or Docker)
+
+    # Get parsed data from spacyr_processed
+    parsed <- spacyr_processed()
+    req(parsed)
+    req(nrow(parsed) > 0)
+
+    selected_features <- input$morph_features
+    if (is.null(selected_features) || length(selected_features) == 0) {
+      showNotification("Please select at least one morphology feature", type = "warning")
+      return()
+    }
+
+    showNotification("Analyzing morphological features...", type = "message", duration = 3)
+
+    tryCatch({
+      # Check if morph column already exists; if not, re-parse with morphology
+      if (!"morph" %in% names(parsed)) {
+        # Need to re-parse with additional_attributes for morphology
+        tokens_to_use <- TextAnalysisR::get_available_tokens(
+          final_tokens = final_tokens(),
+          processed_tokens = processed_tokens(),
+          preprocessed_tokens = preprocessed_combined(),
+          united_tbl = united_tbl()
+        )
+        req(tokens_to_use)
+
+        if (inherits(tokens_to_use, "tokens")) {
+          texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
+          doc_names <- quanteda::docnames(tokens_to_use)
+        } else {
+          texts <- as.character(tokens_to_use)
+          doc_names <- paste0("text", seq_along(texts))
+        }
+
+        parsed <- spacyr::spacy_parse(
+          texts,
+          pos = TRUE,
+          tag = TRUE,
+          lemma = TRUE,
+          entity = FALSE,
+          dependency = FALSE,
+          additional_attributes = c("morph")
+        )
+
+        # Align doc_id with quanteda document names
+        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
+          doc_id_map <- data.frame(
+            old_id = paste0("text", seq_along(doc_names)),
+            new_id = doc_names,
+            stringsAsFactors = FALSE
+          )
+          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
+        }
+      }
+
+      # Parse morphology string into individual columns
+      if ("morph" %in% names(parsed)) {
+        parsed <- TextAnalysisR::parse_morphology_string(parsed, selected_features)
+      }
+
+      morph_data(parsed)
+      spacyr_processed(parsed)  # Update with morphology data
+
+      showNotification(
+        paste0("Morphology analysis complete! (", nrow(parsed), " tokens analyzed)"),
+        type = "message",
+        duration = 3
+      )
+    }, error = function(e) {
+      showNotification(paste("Morphology error:", e$message), type = "error", duration = 5)
+    })
+  })
+
+  # Morphology Plot Renderers
+  output$morph_number_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "Number", "Grammatical Number")
+  })
+
+  output$morph_tense_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "Tense", "Verb Tense")
+  })
+
+  output$morph_verbform_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "VerbForm", "Verb Form")
+  })
+
+  output$morph_person_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "Person", "Grammatical Person")
+  })
+
+  # Morphology Summary Table
+  output$morph_summary_table <- DT::renderDataTable({
+    req(morph_data())
+
+    summary_df <- TextAnalysisR::summarize_morphology(morph_data())
+
+    if (nrow(summary_df) == 0) {
+      return(data.frame(Message = "No morphology data available"))
+    }
+
+    DT::datatable(
+      summary_df,
+      rownames = FALSE,
+      options = list(
+        pageLength = 15,
+        scrollX = TRUE,
+        dom = 'frtip',
+        order = list(list(2, 'desc'))  # Sort by Count descending
+      ),
+      class = 'cell-border stripe'
+    ) %>%
+      DT::formatStyle('Feature', fontWeight = 'bold') %>%
+      DT::formatPercentage('Percentage', digits = 1)
+  })
+
+  # Morphology Info Modal
+  observeEvent(input$showMorphInfo, {
+    showModal(modalDialog(
+      title = tags$div(style = "color: #0c1f4a;", "Morphological Features Guide"),
+      tags$div(
+        style = "font-size: 14px;",
+        tags$p("Morphological analysis extracts grammatical properties of words:"),
+        tags$ul(
+          tags$li(tags$strong("Number:"), " Singular (Sing) vs Plural (Plur)"),
+          tags$li(tags$strong("Tense:"), " Past, Present (Pres), Future (Fut)"),
+          tags$li(tags$strong("VerbForm:"), " Finite (Fin), Infinitive (Inf), Participle (Part), Gerund (Ger)"),
+          tags$li(tags$strong("Person:"), " 1st, 2nd, 3rd person"),
+          tags$li(tags$strong("Case:"), " Nominative (Nom), Accusative (Acc), Genitive (Gen), Dative (Dat)"),
+          tags$li(tags$strong("Mood:"), " Indicative (Ind), Imperative (Imp), Subjunctive (Sub)"),
+          tags$li(tags$strong("Aspect:"), " Perfective (Perf), Imperfective (Imp), Progressive (Prog)")
+        ),
+        tags$hr(),
+        tags$p(style = "color: #92400E; font-size: 14px; background-color: #FEF3C7; padding: 8px 12px; border-radius: 4px; margin-top: 10px;",
+          "Note: Not all features apply to all words. For example, Tense only applies to verbs.")
+      ),
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
   })
 
   observeEvent(input$generate_pos_report, {
@@ -3844,7 +4003,7 @@ server <- shinyServer(function(input, output, session) {
               tags$li("Install spaCy model: ", tags$code("python -m spacy download en_core_web_sm"))
             ),
             tags$hr(),
-            tags$p(style = "color: #6B7280; font-size: 12px;",
+            tags$p(style = "color: #92400E; font-size: 14px; background-color: #FEF3C7; padding: 8px 12px; border-radius: 4px; margin-top: 10px;",
               "Note: R spacyr provides basic NER. Python spaCy adds morphology features.")
           ),
           easyClose = TRUE,
@@ -4146,6 +4305,96 @@ server <- shinyServer(function(input, output, session) {
   ),
   selection = 'multiple'
   )
+
+  # ============================================================================
+  # displaCy Visualizations for NER and Dependency tabs
+  # ============================================================================
+
+  # Update document choices when spacyr data is ready
+  observe({
+    req(spacyr_processed())
+    doc_ids <- unique(spacyr_processed()$doc_id)
+    # Create display labels
+    doc_labels <- paste("Doc", seq_along(doc_ids))
+    names(doc_ids) <- doc_labels
+
+    updateSelectInput(session, "ner_viz_doc", choices = doc_ids)
+    updateSelectInput(session, "dep_viz_doc", choices = doc_ids)
+  })
+
+  # Render displaCy entity visualization
+  output$ner_displacy_html <- renderUI({
+    req(spacyr_processed(), input$ner_viz_doc)
+
+    # Only available when Python is accessible (not web deployment)
+    if (is_web) {
+      return(HTML('<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>
+              Entity visualization is only available in desktop/Docker mode with Python.
+              </div>'))
+    }
+
+    # Get original text for selected document
+    doc_data <- spacyr_processed() %>%
+      dplyr::filter(doc_id == input$ner_viz_doc)
+
+    # Reconstruct text from tokens
+    text <- paste(doc_data$token, collapse = " ")
+
+    # Limit text length to prevent performance issues
+    if (nchar(text) > 2000) {
+      text <- paste0(substr(text, 1, 2000), "...")
+    }
+
+    tryCatch({
+      html <- TextAnalysisR::render_displacy_ent(text)
+      HTML(html)
+    }, error = function(e) {
+      HTML(paste0(
+        '<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>',
+        'Visualization unavailable: ', htmltools::htmlEscape(e$message),
+        '</div>'
+      ))
+    })
+  })
+
+  # Render displaCy dependency visualization
+  output$dep_displacy_html <- renderUI({
+    req(spacyr_processed(), input$dep_viz_doc)
+
+    # Only available when Python is accessible (not web deployment)
+    if (is_web) {
+      return(HTML('<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>
+              Dependency visualization is only available in desktop/Docker mode with Python.
+              </div>'))
+    }
+
+    doc_data <- spacyr_processed() %>%
+      dplyr::filter(doc_id == input$dep_viz_doc)
+
+    # Get first sentence only (dependency trees can be very wide)
+    if ("sentence_id" %in% names(doc_data)) {
+      doc_data <- doc_data %>%
+        dplyr::filter(sentence_id == min(sentence_id))
+    }
+
+    # Limit to first 20 tokens for readability
+    if (nrow(doc_data) > 20) {
+      doc_data <- doc_data[1:20, ]
+    }
+
+    text <- paste(doc_data$token, collapse = " ")
+
+    tryCatch({
+      svg <- TextAnalysisR::render_displacy_dep(text, compact = TRUE)
+      HTML(svg)
+    }, error = function(e) {
+      HTML(paste0(
+        '<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>',
+        'Visualization unavailable: ', htmltools::htmlEscape(e$message),
+        '</div>'
+      ))
+    })
+  })
 
   observeEvent(input$add_custom_entity, {
     req(input$custom_entity_text)
@@ -5094,7 +5343,7 @@ server <- shinyServer(function(input, output, session) {
             paste0("reset_cooccur_", level_id),
             "Reset to Global",
             class = "btn-sm btn-outline-secondary",
-            style = "font-size: 11px; padding: 2px 8px;"
+            style = "font-size: 14px; padding: 2px 8px;"
           )
         ),
         div(
@@ -5691,7 +5940,7 @@ server <- shinyServer(function(input, output, session) {
             paste0("reset_corr_", level_id),
             "Reset to Global",
             class = "btn-sm btn-outline-secondary",
-            style = "font-size: 11px; padding: 2px 8px;"
+            style = "font-size: 14px; padding: 2px 8px;"
           )
         ),
         div(
@@ -12848,6 +13097,55 @@ server <- shinyServer(function(input, output, session) {
         buttons = c("copy", "csv", "excel")
       )
     ) %>% DT::formatRound(columns = numeric_cols, digits = 3)
+  })
+
+  output$gap_cross_category_heatmap <- plotly::renderPlotly({
+    req(comparison_results$gap_analysis)
+    gap_result <- comparison_results$gap_analysis
+
+    # Get similarity data
+    feature_type <- isolate(input$semantic_feature_space %||% "words")
+    similarity_data <- get_similarity_data_for_plot(feature_type)
+
+    if (is.null(similarity_data) || !is.null(similarity_data$error)) {
+      return(TextAnalysisR::create_empty_plot_message("Similarity data not available"))
+    }
+
+    docs_data <- document_display_data()
+    if (is.null(docs_data)) {
+      return(TextAnalysisR::create_empty_plot_message("Document data not available"))
+    }
+
+    ref_category <- gap_result$reference_category
+    if (is.null(ref_category)) {
+      return(TextAnalysisR::create_empty_plot_message("Reference category not set"))
+    }
+
+    # Get other categories
+    all_categories <- unique(docs_data$category_display)
+    col_categories <- setdiff(all_categories, ref_category)
+
+    if (length(col_categories) == 0) {
+      return(TextAnalysisR::create_empty_plot_message("Need at least one comparison category"))
+    }
+
+    # Create cross-category heatmap
+    tryCatch({
+      p <- TextAnalysisR::plot_cross_category_heatmap(
+        similarity_data = similarity_data$similarity_matrix,
+        docs_data = docs_data,
+        row_category = ref_category,
+        col_categories = col_categories,
+        category_var = "category_display",
+        method_name = similarity_data$method_name %||% "Cosine",
+        title = paste("Cross-Category Similarity:", ref_category, "vs Others"),
+        show_values = TRUE,
+        row_label = ref_category
+      )
+      plotly::ggplotly(p, tooltip = "text")
+    }, error = function(e) {
+      TextAnalysisR::create_empty_plot_message(paste("Error:", e$message))
+    })
   })
 
   output$gap_unique_items <- DT::renderDataTable({

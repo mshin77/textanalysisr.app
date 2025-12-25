@@ -717,6 +717,35 @@ Supports:
                 style = "flex: 1;",
                 actionButton("generate_pos_report", "Report", class = "btn-primary btn-block", icon = icon("file-alt"))
               )
+            ),
+            tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
+            div(
+              style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
+              tags$h5(HTML("<strong>Morphology Analysis</strong>"), style = "color: #0c1f4a; margin: 0;"),
+              actionLink("showMorphInfo", icon("info-circle"),
+                         style = "color: #337ab7; font-size: 16px;",
+                         title = "Click for morphology guide")
+            ),
+            uiOutput("morph_status_ui"),
+            checkboxGroupInput(
+              "morph_features",
+              NULL,
+              choices = c(
+                "Number (Sing/Plur)" = "Number",
+                "Tense (Past/Pres/Fut)" = "Tense",
+                "Verb Form (Fin/Inf/Part)" = "VerbForm",
+                "Person (1/2/3)" = "Person",
+                "Case (Nom/Acc/Gen)" = "Case",
+                "Mood (Ind/Imp/Sub)" = "Mood",
+                "Aspect (Perf/Imp/Prog)" = "Aspect"
+              ),
+              selected = c("Number", "Tense", "VerbForm", "Person")
+            ),
+            actionButton(
+              "analyze_morphology",
+              "Analyze Morphology",
+              class = "btn-info btn-block",
+              icon = icon("language")
             )
           ),
           conditionalPanel(
@@ -1104,6 +1133,42 @@ Supports:
                     uiOutput("pos_plot_uiOutput"),
                     br(),
                     DT::dataTableOutput("pos_table")
+                  ),
+                  conditionalPanel(
+                    condition = "output.morph_ready == true",
+                    tags$hr(style = "margin: 25px 0; border-color: #dee2e6;"),
+                    div(
+                      style = "display: flex; align-items: center; margin-bottom: 15px;",
+                      tags$h5(
+                        HTML("<strong>Morphological Feature Distribution</strong>"),
+                        style = "color: #0c1f4a; margin: 0;"
+                      )
+                    ),
+                    div(
+                      style = "display: flex; flex-wrap: wrap; gap: 15px;",
+                      div(
+                        style = "flex: 1; min-width: 280px;",
+                        plotly::plotlyOutput("morph_number_plot", height = "280px")
+                      ),
+                      div(
+                        style = "flex: 1; min-width: 280px;",
+                        plotly::plotlyOutput("morph_tense_plot", height = "280px")
+                      ),
+                      div(
+                        style = "flex: 1; min-width: 280px;",
+                        plotly::plotlyOutput("morph_verbform_plot", height = "280px")
+                      ),
+                      div(
+                        style = "flex: 1; min-width: 280px;",
+                        plotly::plotlyOutput("morph_person_plot", height = "280px")
+                      )
+                    ),
+                    br(),
+                    tags$h6(
+                      HTML("<strong>Morphology Summary</strong>"),
+                      style = "color: #0c1f4a; margin-bottom: 10px;"
+                    ),
+                    DT::dataTableOutput("morph_summary_table")
                   )
                 ),
                 tabPanel(
@@ -1128,6 +1193,23 @@ Supports:
                   ),
                   conditionalPanel(
                     condition = "output.ner_ready == true",
+                    # Document selector for displaCy visualization
+                    div(
+                      style = "margin-bottom: 15px;",
+                      selectInput(
+                        "ner_viz_doc",
+                        "Select document to visualize entities:",
+                        choices = NULL,
+                        width = "100%"
+                      )
+                    ),
+                    # displaCy entity visualization
+                    div(
+                      style = "background: white; padding: 15px; border: 1px solid #dee2e6;
+                               border-radius: 4px; margin-bottom: 20px; overflow-x: auto;",
+                      uiOutput("ner_displacy_html")
+                    ),
+                    # Existing frequency plot
                     uiOutput("entity_plot_uiOutput"),
                     br(),
                     DT::dataTableOutput("entity_table")
@@ -1155,6 +1237,23 @@ Supports:
                   ),
                   conditionalPanel(
                     condition = "output.dependencies_ready == true",
+                    # Document selector for displaCy visualization
+                    div(
+                      style = "margin-bottom: 15px;",
+                      selectInput(
+                        "dep_viz_doc",
+                        "Select document to visualize dependencies:",
+                        choices = NULL,
+                        width = "100%"
+                      )
+                    ),
+                    # displaCy dependency tree visualization
+                    div(
+                      style = "background: white; padding: 15px; border: 1px solid #dee2e6;
+                               border-radius: 4px; margin-bottom: 20px; overflow-x: auto;",
+                      uiOutput("dep_displacy_html")
+                    ),
+                    # Existing full parse table
                     DT::dataTableOutput("spacyr_full_table")
                   )
                 )
@@ -2118,6 +2217,13 @@ Supports:
                       "Summary",
                       br(),
                       DT::dataTableOutput("gap_summary_stats")
+                    ),
+                    tabPanel(
+                      "Heatmap",
+                      br(),
+                      tags$p("Cross-category similarity heatmap comparing reference documents against other categories.",
+                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                      plotly::plotlyOutput("gap_cross_category_heatmap", height = "600px")
                     ),
                     tabPanel(
                       "Unique (Reference)",
