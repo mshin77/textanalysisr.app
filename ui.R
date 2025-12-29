@@ -985,16 +985,28 @@ Supports:
               options = list(placeholder = "Select category variable")
             ),
             radioButtons(
-              "log_odds_comparison_mode",
-              "Comparison mode",
+              "log_odds_method",
+              "Method",
               choices = c(
-                "Binary (2 categories)" = "binary",
-                "Pairwise (all pairs)" = "pairwise"
+                "Simple (Laplace smoothing)" = "simple",
+                "Weighted (Fightin' Words)" = "weighted"
               ),
-              selected = "binary"
+              selected = "simple"
             ),
             conditionalPanel(
-              condition = "input.log_odds_comparison_mode == 'binary'",
+              condition = "input.log_odds_method == 'simple'",
+              radioButtons(
+                "log_odds_comparison_mode",
+                "Comparison mode",
+                choices = c(
+                  "Binary (2 categories)" = "binary",
+                  "Pairwise (all pairs)" = "pairwise"
+                ),
+                selected = "binary"
+              )
+            ),
+            conditionalPanel(
+              condition = "input.log_odds_method == 'simple' && input.log_odds_comparison_mode == 'binary'",
               selectizeInput(
                 "log_odds_reference",
                 "Reference category",

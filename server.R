@@ -8159,7 +8159,8 @@ server <- shinyServer(function(input, output, session) {
 
   log_odds_results <- reactiveValues(
     analyzed = FALSE,
-    data = NULL
+    data = NULL,
+    method = NULL
   )
 
   # Reactive output for conditional panel
@@ -8219,40 +8220,72 @@ server <- shinyServer(function(input, output, session) {
       return(NULL)
     }
 
-    show_loading_notification("Calculating log odds ratios...", id = "log_odds_loading")
-
+    # Ensure the group variable is in DFM docvars
     tryCatch({
-      # Ensure the group variable is in DFM docvars
       if (!input$log_odds_group_var %in% names(quanteda::docvars(dfm_to_use))) {
-        # Try to add it from mydata
         if (input$log_odds_group_var %in% names(mydata())) {
           quanteda::docvars(dfm_to_use, input$log_odds_group_var) <- mydata()[[input$log_odds_group_var]]
         } else {
           stop("Grouping variable not found in document metadata")
         }
       }
-
-      reference_level <- if (input$log_odds_reference == "") NULL else input$log_odds_reference
-
-      result <- TextAnalysisR::calculate_log_odds_ratio(
-        dfm_object = dfm_to_use,
-        group_var = input$log_odds_group_var,
-        comparison_mode = input$log_odds_comparison_mode,
-        reference_level = reference_level,
-        top_n = input$log_odds_top_n,
-        min_count = input$log_odds_min_count
-      )
-
-      log_odds_results$analyzed <- TRUE
-      log_odds_results$data <- result
-
-      remove_notification_by_id("log_odds_loading")
-      show_completion_notification("Log odds ratio analysis completed!")
-
     }, error = function(e) {
-      remove_notification_by_id("log_odds_loading")
-      show_error_notification(paste0("Error calculating log odds: ", e$message))
+      show_error_notification(paste0("Error: ", e$message))
+      return(NULL)
     })
+
+    if (input$log_odds_method == "weighted") {
+      # Weighted method using tidylo (Fightin' Words)
+      show_loading_notification("Calculating weighted log odds...", id = "log_odds_loading")
+
+      tryCatch({
+        result <- TextAnalysisR::calculate_weighted_log_odds(
+          dfm_object = dfm_to_use,
+          group_var = input$log_odds_group_var,
+          top_n = input$log_odds_top_n,
+          min_count = input$log_odds_min_count
+        )
+
+        log_odds_results$analyzed <- TRUE
+        log_odds_results$data <- result
+        log_odds_results$method <- "weighted"
+
+        remove_notification_by_id("log_odds_loading")
+        show_completion_notification("Weighted log odds analysis completed!")
+
+      }, error = function(e) {
+        remove_notification_by_id("log_odds_loading")
+        show_error_notification(paste0("Error calculating weighted log odds: ", e$message))
+      })
+
+    } else {
+      # Simple method (Laplace smoothing)
+      show_loading_notification("Calculating log odds ratios...", id = "log_odds_loading")
+
+      tryCatch({
+        reference_level <- if (input$log_odds_reference == "") NULL else input$log_odds_reference
+
+        result <- TextAnalysisR::calculate_log_odds_ratio(
+          dfm_object = dfm_to_use,
+          group_var = input$log_odds_group_var,
+          comparison_mode = input$log_odds_comparison_mode,
+          reference_level = reference_level,
+          top_n = input$log_odds_top_n,
+          min_count = input$log_odds_min_count
+        )
+
+        log_odds_results$analyzed <- TRUE
+        log_odds_results$data <- result
+        log_odds_results$method <- "simple"
+
+        remove_notification_by_id("log_odds_loading")
+        show_completion_notification("Log odds ratio analysis completed!")
+
+      }, error = function(e) {
+        remove_notification_by_id("log_odds_loading")
+        show_error_notification(paste0("Error calculating log odds: ", e$message))
+      })
+    }
   })
 
   output$log_odds_plot <- plotly::renderPlotly({
@@ -8261,10 +8294,17 @@ server <- shinyServer(function(input, output, session) {
     req(nrow(log_odds_results$data) > 0)
 
     tryCatch({
-      TextAnalysisR::plot_log_odds_ratio(
-        log_odds_data = log_odds_results$data,
-        top_n = input$log_odds_top_n %||% 10
-      )
+      if (log_odds_results$method == "weighted") {
+        TextAnalysisR::plot_weighted_log_odds(
+          weighted_data = log_odds_results$data,
+          top_n = input$log_odds_top_n %||% 10
+        )
+      } else {
+        TextAnalysisR::plot_log_odds_ratio(
+          log_odds_data = log_odds_results$data,
+          top_n = input$log_odds_top_n %||% 10
+        )
+      }
     }, error = function(e) {
       create_error_plot(paste("Error creating plot:", e$message))
     })
@@ -8286,35 +8326,65 @@ server <- shinyServer(function(input, output, session) {
     req(log_odds_results$analyzed)
     req(log_odds_results$data)
 
-    table_data <- log_odds_results$data %>%
-      dplyr::select(term, category1, category2, count1, count2, log_odds_ratio) %>%
-      dplyr::mutate(
-        log_odds_ratio = round(log_odds_ratio, 3),
-        direction = ifelse(log_odds_ratio > 0,
-                          paste0("\u2191 ", category1),
-                          paste0("\u2193 ", category2))
-      ) %>%
-      dplyr::rename(
-        Term = term,
-        `Category 1` = category1,
-        `Category 2` = category2,
-        `Count 1` = count1,
-        `Count 2` = count2,
-        `Log Odds` = log_odds_ratio,
-        Direction = direction
+    if (log_odds_results$method == "weighted") {
+      # Weighted method columns: group_var, feature, n, log_odds_weighted, log_odds
+      group_col <- setdiff(names(log_odds_results$data),
+                           c("feature", "n", "log_odds_weighted", "log_odds"))[1]
+
+      table_data <- log_odds_results$data %>%
+        dplyr::select(dplyr::all_of(c(group_col, "feature", "n", "log_odds_weighted"))) %>%
+        dplyr::mutate(log_odds_weighted = round(.data$log_odds_weighted, 3)) %>%
+        dplyr::rename(
+          Group = !!rlang::sym(group_col),
+          Term = feature,
+          Count = n,
+          `Weighted Log Odds` = log_odds_weighted
+        )
+
+      datatable(
+        table_data,
+        options = list(
+          pageLength = 20,
+          scrollX = TRUE,
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel'),
+          order = list(list(3, 'desc'))  # Order by Weighted Log Odds descending
+        ),
+        rownames = FALSE
       )
 
-    datatable(
-      table_data,
-      options = list(
-        pageLength = 20,
-        scrollX = TRUE,
-        dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel'),
-        order = list(list(5, 'desc'))  # Order by Log Odds descending
-      ),
-      rownames = FALSE
-    )
+    } else {
+      # Simple method columns: term, category1, category2, count1, count2, log_odds_ratio
+      table_data <- log_odds_results$data %>%
+        dplyr::select(term, category1, category2, count1, count2, log_odds_ratio) %>%
+        dplyr::mutate(
+          log_odds_ratio = round(.data$log_odds_ratio, 3),
+          direction = ifelse(.data$log_odds_ratio > 0,
+                            paste0("\u2191 ", .data$category1),
+                            paste0("\u2193 ", .data$category2))
+        ) %>%
+        dplyr::rename(
+          Term = term,
+          `Category 1` = category1,
+          `Category 2` = category2,
+          `Count 1` = count1,
+          `Count 2` = count2,
+          `Log Odds` = log_odds_ratio,
+          Direction = direction
+        )
+
+      datatable(
+        table_data,
+        options = list(
+          pageLength = 20,
+          scrollX = TRUE,
+          dom = 'Bfrtip',
+          buttons = c('copy', 'csv', 'excel'),
+          order = list(list(5, 'desc'))  # Order by Log Odds descending
+        ),
+        rownames = FALSE
+      )
+    }
   })
 
 
