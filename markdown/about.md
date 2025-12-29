@@ -11,13 +11,14 @@ with an interactive `Shiny` interface. Import documents from multiple
 formats (`PDF`, `DOCX`, `XLSX`, `CSV`, `TXT`) using
 [Marker](https://github.com/VikParuchuri/marker) for PDF extraction,
 preprocess with [quanteda](https://github.com/quanteda/quanteda), and
-perform linguistic analysis via [spacyr](https://spacyr.quanteda.io/),
-topic modeling ([stm](https://github.com/bstewart/stm),
+perform linguistic analysis via [spaCy](https://spacy.io/), topic
+modeling ([stm](https://github.com/bstewart/stm),
 [BERTopic](https://maartengr.github.io/BERTopic/)), semantic analysis,
 sentiment analysis, and network visualization with
-[plotly](https://plotly.com/r/). Features AI-assisted workflows via
-[LangGraph](https://github.com/langchain-ai/langgraph) and
-[Ollama](https://ollama.ai) for local LLMs, `WCAG 2.1 AA` accessibility,
+[plotly](https://plotly.com/r/). Features topic-grounded content
+generation via local ([Ollama](https://ollama.com)) and web-based
+([OpenAI](https://platform.openai.com/),
+[Gemini](https://ai.google.dev/)) APIs, `WCAG 2.1 AA` accessibility,
 multi-language support, and enterprise security for production
 deployment.
 
@@ -55,3 +56,5 @@ for tutorials.
 
 -   Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* \[Web
     application\]. <https://www.textanalysisr.org>
+
+

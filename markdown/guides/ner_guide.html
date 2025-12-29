@@ -1,18 +1,49 @@
 <div style="font-family: 'Roboto', sans-serif; font-size: 16px; color: #0c1f4a; line-height: 1.6; max-width: 800px;">
   <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Named Entity Recognition</h4>
-  <p>Named Entity Recognition (NER) identifies and classifies named entities in text into predefined categories such as people, organizations, locations, dates, and quantities.</p>
+  <p>NER identifies named entities in text. spaCy's English models use OntoNotes 5 with 18 entity types.</p>
   <hr>
 
-  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Entity Types</h4>
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">People &amp; Groups</h4>
   <ul>
-    <li><strong>PERSON, ORG:</strong> People, organizations</li>
-    <li><strong>GPE, LOC:</strong> Places, locations</li>
-    <li><strong>DATE, MONEY, PERCENT:</strong> Temporal, monetary values</li>
+    <li><strong>PERSON</strong> – Person</li>
+    <li><strong>ORG</strong> – Organization</li>
+    <li><strong>NORP</strong> – Nationality, Religious, or Political Group (American, Buddhist, Republican)</li>
   </ul>
   <hr>
 
-  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Usage</h4>
-  <p>Filter by entity type. Add custom entities for qualitative coding.</p>
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Places</h4>
+  <ul>
+    <li><strong>GPE</strong> – Geo-Political Entity: countries, cities, states</li>
+    <li><strong>LOC</strong> – Location: non-GPE locations (mountains, rivers, regions)</li>
+    <li><strong>FAC</strong> – Facility: buildings, airports, highways, bridges</li>
+  </ul>
+  <hr>
+
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Time</h4>
+  <ul>
+    <li><strong>DATE</strong> – Date: absolute or relative dates and periods</li>
+    <li><strong>TIME</strong> – Time: times smaller than a day</li>
+    <li><strong>EVENT</strong> – Event: named hurricanes, battles, wars, sports events</li>
+  </ul>
+  <hr>
+
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Quantities</h4>
+  <ul>
+    <li><strong>MONEY</strong> – Monetary Value</li>
+    <li><strong>PERCENT</strong> – Percentage</li>
+    <li><strong>QUANTITY</strong> – Quantity: measurements of weight, distance, etc.</li>
+    <li><strong>CARDINAL</strong> – Cardinal Number: numerals not in other categories</li>
+    <li><strong>ORDINAL</strong> – Ordinal Number: first, second, third</li>
+  </ul>
+  <hr>
+
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Works &amp; Products</h4>
+  <ul>
+    <li><strong>PRODUCT</strong> – Product: objects, vehicles, foods (not services)</li>
+    <li><strong>WORK_OF_ART</strong> – Work of Art: titles of books, songs, etc.</li>
+    <li><strong>LAW</strong> – Law: named documents made into laws</li>
+    <li><strong>LANGUAGE</strong> – Language</li>
+  </ul>
   <hr style="margin-top: 20px; margin-bottom: 15px;">
 
   <div style="background-color: #F3F4F6; padding: 12px; border-radius: 6px;">

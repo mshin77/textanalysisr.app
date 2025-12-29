@@ -3,26 +3,27 @@
 ### Available in Both Local & Web
 
 - Text preprocessing and tokenization
-- Linguistic analysis via spacyr 
+- Linguistic analysis via spaCy
 - Word frequency analysis
-- Sentiment analysis
+- Log odds ratio comparison between categories
+- Lexical dispersion visualization
+- Sentiment analysis (lexicon and neural)
 - Topic modeling (STM)
-- Co-occurrence networks
-- Correlation networks
+- Co-occurrence networks with node attribute controls
+- Correlation networks with node attribute controls
 - CSV, XLSX, TXT, PDF, DOCX import
 
 ### Local R Package Only
 
 - Large file support (>10MB)
-- AI topic labels via Ollama
+- AI-suggested topic labels via local and web-based APIs
 - Python PDF extraction
-- LangGraph workflows
 
 ## Linguistic Analysis Setup
 
 ```r
-install.packages("spacyr")
-spacyr::spacy_install()
+# Python spaCy required
+TextAnalysisR::setup_python_env()
 ```
 
 See the Installation tab for detailed setup instructions.

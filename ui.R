@@ -1,10 +1,17 @@
 suppressPackageStartupMessages({
   library(quanteda)
   library(shiny)
+
   library(shinyBS)
   library(shinyjs)
+  library(shinyWidgets)
   library(markdown)
 })
+
+# Detect web/Docker deployment (hide GPU option in these environments)
+is_web <- tryCatch({
+  TextAnalysisR::check_web_deployment()
+}, error = function(e) FALSE)
 
 ui <- fluidPage(
   useShinyjs(),
@@ -192,10 +199,10 @@ Supports:
             )
           ),
           tags$div(
-            class = "limits-info-box",
-            style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-top: 15px; font-size: 16px; border-radius: 4px;",
-            tags$i(class = "fa fa-info-circle limits-icon", style = "margin-right: 5px; color: #6B46C1;"),
-            tags$strong("Limits:", class = "limits-title", style = "color: #6B46C1;"), " Max 100MB file upload, 50MB paste. Optimal: 1K-5K documents"
+            class = "limits-info-box status-step-purple",
+            style = "margin-top: 15px;",
+            tags$i(class = "fa fa-info-circle limits-icon status-icon status-icon-purple"),
+            tags$strong("Limits:", class = "limits-title"), " Max 100MB file upload, 50MB paste. Optimal: 1K-5K documents"
           )
         ),
         mainPanel(
@@ -231,8 +238,8 @@ Supports:
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             tags$div(
-              class = "warning-box",
-              style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; border-radius: 4px; padding: 0 12px; margin-bottom: 10px; margin-top: 0; font-size: 16px;",
+              class = "warning-box status-sidebar-warning",
+              style = "padding: 0 12px; margin-top: 0;",
               tags$div(
                 style = "margin: 0; padding: 0;",
                 checkboxInput("math_mode",
@@ -480,17 +487,13 @@ Supports:
               conditionalPanel(
                 condition = "output.step_3_outdated == true",
                 div(
-                  style = "background-color: #FEF3C7; padding: 12px 16px; margin: 15px 0; border-radius: 4px;",
-                  div(
-                    style = "display: flex; align-items: center;",
-                    tags$i(class = "fa fa-exclamation-triangle", style = "color: #F59E0B; margin-right: 10px; font-size: 18px;"),
-                    tags$span(
-                      style = "color: #92400E; font-size: 16px;",
-                      tags$strong("Outdated Results: "),
-                      "Based on previous Step 2 settings. Click ",
-                      tags$strong("Apply"),
-                      " to update with latest Step 2 output."
-                    )
+                  class = "status-outdated",
+                  tags$i(class = "fa fa-exclamation-triangle status-icon-lg status-icon-warning"),
+                  tags$span(
+                    tags$strong("Outdated Results: "),
+                    "Based on previous Step 2 settings. Click ",
+                    tags$strong("Apply"),
+                    " to update with latest Step 2 output."
                   )
                 )
               ),
@@ -558,17 +561,13 @@ Supports:
                   conditionalPanel(
                     condition = "output.step_4_outdated == true",
                     div(
-                      style = "background-color: #FEF3C7; padding: 12px 16px; margin: 15px 0; border-radius: 4px;",
-                      div(
-                        style = "display: flex; align-items: center;",
-                        tags$i(class = "fa fa-exclamation-triangle", style = "color: #F59E0B; margin-right: 10px; font-size: 18px;"),
-                        tags$span(
-                          style = "color: #92400E; font-size: 16px;",
-                          tags$strong("Outdated Results: "),
-                          "Based on previous Step 3 settings. Click ",
-                          tags$strong("Apply"),
-                          " to update with latest Step 3 output."
-                        )
+                      class = "status-outdated",
+                      tags$i(class = "fa fa-exclamation-triangle status-icon-lg status-icon-warning"),
+                      tags$span(
+                        tags$strong("Outdated Results: "),
+                        "Based on previous Step 3 settings. Click ",
+                        tags$strong("Apply"),
+                        " to update with latest Step 3 output."
                       )
                     )
                   ),
@@ -604,17 +603,13 @@ Supports:
               conditionalPanel(
                 condition = "output.step_5_outdated == true",
                 div(
-                  style = "background-color: #FEF3C7; padding: 12px 16px; margin: 15px 0; border-radius: 4px;",
-                  div(
-                    style = "display: flex; align-items: center;",
-                    tags$i(class = "fa fa-exclamation-triangle", style = "color: #F59E0B; margin-right: 10px; font-size: 18px;"),
-                    tags$span(
-                      style = "color: #92400E; font-size: 16px;",
-                      tags$strong("Outdated Results: "),
-                      "Based on previous Step 4 settings. Click ",
-                      tags$strong("Process"),
-                      " to update with latest Step 4 output."
-                    )
+                  class = "status-outdated",
+                  tags$i(class = "fa fa-exclamation-triangle status-icon-lg status-icon-warning"),
+                  tags$span(
+                    tags$strong("Outdated Results: "),
+                    "Based on previous Step 4 settings. Click ",
+                    tags$strong("Process"),
+                    " to update with latest Step 4 output."
                   )
                 )
               ),
@@ -697,14 +692,14 @@ Supports:
               "pos_top_n",
               "Top tags to display",
               value = 15,
-              min = 5,
+              min = 1,
               max = 20,
-              step = 5
+              step = 1
             ),
             uiOutput("spacy_mode_ui"),
             checkboxInput(
               "include_dependency",
-              "Include dependency parsing (syntactic relations)",
+              "Show dependency relations",
               value = FALSE
             ),
             div(
@@ -717,14 +712,21 @@ Supports:
                 style = "flex: 1;",
                 actionButton("generate_pos_report", "Report", class = "btn-primary btn-block", icon = icon("file-alt"))
               )
-            ),
-            tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
+            )
+          ),
+          # Morphological Features sidebar
+          conditionalPanel(
+            condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'morphology'",
             div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
               tags$h5(HTML("<strong>Morphology Analysis</strong>"), style = "color: #0c1f4a; margin: 0;"),
               actionLink("showMorphInfo", icon("info-circle"),
                          style = "color: #337ab7; font-size: 16px;",
                          title = "Click for morphology guide")
+            ),
+            tags$p(
+              "Run POS tagging first, then select features to analyze.",
+              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
             ),
             uiOutput("morph_status_ui"),
             checkboxGroupInput(
@@ -744,8 +746,23 @@ Supports:
             actionButton(
               "analyze_morphology",
               "Analyze Morphology",
-              class = "btn-info btn-block",
+              class = "btn-primary btn-block",
               icon = icon("language")
+            )
+          ),
+          # Dependency Parsing sidebar
+          conditionalPanel(
+            condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'dependencies'",
+            div(
+              style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
+              tags$h5(HTML("<strong>Dependency Parsing</strong> <a href='https://universaldependencies.org/u/dep/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
+              actionLink("showDepInfo", icon("info-circle"),
+                         style = "color: #337ab7; font-size: 16px;",
+                         title = "Click for dependency relations guide")
+            ),
+            tags$p(
+              "Dependency parsing shows grammatical relationships between words in a sentence.",
+              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
             )
           ),
           conditionalPanel(
@@ -762,6 +779,10 @@ Supports:
               "Terms",
               choices = NULL,
               options = list(maxItems = 20, multiple = TRUE, placeholder = "Select or type terms")
+            ),
+            tags$p(
+              "Track term frequencies over the continuous variable.",
+              style = "font-size: 13px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
             ),
             sliderInput(
               "height_line_con_var_plot",
@@ -883,9 +904,9 @@ Supports:
                 "readability_top_n",
                 "Number of documents",
                 value = 15,
-                min = 5,
+                min = 1,
                 max = 30,
-                step = 5
+                step = 1
               )
             ),
             actionButton("run_readability_analysis", "Analyze", class = "btn-primary btn-block")
@@ -899,21 +920,18 @@ Supports:
                 "tfidf_top_n",
                 "Number of keywords",
                 value = 20,
-                min = 5,
+                min = 1,
                 max = 50,
-                step = 5
-              ),
-              selectizeInput(
-                "tfidf_group_var",
-                "Group by variable",
-                choices = NULL,
-                multiple = FALSE,
-                options = list(placeholder = "Optional")
+                step = 1
               ),
               checkboxInput(
                 "tfidf_normalize",
                 "Normalize TF-IDF scores",
                 value = TRUE
+              ),
+              tags$p(
+                "Scales scores to 0-1 range.",
+                style = "font-size: 11px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
               )
             ),
             conditionalPanel(
@@ -922,9 +940,20 @@ Supports:
                 "textrank_top_n",
                 "Number of keywords",
                 value = 15,
-                min = 5,
+                min = 1,
                 max = 30,
-                step = 5
+                step = 1
+              ),
+              selectizeInput(
+                "tfidf_group_var",
+                "Compare groups (for keyness)",
+                choices = NULL,
+                multiple = FALSE,
+                options = list(placeholder = "Select grouping variable")
+              ),
+              tags$p(
+                "Finds words used significantly more in one group vs others.",
+                style = "font-size: 11px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
               )
             ),
             conditionalPanel(
@@ -933,12 +962,99 @@ Supports:
                 "comparison_top_n",
                 "Keywords to display",
                 value = 10,
-                min = 5,
+                min = 1,
                 max = 20,
-                step = 5
+                step = 1
               )
             ),
             actionButton("run_keyword_extraction", "Extract", class = "btn-primary btn-block")
+          ),
+          # Log Odds Ratio Analysis sidebar
+          conditionalPanel(
+            condition = "input.conditioned2 == 6",
+            tags$h5(HTML("<strong>Log Odds Ratio Analysis</strong>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$p(
+              "Compare word frequencies between categories to identify distinctive terms.",
+              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+            ),
+            selectizeInput(
+              "log_odds_group_var",
+              "Grouping variable",
+              choices = NULL,
+              multiple = FALSE,
+              options = list(placeholder = "Select category variable")
+            ),
+            radioButtons(
+              "log_odds_comparison_mode",
+              "Comparison mode",
+              choices = c(
+                "Binary (2 categories)" = "binary",
+                "Pairwise (all pairs)" = "pairwise"
+              ),
+              selected = "binary"
+            ),
+            conditionalPanel(
+              condition = "input.log_odds_comparison_mode == 'binary'",
+              selectizeInput(
+                "log_odds_reference",
+                "Reference category",
+                choices = NULL,
+                multiple = FALSE,
+                options = list(placeholder = "First category")
+              )
+            ),
+            sliderInput(
+              "log_odds_top_n",
+              "Top terms per direction",
+              value = 10,
+              min = 1,
+              max = 25,
+              step = 1
+            ),
+            sliderInput(
+              "log_odds_min_count",
+              "Minimum word count",
+              value = 5,
+              min = 1,
+              max = 20,
+              step = 1
+            ),
+            actionButton("run_log_odds", "Calculate", class = "btn-primary btn-block", icon = icon("balance-scale"))
+          ),
+          # Lexical Dispersion sidebar
+          conditionalPanel(
+            condition = "input.conditioned2 == 7",
+            tags$h5(HTML("<strong>Lexical Dispersion</strong>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$p(
+              "Visualize where selected terms appear across documents in your corpus.",
+              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+            ),
+            selectizeInput(
+              "dispersion_terms",
+              "Terms",
+              choices = NULL,
+              multiple = TRUE,
+              options = list(
+                placeholder = "Type or select terms...",
+                maxItems = 10,
+                create = TRUE
+              )
+            ),
+            radioButtons(
+              "dispersion_scale",
+              "Position scale",
+              choices = c(
+                "Relative (0-1)" = "relative",
+                "Absolute (token position)" = "absolute"
+              ),
+              selected = "relative"
+            ),
+            checkboxInput(
+              "dispersion_show_metrics",
+              "Show dispersion metrics",
+              value = TRUE
+            ),
+            actionButton("run_dispersion", "Analyze", class = "btn-primary btn-block", icon = icon("chart-line"))
           ),
           conditionalPanel(
             condition = "input.conditioned2 == 1 && (input.linguistic_subtabs == 'ner' || input.linguistic_subtabs == 'dependencies')",
@@ -982,6 +1098,38 @@ Supports:
             ),
             tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
             tags$div(
+              style = "margin-bottom: 15px;",
+              tags$h5(
+                HTML("<strong>Custom Entity Types</strong>"),
+                style = "color: #0c1f4a; margin-bottom: 10px;"
+              ),
+              tags$p(
+                "Define custom entity types with colors. Edit cells to use these types.",
+                style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+              ),
+              div(
+                style = "display: flex; gap: 8px; align-items: flex-end; margin-bottom: 10px;",
+                div(
+                  style = "flex: 2;",
+                  textInput("custom_entity_name", NULL, placeholder = "Entity name")
+                ),
+                div(
+                  style = "flex: 1;",
+                  if (requireNamespace("colourpicker", quietly = TRUE)) {
+                    colourpicker::colourInput("custom_entity_color", NULL, value = "#9C27B0", showColour = "background")
+                  } else {
+                    textInput("custom_entity_color", NULL, value = "#9C27B0", placeholder = "#HEX color")
+                  }
+                ),
+                actionButton("add_custom_entity_type", icon("plus"),
+                           class = "btn-primary btn-sm",
+                           style = "height: 34px;",
+                           title = "Add custom entity type")
+              ),
+              uiOutput("custom_entity_list")
+            ),
+            tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
+            tags$div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
               tags$h5(
                 HTML("<strong>Custom Entity Coding</strong>"),
@@ -1007,9 +1155,9 @@ Supports:
                 resize = "vertical"
               ),
               checkboxInput(
-                "batch_use_regex",
-                "Include lemmas (match word variations)",
-                value = FALSE
+                "batch_include_lemmas",
+                "Match word forms (e.g., 'run' finds running, ran, runs)",
+                value = TRUE
               ),
               shinyjs::hidden(
                 actionButton("add_batch_entities", "", style = "display: none;")
@@ -1133,42 +1281,133 @@ Supports:
                     uiOutput("pos_plot_uiOutput"),
                     br(),
                     DT::dataTableOutput("pos_table")
+                  )
+                ),
+                tabPanel(
+                  "Morphological Features",
+                  value = "morphology",
+                  br(),
+                  conditionalPanel(
+                    condition = "output.morph_ready == false",
+                    div(
+                      style = "padding: 60px 40px; text-align: center;",
+                      div(
+                        style = "max-width: 500px; margin: 0 auto;",
+                        tags$i(class = "fa fa-info-circle", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                        tags$p(
+                          "First, run POS tagging on the Word Forms tab. Then select morphological features in the sidebar and click ",
+                          tags$strong("'Analyze Morphology'", style = "color: #0c1f4a;"),
+                          " to extract features.",
+                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                        )
+                      )
+                    )
                   ),
                   conditionalPanel(
                     condition = "output.morph_ready == true",
-                    tags$hr(style = "margin: 25px 0; border-color: #dee2e6;"),
+                    tabsetPanel(
+                      id = "morph_subtabs",
+                      tabPanel(
+                        "Feature Distribution",
+                        br(),
+                        uiOutput("morph_warning_ui"),
+                        fluidRow(
+                          column(6, plotly::plotlyOutput("morph_number_plot", height = "300px")),
+                          column(6, plotly::plotlyOutput("morph_tense_plot", height = "300px"))
+                        ),
+                        fluidRow(
+                          column(6, plotly::plotlyOutput("morph_verbform_plot", height = "300px")),
+                          column(6, plotly::plotlyOutput("morph_person_plot", height = "300px"))
+                        )
+                      ),
+                      tabPanel(
+                        "Additional Features",
+                        br(),
+                        conditionalPanel(
+                          condition = "output.has_additional_features == true",
+                          fluidRow(
+                            conditionalPanel(
+                              condition = "output.has_case_data == true",
+                              column(4, plotly::plotlyOutput("morph_case_plot", height = "300px"))
+                            ),
+                            conditionalPanel(
+                              condition = "output.has_mood_data == true",
+                              column(4, plotly::plotlyOutput("morph_mood_plot", height = "300px"))
+                            ),
+                            conditionalPanel(
+                              condition = "output.has_aspect_data == true",
+                              column(4, plotly::plotlyOutput("morph_aspect_plot", height = "300px"))
+                            )
+                          )
+                        ),
+                        conditionalPanel(
+                          condition = "output.has_additional_features == false",
+                          div(style = "padding: 60px 40px; text-align: center;",
+                            div(style = "max-width: 400px; margin: 0 auto;",
+                              tags$i(class = "fa fa-language", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;", `aria-hidden` = "true"),
+                              tags$p("Select Case, Mood, or Aspect checkboxes from the sidebar to display additional morphological features.",
+                                style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;")
+                            )
+                          )
+                        )
+                      ),
+                      tabPanel(
+                        "Summary Table",
+                        br(),
+                        DT::dataTableOutput("morph_summary_table")
+                      )
+                    )
+                  )
+                ),
+                tabPanel(
+                  "Dependency Parsing",
+                  value = "dependencies",
+                  br(),
+                  conditionalPanel(
+                    condition = "output.dependencies_ready == false",
                     div(
-                      style = "display: flex; align-items: center; margin-bottom: 15px;",
-                      tags$h5(
-                        HTML("<strong>Morphological Feature Distribution</strong>"),
-                        style = "color: #0c1f4a; margin: 0;"
+                      style = "padding: 60px 40px; text-align: center;",
+                      div(
+                        style = "max-width: 500px; margin: 0 auto;",
+                        tags$i(class = "fa fa-info-circle", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                        tags$p(
+                          "Click ",
+                          tags$strong("'Apply'", style = "color: #0c1f4a;"),
+                          " on the Word Forms tab to run spaCy analysis and extract dependency parsing data.",
+                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                        )
+                      )
+                    )
+                  ),
+                  conditionalPanel(
+                    condition = "output.dependencies_ready == true",
+                    # Document selector for displaCy visualization
+                    div(
+                      style = "margin-bottom: 15px;",
+                      selectInput(
+                        "dep_viz_doc",
+                        "Select document to visualize dependencies:",
+                        choices = NULL,
+                        width = "100%"
                       )
                     ),
+                    # Download button for Dependency Parsing
                     div(
-                      style = "display: flex; flex-wrap: wrap; gap: 15px;",
+                      style = "margin-bottom: 15px; text-align: right;",
+                      downloadButton("download_dep_plot", "Download Plot", class = "btn-secondary btn-sm")
+                    ),
+                    # displaCy dependency tree visualization
+                    div(
+                      style = "background: white; padding: 15px; border: 1px solid #dee2e6;
+                               border-radius: 4px; margin-bottom: 20px; overflow-x: auto; overflow-y: hidden;",
+                      # Wrapper to remove whitespace above the tree
                       div(
-                        style = "flex: 1; min-width: 280px;",
-                        plotly::plotlyOutput("morph_number_plot", height = "280px")
-                      ),
-                      div(
-                        style = "flex: 1; min-width: 280px;",
-                        plotly::plotlyOutput("morph_tense_plot", height = "280px")
-                      ),
-                      div(
-                        style = "flex: 1; min-width: 280px;",
-                        plotly::plotlyOutput("morph_verbform_plot", height = "280px")
-                      ),
-                      div(
-                        style = "flex: 1; min-width: 280px;",
-                        plotly::plotlyOutput("morph_person_plot", height = "280px")
+                        style = "margin-top: -100px; padding-top: 0;",
+                        uiOutput("dep_displacy_html")
                       )
                     ),
-                    br(),
-                    tags$h6(
-                      HTML("<strong>Morphology Summary</strong>"),
-                      style = "color: #0c1f4a; margin-bottom: 10px;"
-                    ),
-                    DT::dataTableOutput("morph_summary_table")
+                    # Existing full parse table
+                    DT::dataTableOutput("spacy_full_table")
                   )
                 ),
                 tabPanel(
@@ -1209,52 +1448,15 @@ Supports:
                                border-radius: 4px; margin-bottom: 20px; overflow-x: auto;",
                       uiOutput("ner_displacy_html")
                     ),
+                    # Download button for NER
+                    div(
+                      style = "margin-bottom: 15px; text-align: right;",
+                      downloadButton("download_ner_plot", "Download Plot", class = "btn-secondary btn-sm")
+                    ),
                     # Existing frequency plot
                     uiOutput("entity_plot_uiOutput"),
                     br(),
                     DT::dataTableOutput("entity_table")
-                  )
-                ),
-                tabPanel(
-                  "Dependency Parsing",
-                  value = "dependencies",
-                  br(),
-                  conditionalPanel(
-                    condition = "output.dependencies_ready == false",
-                    div(
-                      style = "padding: 60px 40px; text-align: center;",
-                      div(
-                        style = "max-width: 500px; margin: 0 auto;",
-                        tags$i(class = "fa fa-info-circle", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                        tags$p(
-                          "Click ",
-                          tags$strong("'Apply'", style = "color: #0c1f4a;"),
-                          " on the Word Forms tab to run spaCy analysis and extract dependency parsing data.",
-                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                        )
-                      )
-                    )
-                  ),
-                  conditionalPanel(
-                    condition = "output.dependencies_ready == true",
-                    # Document selector for displaCy visualization
-                    div(
-                      style = "margin-bottom: 15px;",
-                      selectInput(
-                        "dep_viz_doc",
-                        "Select document to visualize dependencies:",
-                        choices = NULL,
-                        width = "100%"
-                      )
-                    ),
-                    # displaCy dependency tree visualization
-                    div(
-                      style = "background: white; padding: 15px; border: 1px solid #dee2e6;
-                               border-radius: 4px; margin-bottom: 20px; overflow-x: auto;",
-                      uiOutput("dep_displacy_html")
-                    ),
-                    # Existing full parse table
-                    DT::dataTableOutput("spacyr_full_table")
                   )
                 )
               )
@@ -1337,6 +1539,69 @@ Supports:
               value = 5,
               br(),
               uiOutput("readability_results_uiOutput")
+            ),
+            tabPanel(
+              "6. Log Odds Ratio",
+              value = 6,
+              br(),
+              conditionalPanel(
+                condition = "output.log_odds_ready == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 500px; margin: 0 auto;",
+                    tags$i(class = "fa fa-balance-scale", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Select a grouping variable and click ",
+                      tags$strong("'Calculate'", style = "color: #0c1f4a;"),
+                      " to compare word usage between categories.",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    ),
+
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.log_odds_ready == true",
+                uiOutput("log_odds_plot_uiOutput"),
+                br(),
+                DT::dataTableOutput("log_odds_table")
+              )
+            ),
+            tabPanel(
+              "7. Lexical Dispersion",
+              value = 7,
+              br(),
+              conditionalPanel(
+                condition = "output.dispersion_ready == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 500px; margin: 0 auto;",
+                    tags$i(class = "fa fa-chart-line", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Select terms in the sidebar and click ",
+                      tags$strong("'Analyze'", style = "color: #0c1f4a;"),
+                      " to visualize their dispersion across documents.",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    ),
+
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.dispersion_ready == true",
+                uiOutput("dispersion_plot_uiOutput"),
+                conditionalPanel(
+                  condition = "input.dispersion_show_metrics == true",
+                  br(),
+                  div(
+                    style = "margin-top: 20px;",
+                    tags$h5("Dispersion Metrics", style = "color: #0c1f4a; margin-bottom: 10px;"),
+                    DT::dataTableOutput("dispersion_metrics_table")
+                  )
+                )
+              )
             )
           )
         )
@@ -1431,35 +1696,41 @@ Supports:
             ),
             tags$div(
               id = "words_similarity_ready_status",
-              style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px; display: none;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+              class = "status-sidebar-success",
+              style = "display: none;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
               tags$span("Words similarity data calculated and ready")
             ),
             tags$div(
               id = "ngrams_similarity_ready_status",
-              style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px; display: none;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+              class = "status-sidebar-success",
+              style = "display: none;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
               tags$span("N-grams similarity data calculated and ready")
             ),
             tags$div(
               id = "topics_similarity_ready_status",
-              style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px; display: none;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+              class = "status-sidebar-success",
+              style = "display: none;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
               tags$span("Topics similarity data calculated and ready")
             ),
             tags$div(
               id = "embeddings_similarity_ready_status",
-              style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px; display: none;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+              class = "status-sidebar-success",
+              style = "display: none;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
               tags$span("Embeddings similarity data calculated and ready")
             ),
-            actionButton("visualize_similarity", "Visualize Results", class = "btn-primary btn-block", icon = icon("chart-bar")),
+            actionButton("visualize_similarity", "Visualize Results", class = "btn-primary btn-block", icon = icon("chart-bar"))
+          ),
 
-            # Contrastive Similarity Analysis Controls
-            tags$hr(style = "margin: 15px 0;"),
-            tags$label(HTML("<strong>Contrastive Analysis</strong>"), style = "font-weight: 700; margin-bottom: 8px; display: block;"),
+          # Comparative Analysis Controls (new subtab)
+          conditionalPanel(
+            condition = "input.semantic_analysis_tabs == 'comparative'",
+            tags$label(HTML("<strong>Comparative Analysis</strong>"), style = "font-weight: 700; margin-bottom: 8px; display: block;"),
             tags$div(
-              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
+              class = "status-main-info",
               "Compare reference category against others to identify unique content, gaps, and cross-category opportunities."
             ),
             uiOutput("gap_reference_category_ui"),
@@ -1473,12 +1744,13 @@ Supports:
               "Cross-category max",
               min = 0.6, max = 1.0, value = 0.8, step = 0.05
             ),
-            actionButton("run_gap_analysis", "Run Contrastive Analysis", class = "btn-info btn-block", icon = icon("search-minus")),
+            actionButton("run_gap_analysis", "Run Comparative Analysis", class = "btn-info btn-block", icon = icon("search-minus")),
             tags$div(
               id = "gap_analysis_ready_status",
-              style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-top: 10px; font-size: 16px; border-radius: 4px; display: none;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
-              tags$span("Gap analysis complete")
+              class = "status-sidebar-success",
+              style = "display: none; margin-top: 10px;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+              tags$span("Comparative analysis complete")
             )
           ),
 
@@ -1502,16 +1774,61 @@ Supports:
             ),
             conditionalPanel(
               condition = "input.search_method == 'rag'",
-              tags$div(
-                style = "background: #EFF6FF; padding: 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #BFDBFE;",
-                tags$i(class = "fa fa-robot", style = "color: #2563EB;"),
-                tags$span(" Requires Python + Ollama", style = "color: #1E40AF; margin-left: 5px;")
+              # Provider selection
+              radioButtons(
+                "rag_provider",
+                "Provider:",
+                choices = c(
+                  "Local (Ollama - Free, Private)" = "ollama",
+                  "OpenAI (API Key Required)" = "openai",
+                  "Gemini (API Key Required)" = "gemini"
+                ),
+                selected = "ollama"
               ),
-              selectInput(
-                "rag_llm_model",
-                "LLM Model:",
-                choices = c("llama3", "llama2", "mistral", "phi3"),
-                selected = "llama3"
+              # Ollama model selection
+              conditionalPanel(
+                condition = "input.rag_provider == 'ollama'",
+                selectInput(
+                  "rag_ollama_model",
+                  "Ollama Model:",
+                  choices = c("phi3:mini", "llama3", "mistral", "nomic-embed-text"),
+                  selected = "phi3:mini"
+                ),
+                tags$p(
+                  style = "font-size: 12px; color: #666; margin-top: 5px;",
+                  "Requires Ollama. Get it from ",
+                  tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+                )
+              ),
+              # OpenAI settings
+              conditionalPanel(
+                condition = "input.rag_provider == 'openai'",
+                selectInput(
+                  "rag_openai_model",
+                  "OpenAI Model:",
+                  choices = c("gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"),
+                  selected = "gpt-4o-mini"
+                ),
+                passwordInput(
+                  "rag_openai_api_key",
+                  "API Key:",
+                  placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                )
+              ),
+              # Gemini settings
+              conditionalPanel(
+                condition = "input.rag_provider == 'gemini'",
+                selectInput(
+                  "rag_gemini_model",
+                  "Gemini Model:",
+                  choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+                  selected = "gemini-2.0-flash"
+                ),
+                passwordInput(
+                  "rag_gemini_api_key",
+                  "API Key:",
+                  placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+                )
               )
             ),
             div(
@@ -1839,21 +2156,31 @@ Supports:
             tags$h5(strong("AI-Powered Cluster Labels"), style = "color: #0c1f4a; margin-bottom: 15px;"),
             uiOutput("cluster_labeling_status"),
 
-            selectInput(
+            radioButtons(
               "cluster_label_provider",
               "AI Provider:",
               choices = c(
-                "Auto (Ollama if available, else OpenAI)" = "auto",
-                "Ollama (Local, Free)" = "ollama",
-                "OpenAI (Cloud, API Key Required)" = "openai"
+                "Local (Ollama - Free, Private)" = "ollama",
+                "OpenAI (API Key Required)" = "openai",
+                "Gemini (API Key Required)" = "gemini"
               ),
-              selected = "auto"
+              selected = "ollama",
+              inline = TRUE
             ),
 
             conditionalPanel(
-              condition = "input.cluster_label_provider == 'ollama' || input.cluster_label_provider == 'auto'",
-              uiOutput("ollama_status_cluster"),
-              uiOutput("cluster_ollama_model_selector")
+              condition = "input.cluster_label_provider == 'ollama'",
+              selectInput(
+                "cluster_ollama_model",
+                "Ollama Model:",
+                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
+                selected = "phi3:mini"
+              ),
+              tags$p(
+                style = "font-size: 12px; color: #666;",
+                "Requires Ollama. Get it from ",
+                tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+              )
             ),
 
             conditionalPanel(
@@ -1861,17 +2188,28 @@ Supports:
               selectInput(
                 "cluster_openai_model",
                 "OpenAI Model:",
-                choices = c(
-                  "GPT-3.5 Turbo (Fast)" = "gpt-3.5-turbo",
-                  "GPT-4 Turbo (Balanced)" = "gpt-4-turbo",
-                  "GPT-4 (Most Accurate)" = "gpt-4",
-                  "GPT-4o (Latest)" = "gpt-4o"
-                ),
-                selected = "gpt-3.5-turbo"
+                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
+                selected = "gpt-4o-mini"
               ),
-              tags$small(
-                style = "color: #6B7280; display: block; margin-top: -10px; margin-bottom: 10px;",
-                "Requires OPENAI_API_KEY environment variable or .env file"
+              passwordInput(
+                "cluster_openai_api_key",
+                "API Key:",
+                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+              )
+            ),
+
+            conditionalPanel(
+              condition = "input.cluster_label_provider == 'gemini'",
+              selectInput(
+                "cluster_gemini_model",
+                "Gemini Model:",
+                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+                selected = "gemini-2.0-flash"
+              ),
+              passwordInput(
+                "cluster_gemini_api_key",
+                "API Key:",
+                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
               )
             ),
 
@@ -1889,31 +2227,87 @@ Supports:
               "Generate Labels with AI",
               class = "btn-primary btn-block",
               icon = icon("wand-magic-sparkles")
-            ),
-
-            tags$small(
-              style = "color: #6B7280; display: block; margin-top: 10px; text-align: center;",
-              HTML("Ollama setup: <a href='https://ollama.ai' target='_blank'>ollama.ai</a> | Recommended: phi3:mini")
             )
             )
           ),
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'sentiment'",
             tags$h5(HTML("<strong>Sentiment & Emotion Analysis</strong> <a href='https://github.com/juliasilge/tidytext' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+
             uiOutput("sentiment_status_message"),
             conditionalPanel(
               condition = "input.sentiment_subtabs == 'overall'",
-              selectInput(
-                "sentiment_lexicon",
-                "Sentiment lexicon",
+              # Method selector
+              radioButtons(
+                "sentiment_method",
+                "Analysis method",
                 choices = c(
-                  "AFINN" = "afinn",
-                  "Bing" = "bing",
-                  "NRC" = "nrc"
+                  "Lexicon-based (Fast)" = "lexicon",
+                  "Neural Network (Accurate)" = "neural",
+                  "LLM-based (Explanations)" = "llm"
                 ),
-                selected = "bing"
+                selected = "lexicon",
+                inline = TRUE
               ),
-              actionButton("run_sentiment_analysis", "Analyze Sentiment", class = "btn-primary btn-block")
+              # Lexicon-based options
+              conditionalPanel(
+                condition = "input.sentiment_method == 'lexicon'",
+                selectInput(
+                  "sentiment_lexicon",
+                  "Sentiment lexicon",
+                  choices = c(
+                    "AFINN" = "afinn",
+                    "Bing" = "bing",
+                    "NRC" = "nrc"
+                  ),
+                  selected = "bing"
+                ),
+                actionButton("run_sentiment_analysis", "Analyze Sentiment", class = "btn-primary btn-block")
+              ),
+              # Neural/Embedding-based options
+              conditionalPanel(
+                condition = "input.sentiment_method == 'neural'",
+                selectInput(
+                  "neural_sentiment_model",
+                  "Sentiment model",
+                  choices = c(
+                    "DistilBERT SST-2 (Fast)" = "distilbert-base-uncased-finetuned-sst-2-english",
+                    "RoBERTa Sentiment (Accurate)" = "cardiffnlp/twitter-roberta-base-sentiment",
+                    "BERT Multilingual" = "nlptown/bert-base-multilingual-uncased-sentiment"
+                  ),
+                  selected = "distilbert-base-uncased-finetuned-sst-2-english"
+                ),
+                actionButton("run_neural_sentiment", "Analyze Sentiment", class = "btn-primary btn-block")
+              ),
+              # LLM-based options
+              conditionalPanel(
+                condition = "input.sentiment_method == 'llm'",
+                selectInput(
+                  "llm_sentiment_provider",
+                  "LLM Provider",
+                  choices = c(
+                    "Ollama (Local)" = "ollama",
+                    "OpenAI" = "openai",
+                    "Gemini" = "gemini"
+                  ),
+                  selected = "ollama"
+                ),
+                uiOutput("llm_sentiment_model_ui"),
+                checkboxInput(
+                  "llm_sentiment_explanation",
+                  "Include sentiment explanations",
+                  value = TRUE
+                ),
+                numericInput(
+                  "llm_sentiment_batch_size",
+                  "Batch size",
+                  value = 5,
+                  min = 1,
+                  max = 20,
+                  step = 1
+                ),
+                actionButton("run_llm_sentiment", "Analyze with LLM", class = "btn-primary btn-block", icon = icon("robot"))
+              )
             ),
             conditionalPanel(
               condition = "input.sentiment_subtabs == 'category'",
@@ -1951,9 +2345,9 @@ Supports:
                 "sentiment_top_docs",
                 "Documents to show",
                 value = 10,
-                min = 5,
+                min = 1,
                 max = 50,
-                step = 5
+                step = 1
               )
             ),
             conditionalPanel(
@@ -2014,10 +2408,27 @@ Supports:
                 "community_method_cooccur",
                 "Community detection",
                 choices = c("Leiden (recommended)" = "leiden",
-                            "Louvain" = "louvain",
-                            "Label Propagation" = "label_prop",
-                            "Fast Greedy" = "fast_greedy"),
+                            "Louvain" = "louvain"),
                 selected = "leiden"
+              ),
+              selectInput(
+                "node_size_cooccur",
+                "Node size by",
+                choices = c(
+                  "Degree (connections)" = "degree",
+                  "Betweenness (bridging)" = "betweenness",
+                  "Frequency (word count)" = "frequency"
+                ),
+                selected = "degree"
+              ),
+              selectInput(
+                "node_color_cooccur",
+                "Node color by",
+                choices = c(
+                  "Community" = "community",
+                  "Frequency (word count)" = "frequency"
+                ),
+                selected = "community"
               ),
               sliderInput(
                 "nrows_co_occurrence",
@@ -2038,7 +2449,7 @@ Supports:
             conditionalPanel(
               condition = "input.use_category_cooccur == true && input.doc_var_co_occurrence != 'None' && input.doc_var_co_occurrence != ''",
               tags$div(
-                style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; border-radius: 4px; padding: 10px; margin: 15px 0; font-size: 16px;",
+                class = "status-main-warning",
                 "Analyze top categories by document count for faster processing and clearer visualization."
               ),
               uiOutput("top_n_selector_cooccur"),
@@ -2095,10 +2506,27 @@ Supports:
                 "community_method_corr",
                 "Community detection",
                 choices = c("Leiden (recommended)" = "leiden",
-                            "Louvain" = "louvain",
-                            "Label Propagation" = "label_prop",
-                            "Fast Greedy" = "fast_greedy"),
+                            "Louvain" = "louvain"),
                 selected = "leiden"
+              ),
+              selectInput(
+                "node_size_corr",
+                "Node size by",
+                choices = c(
+                  "Degree (connections)" = "degree",
+                  "Betweenness (bridging)" = "betweenness",
+                  "Frequency (word count)" = "frequency"
+                ),
+                selected = "degree"
+              ),
+              selectInput(
+                "node_color_corr",
+                "Node color by",
+                choices = c(
+                  "Community" = "community",
+                  "Frequency (word count)" = "frequency"
+                ),
+                selected = "community"
               ),
               sliderInput(
                 "nrows_correlation",
@@ -2119,7 +2547,8 @@ Supports:
             conditionalPanel(
               condition = "input.use_category_corr == true && input.doc_var_correlation != 'None' && input.doc_var_correlation != ''",
               tags$div(
-                style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; border-radius: 4px; padding: 10px; margin: 15px 0; font-size: 16px;",
+                class = "status-main-warning",
+                tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
                 "Analyze top categories by document count for faster processing and clearer visualization."
               ),
               uiOutput("top_n_selector_corr"),
@@ -2139,7 +2568,47 @@ Supports:
               br(),
               conditionalPanel(
                 condition = "output.has_documents == true",
-                DT::dataTableOutput("document_summary_table")
+                DT::dataTableOutput("document_summary_table"),
+                hr(),
+                h4("Embedding Configuration", style = "margin-top: 20px;"),
+                uiOutput("embedding_status_ui"),
+                br(),
+                fluidRow(
+                  column(6,
+                    selectInput(
+                      "embedding_provider_setup",
+                      "Embedding Provider:",
+                      choices = c(
+                        "Auto-detect (Recommended)" = "auto",
+                        "Ollama (Local)" = "ollama",
+                        "OpenAI" = "openai",
+                        "Gemini" = "gemini",
+                        "Sentence Transformers" = "sentence_transformers"
+                      ),
+                      selected = "auto"
+                    )
+                  ),
+                  column(6,
+                    selectInput(
+                      "embedding_model_setup",
+                      "Embedding Model:",
+                      choices = c(
+                        "Default (Auto)" = "",
+                        "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
+                        "all-mpnet-base-v2" = "all-mpnet-base-v2",
+                        "nomic-embed-text" = "nomic-embed-text",
+                        "mxbai-embed-large" = "mxbai-embed-large"
+                      ),
+                      selected = ""
+                    )
+                  )
+                ),
+                actionButton(
+                  "generate_embeddings",
+                  "Generate Embeddings",
+                  class = "btn-primary",
+                  icon = icon("brain")
+                )
               ),
               conditionalPanel(
                 condition = "output.has_documents == false",
@@ -2159,170 +2628,7 @@ Supports:
               )
             ),
             tabPanel(
-              "2. Document Similarity",
-              value = "similarity",
-              conditionalPanel(
-                condition = "output.has_documents == false",
-                div(
-                  style = "padding: 60px 40px; text-align: center;",
-                  div(
-                    style = "max-width: 400px; margin: 0 auto;",
-                    tags$i(class = "fa fa-cog", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                    tags$p(
-                      "Process documents in the ",
-                      tags$strong("1. Setup", style = "color: #0c1f4a;"),
-                      " tab first",
-                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                    )
-                  )
-                )
-              ),
-              conditionalPanel(
-                condition = "output.has_documents == true && output.has_similarity_calculation == false",
-                div(
-                  style = "padding: 60px 40px; text-align: center;",
-                  div(
-                    style = "max-width: 400px; margin: 0 auto;",
-                    tags$i(class = "fa fa-calculator", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                    tags$p(
-                      "Configure settings and click ",
-                      tags$strong("'Calculate'", style = "color: #0c1f4a;"),
-                      " to begin analysis",
-                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                    )
-                  )
-                )
-              ),
-              conditionalPanel(
-                condition = "output.has_documents == true && output.has_similarity_calculation == true && output.has_similarity_analysis == false",
-                verbatimTextOutput("similarity_calculation_summary")
-              ),
-              conditionalPanel(
-                condition = "output.has_documents == true && output.has_similarity_analysis == true",
-                plotly::plotlyOutput("semantic_similarity_plot",
-                  height = "auto", width = "100%"
-                ),
-                br(),
-                DT::dataTableOutput("semantic_similarity_stats"),
-
-                # Contrastive Similarity Analysis Results
-                conditionalPanel(
-                  condition = "output.has_gap_analysis == true",
-                  tags$hr(style = "margin: 20px 0;"),
-                  tags$h5(HTML("<strong>Contrastive Similarity Analysis</strong>"), style = "color: #0c1f4a; margin-bottom: 15px;"),
-                  uiOutput("gap_reference_category_label"),
-                  tabsetPanel(
-                    id = "gap_analysis_tabs",
-                    tabPanel(
-                      "Summary",
-                      br(),
-                      DT::dataTableOutput("gap_summary_stats")
-                    ),
-                    tabPanel(
-                      "Heatmap",
-                      br(),
-                      tags$p("Cross-category similarity heatmap comparing reference documents against other categories.",
-                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
-                      plotly::plotlyOutput("gap_cross_category_heatmap", height = "600px")
-                    ),
-                    tabPanel(
-                      "Unique (Reference)",
-                      br(),
-                      tags$p("Reference items with low similarity to all comparison categories (distinctive content).",
-                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
-                      DT::dataTableOutput("gap_unique_items")
-                    ),
-                    tabPanel(
-                      "Missing (Comparison)",
-                      br(),
-                      tags$p("Comparison category items not well-covered by reference category (content gaps).",
-                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
-                      DT::dataTableOutput("gap_missing_items")
-                    ),
-                    tabPanel(
-                      "Cross-Category",
-                      br(),
-                      tags$p("Items with moderate similarity - potential for cross-category learning or transfer.",
-                             style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
-                      DT::dataTableOutput("gap_cross_policy")
-                    )
-                  )
-                )
-              )
-            ),
-            tabPanel(
-              "3. Semantic Search",
-              value = "search",
-              conditionalPanel(
-                condition = "output.has_documents == false",
-                div(
-                  style = "padding: 60px 40px; text-align: center;",
-                  div(
-                    style = "max-width: 400px; margin: 0 auto;",
-                    tags$i(class = "fa fa-cog", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                    tags$p(
-                      "Process documents in the ",
-                      tags$strong("1. Setup", style = "color: #0c1f4a;"),
-                      " tab first",
-                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                    )
-                  )
-                )
-              ),
-              conditionalPanel(
-                condition = "output.has_documents == true && output.has_search_results == false",
-                div(
-                  style = "padding: 60px 40px; text-align: center;",
-                  div(
-                    style = "max-width: 400px; margin: 0 auto;",
-                    tags$i(class = "fa fa-search", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                    tags$p(
-                      "Enter a search query and click ",
-                      tags$strong("'Search'", style = "color: #0c1f4a;"),
-                      " to see results",
-                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                    )
-                  )
-                )
-              ),
-              conditionalPanel(
-                condition = "output.has_documents == true && output.has_search_results == true",
-                br(),
-                uiOutput("search_method_indicator"),
-                br(),
-                DT::dataTableOutput("semantic_search_results")
-              )
-            ),
-            tabPanel(
-              "4. Sentiment & Emotion",
-              value = "sentiment",
-              br(),
-              tabsetPanel(
-                id = "sentiment_subtabs",
-                tabPanel(
-                  "Overall Sentiment",
-                  value = "overall",
-                  uiOutput("sentiment_overall_uiOutput")
-                ),
-                tabPanel(
-                  "By Category",
-                  value = "category",
-                  uiOutput("sentiment_category_uiOutput")
-                ),
-                tabPanel(
-                  "Document-Level",
-                  value = "document",
-                  uiOutput("sentiment_document_uiOutput")
-                ),
-                tabPanel(
-                  "Emotion",
-                  value = "emotion",
-                  uiOutput("sentiment_emotion_uiOutput")
-                )
-              )
-            ),
-            tabPanel(
-              "5. Word Co-occurrence",
+              "2. Word Co-occurrence",
               value = "cooccurrence",
               bsCollapse(
                 open = 0,
@@ -2403,7 +2709,7 @@ Supports:
               )
             ),
             tabPanel(
-              "6. Word Correlation",
+              "3. Word Correlation",
               value = "correlation",
               bsCollapse(
                 open = 0,
@@ -2484,7 +2790,200 @@ Supports:
               )
             ),
             tabPanel(
-              "7. Document Clustering",
+              "4. Document Similarity",
+              value = "similarity",
+              conditionalPanel(
+                condition = "output.has_documents == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 400px; margin: 0 auto;",
+                    tags$i(class = "fa fa-cog", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Process documents in the ",
+                      tags$strong("1. Setup", style = "color: #0c1f4a;"),
+                      " tab first",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_similarity_calculation == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 400px; margin: 0 auto;",
+                    tags$i(class = "fa fa-calculator", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Configure settings and click ",
+                      tags$strong("'Calculate'", style = "color: #0c1f4a;"),
+                      " to begin analysis",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_similarity_calculation == true && output.has_similarity_analysis == false",
+                verbatimTextOutput("similarity_calculation_summary")
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_similarity_analysis == true",
+                plotly::plotlyOutput("semantic_similarity_plot",
+                  height = "auto", width = "100%"
+                ),
+                br(),
+                DT::dataTableOutput("semantic_similarity_stats")
+              )
+            ),
+            tabPanel(
+              "5. Comparative Analysis",
+              value = "comparative",
+              br(),
+              conditionalPanel(
+                condition = "output.has_documents == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 500px; margin: 0 auto;",
+                    tags$i(class = "fa fa-balance-scale", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Upload data to enable Comparative Analysis",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_gap_analysis == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 500px; margin: 0 auto;",
+                    tags$i(class = "fa fa-balance-scale", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Run Comparative Analysis from the sidebar to compare categories and identify unique content, gaps, and cross-category opportunities.",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_gap_analysis == true",
+                tags$h5(HTML("<strong>Comparative Analysis Results</strong>"), style = "color: #0c1f4a; margin-bottom: 15px;"),
+                uiOutput("gap_reference_category_label"),
+                tabsetPanel(
+                  id = "gap_analysis_tabs",
+                  tabPanel(
+                    "Summary",
+                    br(),
+                    DT::dataTableOutput("gap_summary_stats")
+                  ),
+                  tabPanel(
+                    "Heatmap",
+                    br(),
+                    tags$p("Cross-category similarity heatmap comparing reference documents against other categories.",
+                           style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                    plotly::plotlyOutput("gap_cross_category_heatmap", height = "600px")
+                  ),
+                  tabPanel(
+                    "Unique (Reference)",
+                    br(),
+                    tags$p("Reference items with low similarity to all comparison categories (distinctive content).",
+                           style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                    DT::dataTableOutput("gap_unique_items")
+                  ),
+                  tabPanel(
+                    "Missing (Comparison)",
+                    br(),
+                    tags$p("Comparison category items not well-covered by reference category (content gaps).",
+                           style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                    DT::dataTableOutput("gap_missing_items")
+                  ),
+                  tabPanel(
+                    "Cross-Category",
+                    br(),
+                    tags$p("Items with moderate similarity - potential for cross-category learning or transfer.",
+                           style = "color: #64748B; font-size: 16px; margin-bottom: 10px;"),
+                    DT::dataTableOutput("gap_cross_policy")
+                  )
+                )
+              )
+            ),
+            tabPanel(
+              "6. Semantic Search",
+              value = "search",
+              conditionalPanel(
+                condition = "output.has_documents == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 400px; margin: 0 auto;",
+                    tags$i(class = "fa fa-cog", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Process documents in the ",
+                      tags$strong("1. Setup", style = "color: #0c1f4a;"),
+                      " tab first",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_search_results == false",
+                div(
+                  style = "padding: 60px 40px; text-align: center;",
+                  div(
+                    style = "max-width: 400px; margin: 0 auto;",
+                    tags$i(class = "fa fa-search", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                    tags$p(
+                      "Enter a search query and click ",
+                      tags$strong("'Search'", style = "color: #0c1f4a;"),
+                      " to see results",
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                    )
+                  )
+                )
+              ),
+              conditionalPanel(
+                condition = "output.has_documents == true && output.has_search_results == true",
+                br(),
+                uiOutput("search_method_indicator"),
+                br(),
+                DT::dataTableOutput("semantic_search_results")
+              )
+            ),
+            tabPanel(
+              "7. Sentiment & Emotion",
+              value = "sentiment",
+              br(),
+              tabsetPanel(
+                id = "sentiment_subtabs",
+                tabPanel(
+                  "Overall Sentiment",
+                  value = "overall",
+                  uiOutput("sentiment_overall_uiOutput")
+                ),
+                tabPanel(
+                  "By Category",
+                  value = "category",
+                  uiOutput("sentiment_category_uiOutput")
+                ),
+                tabPanel(
+                  "Document-Level",
+                  value = "document",
+                  uiOutput("sentiment_document_uiOutput")
+                ),
+                tabPanel(
+                  "Emotion",
+                  value = "emotion",
+                  uiOutput("sentiment_emotion_uiOutput")
+                )
+              )
+            ),
+            tabPanel(
+              "8. Document Clustering",
               value = "document_clustering",
               br(),
               tabsetPanel(
@@ -2723,63 +3222,52 @@ Supports:
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             sliderInput(
-              "K_range",
+              "stm_K_range",
               "Range of topic numbers",
               value = c(5, 10),
               min = 2,
               max = 50
             ),
-            selectInput(
-              "topic_measure_search",
-              "Topic term measure",
-              choices = c(
-                "FREX" = "frex",
-                "Lift" = "lift",
-                "Score" = "score",
-                "Probability" = "beta"
-              ),
-              selected = "frex"
-            ),
             selectizeInput(
-              "categorical_var",
+              "stm_categorical_var",
               "Categorical covariate(s)",
               choices = NULL,
               multiple = TRUE,
               options = list(placeholder = "Optional")
             ),
             selectizeInput(
-              "continuous_var",
+              "stm_continuous_var",
               "Continuous covariate(s)",
               choices = NULL,
               multiple = TRUE,
               options = list(placeholder = "Optional")
             ),
-            selectInput("init_type_search", "Initialization type",
+            selectInput("stm_init_type_search", "Initialization type",
               choices = c("Spectral", "LDA", "Random", "Custom"),
               selected = "Spectral"
             ),
-            radioButtons("gamma_prior_search", "Gamma prior",
+            radioButtons("stm_gamma_prior_search", "Gamma prior",
               choices = c("Pooled", "L1"),
               selected = "Pooled"
             ),
-            radioButtons("kappa_prior_search", "Kappa prior",
+            radioButtons("stm_kappa_prior_search", "Kappa prior",
               choices = c("L1", "Jeffreys"),
               selected = "L1"
             ),
-            numericInput("max_em_its_search", "Max EM iterations",
+            numericInput("stm_max_em_its_search", "Max EM iterations",
               value = 500, min = 100, max = 2000, step = 50
             ),
             div(
               style = "margin-bottom: 15px;",
-              actionButton("search", "Search K", class = "btn-primary btn-block")
+              actionButton("stm_search", "Search K", class = "btn-primary btn-block")
             )
           ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 5",
             tags$h5(strong("Structural topic model"), style = "color: #0c1f4a; margin-bottom: 10px;"),
-            uiOutput("K_number_uiOutput"),
+            uiOutput("stm_K_number_uiOutput"),
             selectInput(
-              "topic_measure",
+              "stm_topic_measure",
               "Topic term measure",
               choices = c(
                 "FREX" = "frex",
@@ -2790,9 +3278,9 @@ Supports:
               selected = "frex"
             ),
             conditionalPanel(
-              condition = "input.topic_measure == 'frex'",
+              condition = "input.stm_topic_measure == 'frex'",
               sliderInput(
-                "top_term_number_frex",
+                "stm_top_term_number_frex",
                 "Top terms (FREX)",
                 value = 5,
                 min = 0,
@@ -2800,9 +3288,9 @@ Supports:
               )
             ),
             conditionalPanel(
-              condition = "input.topic_measure == 'lift'",
+              condition = "input.stm_topic_measure == 'lift'",
               sliderInput(
-                "top_term_number_lift",
+                "stm_top_term_number_lift",
                 "Top terms (Lift)",
                 value = 5,
                 min = 0,
@@ -2810,9 +3298,9 @@ Supports:
               )
             ),
             conditionalPanel(
-              condition = "input.topic_measure == 'score'",
+              condition = "input.stm_topic_measure == 'score'",
               sliderInput(
-                "top_term_number_score",
+                "stm_top_term_number_score",
                 "Top terms (Score)",
                 value = 5,
                 min = 0,
@@ -2820,9 +3308,9 @@ Supports:
               )
             ),
             conditionalPanel(
-              condition = "input.topic_measure == 'beta'",
+              condition = "input.stm_topic_measure == 'beta'",
               sliderInput(
-                "top_term_number_beta",
+                "stm_top_term_number_beta",
                 "Top terms (Probability)",
                 value = 5,
                 min = 0,
@@ -2830,62 +3318,113 @@ Supports:
               )
             ),
             sliderInput(
-              "ncol_top_terms",
+              "stm_ncol_top_terms",
               "Column numbers",
               value = 2,
               min = 1,
               max = 10
             ),
             selectizeInput(
-              "categorical_var_2",
+              "stm_categorical_var_2",
               "Categorical covariate(s)",
               choices = NULL,
               multiple = TRUE,
               options = list(placeholder = "Optional")
             ),
             selectizeInput(
-              "continuous_var_2",
+              "stm_continuous_var_2",
               "Continuous covariate(s)",
               choices = NULL,
               multiple = TRUE,
               options = list(placeholder = "Optional")
             ),
-            selectInput("init_type_K", "Initialization type",
+            selectInput("stm_init_type_K", "Initialization type",
               choices = c("Spectral", "LDA", "Random", "Custom"),
               selected = "Spectral"
             ),
-            radioButtons("gamma_prior_K", "Gamma prior",
+            radioButtons("stm_gamma_prior_K", "Gamma prior",
               choices = c("Pooled", "L1"),
               selected = "Pooled"
             ),
-            radioButtons("kappa_prior_K", "Kappa prior",
+            radioButtons("stm_kappa_prior_K", "Kappa prior",
               choices = c("L1", "Jeffreys"),
               selected = "L1"
             ),
-            numericInput("max_em_its_K", "Max EM iterations",
+            numericInput("stm_max_em_its_K", "Max EM iterations",
               value = 500, min = 100, max = 2000, step = 50
             ),
             div(
               style = "margin-bottom: 15px;",
-              actionButton("run", "Display", class = "btn-primary btn-block")
+              actionButton("stm_run", "Display", class = "btn-primary btn-block")
             ),
             tags$hr(),
-            tags$h5(strong("Generate topic labels using OpenAI's API"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(strong("Generate topic labels using AI"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             sliderInput(
-              "top_term_number_labeling",
+              "stm_top_term_number_labeling",
               "Top terms for labeling",
               value = 7,
               min = 3,
               max = 15
             ),
-            selectInput(
-              "model",
-              "AI model",
-              choices = c("gpt-3.5-turbo", "gpt-4-turbo", "gpt-4", "gpt-4o"),
-              selected = "gpt-4o"
+            # Provider selection
+            radioButtons(
+              "stm_label_provider",
+              "AI Provider:",
+              choices = c(
+                "Local (Ollama - Free, Private)" = "ollama",
+                "OpenAI (API Key Required)" = "openai",
+                "Gemini (API Key Required)" = "gemini"
+              ),
+              selected = "ollama",
+              inline = TRUE
+            ),
+            # Ollama model selection
+            conditionalPanel(
+              condition = "input.stm_label_provider == 'ollama'",
+              selectInput(
+                "stm_label_ollama_model",
+                "Ollama Model:",
+                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
+                selected = "phi3:mini"
+              ),
+              tags$p(
+                style = "font-size: 12px; color: #666;",
+                "Requires Ollama. Get it from ",
+                tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+              )
+            ),
+            # OpenAI settings
+            conditionalPanel(
+              condition = "input.stm_label_provider == 'openai'",
+              selectInput(
+                "stm_label_openai_model",
+                "OpenAI Model:",
+                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
+                selected = "gpt-4o-mini"
+              ),
+              passwordInput(
+                "stm_label_openai_api_key",
+                "API Key:",
+                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+              )
+            ),
+            # Gemini settings
+            conditionalPanel(
+              condition = "input.stm_label_provider == 'gemini'",
+              selectInput(
+                "stm_label_gemini_model",
+                "Gemini Model:",
+                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+                selected = "gemini-2.0-flash"
+              ),
+              passwordInput(
+                "stm_label_gemini_api_key",
+                "API Key:",
+                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+              )
             ),
             textAreaInput(
-              "system",
+              "stm_system_prompt",
               "System prompt",
               value = "
 You are a highly skilled data scientist specializing in generating concise and descriptive topic labels based on provided top terms for each topic.
@@ -2950,20 +3489,20 @@ Focus on incorporating the most significant keywords while following the guideli
               rows = 10
             ),
             textAreaInput(
-              "user",
+              "stm_user_prompt",
               "User prompt:",
               value = "You have a topic with keywords listed from most to least significant: [terms will be inserted here]. Please create a concise and descriptive label (5-7 words) that: 1. Reflects the collective meaning of these keywords. 2. Gives higher priority to the most significant terms. 3. Adheres to the style guidelines provided in the system message.",
               rows = 5
             ),
             sliderInput(
-              "temperature",
+              "stm_temperature",
               "Temperature (creativity level)",
               min = 0, max = 1, value = 0.5, step = 0.1
             ),
             actionButton("topic_generate_labels", HTML('<i class="fas fa-wand-magic-sparkles"></i> Generate Labels'), class = "btn-primary btn-block"),
             tags$hr(),
             textInput(
-              "label_topics",
+              "stm_label_topics",
               "Manually label topics",
               value = "",
               placeholder = "Type labels, use comma to separate"
@@ -2973,20 +3512,20 @@ Focus on incorporating the most significant keywords while following the guideli
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 6",
             uiOutput("topic_number_uiOutput"),
             sliderInput(
-              "top_term_number_2",
+              "stm_top_term_number_2",
               "Top terms per topic",
               value = 5,
               min = 1,
               max = 20
             ),
-            actionButton("display", "Display", class = "btn-primary btn-block")
+            actionButton("stm_display", "Display", class = "btn-primary btn-block")
           ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 7",
             tags$h5(strong("Explore example documents"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             uiOutput("quote_topic_number_uiOutput"),
-            selectInput("topic_texts", "Example quotes to display", choices = NULL),
-            actionButton("quote", "Quote", class = "btn-primary btn-block")
+            selectInput("stm_topic_texts", "Example quotes to display", choices = NULL),
+            actionButton("stm_quote", "Quote", class = "btn-primary btn-block")
           ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 8",
@@ -2995,35 +3534,97 @@ Focus on incorporating the most significant keywords while following the guideli
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             tags$div(
-              style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #6B46C1;"),
+              class = "status-step-purple",
+              style = "margin-bottom: 15px;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-purple"),
               "Choose covariates in the Word-Topic tab"
             ),
             div(
               style = "display: flex; gap: 10px; margin-bottom: 15px;",
               div(
                 style = "flex: 1;",
-                actionButton("effect", "Estimate", class = "btn-primary btn-block")
+                actionButton("stm_effect", "Estimate", class = "btn-primary btn-block")
               ),
               div(
                 style = "flex: 1;",
-                downloadButton("effect_download_table", class = "btn-secondary btn-block")
+                downloadButton("stm_effect_download_table", class = "btn-secondary btn-block")
               )
             )
           ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 4 && input.searchKSubtabs == 'ai_rec'",
             tags$h5(strong("AI Configuration for K Selection"), style = "color: #0c1f4a; margin-bottom: 10px;"),
-            selectInput(
-              "ai_model_search",
-              "AI model",
+
+            # AI Provider selection
+            radioButtons(
+              "k_rec_provider",
+              "AI Provider:",
               choices = c(
-                "gpt-3.5-turbo" = "gpt-3.5-turbo",
-                "gpt-4" = "gpt-4",
-                "gpt-4-turbo" = "gpt-4-turbo"
+                "Local (Ollama - Free, Private)" = "ollama",
+                "OpenAI (API Key Required)" = "openai",
+                "Gemini (API Key Required)" = "gemini"
               ),
-              selected = "gpt-4-turbo"
+              selected = "ollama",
+              inline = TRUE
             ),
+
+            # Ollama-specific options
+            conditionalPanel(
+              condition = "input.k_rec_provider == 'ollama'",
+              selectInput(
+                "k_rec_ollama_model",
+                "Ollama Model:",
+                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
+                selected = "phi3:mini"
+              ),
+              tags$p(
+                style = "font-size: 12px; color: #666;",
+                "Requires Ollama. Get it from ",
+                tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+              )
+            ),
+
+            # OpenAI-specific options
+            conditionalPanel(
+              condition = "input.k_rec_provider == 'openai'",
+              selectInput(
+                "k_rec_openai_model",
+                "OpenAI Model:",
+                choices = c(
+                  "gpt-4o-mini" = "gpt-4o-mini",
+                  "gpt-4o" = "gpt-4o",
+                  "gpt-4-turbo" = "gpt-4-turbo",
+                  "gpt-3.5-turbo" = "gpt-3.5-turbo"
+                ),
+                selected = "gpt-4o-mini"
+              ),
+              passwordInput(
+                "k_rec_openai_api_key",
+                "API Key:",
+                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+              )
+            ),
+
+            # Gemini-specific options
+            conditionalPanel(
+              condition = "input.k_rec_provider == 'gemini'",
+              selectInput(
+                "k_rec_gemini_model",
+                "Gemini Model:",
+                choices = c(
+                  "gemini-2.0-flash" = "gemini-2.0-flash",
+                  "gemini-1.5-flash" = "gemini-1.5-flash",
+                  "gemini-1.5-pro" = "gemini-1.5-pro"
+                ),
+                selected = "gemini-2.0-flash"
+              ),
+              passwordInput(
+                "k_rec_gemini_api_key",
+                "API Key:",
+                placeholder = "Set GEMINI_API_KEY in .Renviron"
+              )
+            ),
+
             textAreaInput(
               "ai_system_search",
               "System prompt",
@@ -3046,65 +3647,65 @@ Focus on incorporating the most significant keywords while following the guideli
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 9",
             tags$h5(strong("Plot Topic Effects by Categorical Covariates"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             tags$div(
-              style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #6B46C1;"),
-              tags$strong("Step 1:", style = "color: #6B46C1;"), " Select categorical covariates in Word-Topic tab"
+              class = "status-step-purple",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-purple"),
+              tags$strong("Step 1:"), " Select categorical covariates in Word-Topic tab"
             ),
             tags$div(
-              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #337ab7;"),
-              tags$strong("Step 2:", style = "color: #337ab7;"), " Estimate coefficients in Estimated Effects tab"
+              class = "status-step-blue",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-info"),
+              tags$strong("Step 2:"), " Estimate coefficients in Estimated Effects tab"
             ),
             selectizeInput(
-              "effect_cat_btn",
+              "stm_effect_cat_btn",
               "Categorical covariate",
               choices = NULL,
               multiple = FALSE
             ),
             sliderInput(
-              "ncol_cat",
+              "stm_ncol_cat",
               "Column numbers",
               value = 2,
               min = 1,
               max = 10
             ),
-            actionButton("display_cat", "Display", class = "btn-primary btn-block")
+            actionButton("stm_display_cat", "Display", class = "btn-primary btn-block")
           ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 10",
             tags$h5(strong("Plot Topic Effects by Continuous Covariates"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             tags$div(
-              style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #6B46C1;"),
-              tags$strong("Step 1:", style = "color: #6B46C1;"), " Select continuous covariates in Word-Topic tab"
+              class = "status-step-purple",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-purple"),
+              tags$strong("Step 1:"), " Select continuous covariates in Word-Topic tab"
             ),
             tags$div(
-              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #337ab7;"),
-              tags$strong("Step 2:", style = "color: #337ab7;"), " Estimate coefficients in Estimated Effects tab"
+              class = "status-step-blue",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-info"),
+              tags$strong("Step 2:"), " Estimate coefficients in Estimated Effects tab"
             ),
             selectizeInput(
-              "effect_con_btn",
+              "stm_effect_con_btn",
               "Continuous covariate",
               choices = NULL,
               multiple = FALSE
             ),
             sliderInput(
-              "ncol_con",
+              "stm_ncol_con",
               "Column numbers",
               value = 2,
               min = 1,
               max = 10
             ),
-            actionButton("display_con", "Display", class = "btn-primary btn-block")
+            actionButton("stm_display_con", "Display", class = "btn-primary btn-block")
           ),
 
           conditionalPanel(
             condition = "input.conditioned3 == 'ai_content'",
-            tags$h5(HTML("<strong>Generate content using OpenAI's API</strong>"), style = "color: #0c1f4a; margin-bottom: 15px;"),
+            tags$h5(HTML("<strong>Generate content using AI</strong>"), style = "color: #0c1f4a; margin-bottom: 15px;"),
             tags$div(
-              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fas fa-robot", style = "margin-right: 8px;"),
+              class = "status-main-info",
+              tags$i(class = "fas fa-robot status-icon status-icon-info"),
               "Generate survey items, research questions, or other content from topic terms."
             ),
             selectInput(
@@ -3132,11 +3733,62 @@ Focus on incorporating the most significant keywords while following the guideli
               "Max tokens",
               min = 50, max = 500, value = 150, step = 25
             ),
-            selectInput(
-              "content_model",
-              "AI model",
-              choices = c("gpt-3.5-turbo", "gpt-4-turbo", "gpt-4", "gpt-4o"),
-              selected = "gpt-4o"
+            # Provider selection
+            radioButtons(
+              "content_provider",
+              "AI Provider:",
+              choices = c(
+                "Local (Ollama - Free, Private)" = "ollama",
+                "OpenAI (API Key Required)" = "openai",
+                "Gemini (API Key Required)" = "gemini"
+              ),
+              selected = "ollama",
+              inline = TRUE
+            ),
+            # Ollama model selection
+            conditionalPanel(
+              condition = "input.content_provider == 'ollama'",
+              selectInput(
+                "content_ollama_model",
+                "Ollama Model:",
+                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
+                selected = "phi3:mini"
+              ),
+              tags$p(
+                style = "font-size: 12px; color: #666;",
+                "Requires Ollama. Get it from ",
+                tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+              )
+            ),
+            # OpenAI settings
+            conditionalPanel(
+              condition = "input.content_provider == 'openai'",
+              selectInput(
+                "content_openai_model",
+                "OpenAI Model:",
+                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
+                selected = "gpt-4o-mini"
+              ),
+              passwordInput(
+                "content_openai_api_key",
+                "API Key:",
+                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+              )
+            ),
+            # Gemini settings
+            conditionalPanel(
+              condition = "input.content_provider == 'gemini'",
+              selectInput(
+                "content_gemini_model",
+                "Gemini Model:",
+                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+                selected = "gemini-2.0-flash"
+              ),
+              passwordInput(
+                "content_gemini_api_key",
+                "API Key:",
+                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+              )
             ),
             textAreaInput(
               "content_system_prompt",
@@ -3165,6 +3817,7 @@ Focus on incorporating the most significant keywords while following the guideli
           conditionalPanel(
             condition = "input.topic_modeling_path == 'embedding' && input.conditioned3 == 4",
             tags$h5(HTML("<strong>Configure Embedding-based Topic Modeling</strong> <a href='https://maartengr.github.io/BERTopic/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            uiOutput("embedding_topic_python_status"),
             selectInput(
               "embedding_model_name",
               "Embedding model:",
@@ -3189,14 +3842,14 @@ Focus on incorporating the most significant keywords while following the guideli
             conditionalPanel(
               condition = "input.embedding_method == 'umap_hdbscan'",
               sliderInput(
-                "umap_neighbors",
+                "embedding_umap_neighbors",
                 "Neighbors:",
                 value = 15,
                 min = 5,
                 max = 50
               ),
               sliderInput(
-                "umap_min_dist",
+                "embedding_umap_min_dist",
                 "Min distance (0.0 = tight clusters for topic modeling):",
                 value = 0.0,
                 min = 0.0,
@@ -3204,14 +3857,23 @@ Focus on incorporating the most significant keywords while following the guideli
                 step = 0.01
               ),
               sliderInput(
-                "min_topic_size",
+                "embedding_min_topic_size",
                 "Min cluster size:",
                 value = 10,
                 min = 2,
                 max = 50
               ),
+              selectInput(
+                "embedding_cluster_selection",
+                "Cluster selection method:",
+                choices = c(
+                  "EOM (default, broader topics)" = "eom",
+                  "Leaf (finer-grained topics)" = "leaf"
+                ),
+                selected = "eom"
+              ),
               checkboxInput(
-                "reduce_outliers",
+                "embedding_reduce_outliers",
                 "Reduce outliers",
                 value = FALSE
               )
@@ -3229,7 +3891,7 @@ Focus on incorporating the most significant keywords while following the guideli
             ),
 
             selectInput(
-              "topic_representation",
+              "embedding_topic_representation",
               "Topic representation",
               choices = c(
                 "c-TF-IDF (BERTopic style)" = "c-tfidf",
@@ -3241,7 +3903,7 @@ Focus on incorporating the most significant keywords while following the guideli
             ),
 
             sliderInput(
-              "topic_diversity",
+              "embedding_topic_diversity",
               "Topic diversity",
               value = 0.5,
               min = 0,
@@ -3249,13 +3911,13 @@ Focus on incorporating the most significant keywords while following the guideli
               step = 0.1
             ),
 
-            actionButton("run_embedding", "Run Model", class = "btn-primary btn-block")
+            actionButton("embedding_run", "Run Model", class = "btn-primary btn-block")
           ),
 
           conditionalPanel(
             condition = "input.topic_modeling_path == 'embedding' && input.conditioned3 == 5",
             uiOutput("embedding_topics_info"),
-            actionButton("display_embedding_topics", "Display", class = "btn-primary btn-block")
+            actionButton("embedding_display", "Display", class = "btn-primary btn-block")
           ),
 
           conditionalPanel(
@@ -3283,7 +3945,7 @@ Focus on incorporating the most significant keywords while following the guideli
               max = 10
             ),
             selectInput(
-              "embedding_topic_select",
+              "embedding_quote_topic",
               "Topic",
               choices = NULL
             ),
@@ -3299,17 +3961,6 @@ Focus on incorporating the most significant keywords while following the guideli
               value = c(5, 10),
               min = 2,
               max = 50
-            ),
-            selectInput(
-              "hybrid_topic_measure_search",
-              "Topic term measure",
-              choices = c(
-                "FREX" = "frex",
-                "Lift" = "lift",
-                "Score" = "score",
-                "Probability" = "beta"
-              ),
-              selected = "frex"
             ),
             selectizeInput(
               "hybrid_categorical_var",
@@ -3349,7 +4000,7 @@ Focus on incorporating the most significant keywords while following the guideli
               selected = "all-MiniLM-L6-v2"
             ),
             sliderInput(
-              "n_embedding_dims",
+              "hybrid_n_embedding_dims",
               "Embedding dimensions for STM",
               value = 5,
               min = 3,
@@ -3357,7 +4008,7 @@ Focus on incorporating the most significant keywords while following the guideli
             ),
             div(
               style = "margin-bottom: 15px;",
-              actionButton("search_hybrid", "Search K", class = "btn-primary btn-block")
+              actionButton("hybrid_search", "Search K", class = "btn-primary btn-block")
             )
           ),
 
@@ -3454,10 +4105,10 @@ Focus on incorporating the most significant keywords while following the guideli
             ),
             div(
               style = "margin-bottom: 15px;",
-              actionButton("hybrid_display", "Display", class = "btn-primary btn-block")
+              actionButton("hybrid_run", "Display", class = "btn-primary btn-block")
             ),
             tags$hr(),
-            tags$h5(strong("Generate topic labels using OpenAI's API"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(strong("Generate topic labels using AI"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             sliderInput(
               "hybrid_top_term_number_labeling",
               "Top terms for labeling",
@@ -3465,11 +4116,62 @@ Focus on incorporating the most significant keywords while following the guideli
               min = 3,
               max = 15
             ),
-            selectInput(
-              "hybrid_ai_model",
-              "AI model",
-              choices = c("gpt-3.5-turbo", "gpt-4-turbo", "gpt-4", "gpt-4o"),
-              selected = "gpt-4o"
+            # Provider selection
+            radioButtons(
+              "hybrid_label_provider",
+              "AI Provider:",
+              choices = c(
+                "Local (Ollama - Free, Private)" = "ollama",
+                "OpenAI (API Key Required)" = "openai",
+                "Gemini (API Key Required)" = "gemini"
+              ),
+              selected = "ollama",
+              inline = TRUE
+            ),
+            # Ollama model selection
+            conditionalPanel(
+              condition = "input.hybrid_label_provider == 'ollama'",
+              selectInput(
+                "hybrid_label_ollama_model",
+                "Ollama Model:",
+                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
+                selected = "phi3:mini"
+              ),
+              tags$p(
+                style = "font-size: 12px; color: #666;",
+                "Requires Ollama. Get it from ",
+                tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+              )
+            ),
+            # OpenAI settings
+            conditionalPanel(
+              condition = "input.hybrid_label_provider == 'openai'",
+              selectInput(
+                "hybrid_label_openai_model",
+                "OpenAI Model:",
+                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
+                selected = "gpt-4o-mini"
+              ),
+              passwordInput(
+                "hybrid_label_openai_api_key",
+                "API Key:",
+                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+              )
+            ),
+            # Gemini settings
+            conditionalPanel(
+              condition = "input.hybrid_label_provider == 'gemini'",
+              selectInput(
+                "hybrid_label_gemini_model",
+                "Gemini Model:",
+                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+                selected = "gemini-2.0-flash"
+              ),
+              passwordInput(
+                "hybrid_label_gemini_api_key",
+                "API Key:",
+                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+              )
             ),
             textAreaInput(
               "hybrid_system_prompt",
@@ -3508,7 +4210,7 @@ Focus on incorporating the most significant keywords while following the guideli
               min = 1,
               max = 20
             ),
-            actionButton("display_hybrid_topics", "Display", class = "btn-primary btn-block")
+            actionButton("hybrid_display", "Display", class = "btn-primary btn-block")
           ),
 
           conditionalPanel(
@@ -3518,19 +4220,20 @@ Focus on incorporating the most significant keywords while following the guideli
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             tags$div(
-              style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #6B46C1;"),
+              class = "status-step-purple",
+              style = "margin-bottom: 15px;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-purple"),
               "Choose covariates in the Word-Topic tab"
             ),
             div(
               style = "display: flex; gap: 10px; margin-bottom: 15px;",
               div(
                 style = "flex: 1;",
-                actionButton("effect_hybrid", "Estimate", class = "btn-primary btn-block")
+                actionButton("hybrid_effect", "Estimate", class = "btn-primary btn-block")
               ),
               div(
                 style = "flex: 1;",
-                downloadButton("effect_hybrid_download_table", class = "btn-secondary btn-block")
+                downloadButton("hybrid_effect_download_table", class = "btn-secondary btn-block")
               )
             )
           ),
@@ -3547,18 +4250,19 @@ Focus on incorporating the most significant keywords while following the guideli
             condition = "input.topic_modeling_path == 'hybrid' && input.conditioned3 == 9",
             tags$h5(strong("Plot Topic Effects by Categorical Covariates"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             tags$div(
-              style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #6B46C1;"),
-              tags$strong("Step 1:", style = "color: #6B46C1;"), " Select categorical covariates in Word-Topic tab"
+              class = "status-step-purple",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-purple"),
+              tags$strong("Step 1:"), " Select categorical covariates in Word-Topic tab"
             ),
             tags$div(
-              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #337ab7;"),
-              tags$strong("Step 2:", style = "color: #337ab7;"), " Estimate coefficients in Estimated Effects tab"
+              class = "status-step-blue",
+              style = "margin-bottom: 10px;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-info"),
+              tags$strong("Step 2:"), " Estimate coefficients in Estimated Effects tab"
             ),
             tags$div(
-              style = "background-color: #E8F5E9; border: 1px solid #4CAF50; color: #1B5E20; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-info-circle", style = "margin-right: 5px; color: #4CAF50;"),
+              class = "status-step-green",
+              tags$i(class = "fa fa-info-circle status-icon status-icon-green-alt"),
               "Hybrid model includes both metadata and embedding dimension covariates"
             ),
             selectizeInput(
@@ -3580,18 +4284,19 @@ Focus on incorporating the most significant keywords while following the guideli
             condition = "input.topic_modeling_path == 'hybrid' && input.conditioned3 == 10",
             tags$h5(strong("Plot Topic Effects by Continuous Covariates"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             tags$div(
-              style = "background-color: #F3E8FF; border: 1px solid #6B46C1; color: #3B0764; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #6B46C1;"),
-              tags$strong("Step 1:", style = "color: #6B46C1;"), " Select continuous covariates in Word-Topic tab"
+              class = "status-step-purple",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-purple"),
+              tags$strong("Step 1:"), " Select continuous covariates in Word-Topic tab"
             ),
             tags$div(
-              style = "background-color: #E0F2FE; border: 1px solid #337ab7; color: #0C4A6E; padding: 10px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #337ab7;"),
-              tags$strong("Step 2:", style = "color: #337ab7;"), " Estimate coefficients in Estimated Effects tab"
+              class = "status-step-blue",
+              style = "margin-bottom: 10px;",
+              tags$i(class = "fa fa-check-circle status-icon status-icon-info"),
+              tags$strong("Step 2:"), " Estimate coefficients in Estimated Effects tab"
             ),
             tags$div(
-              style = "background-color: #E8F5E9; border: 1px solid #4CAF50; color: #1B5E20; padding: 10px 12px; margin-bottom: 15px; font-size: 16px; border-radius: 4px;",
-              tags$i(class = "fa fa-info-circle", style = "margin-right: 5px; color: #4CAF50;"),
+              class = "status-step-green",
+              tags$i(class = "fa fa-info-circle status-icon status-icon-green-alt"),
               "Hybrid model includes both metadata and embedding dimension covariates"
             ),
             selectizeInput(
@@ -3893,7 +4598,7 @@ Focus on incorporating the most significant keywords while following the guideli
               value = "ai_content",
               div(
                 style = "padding: 20px;",
-                tags$h5(tags$strong("Generated Content"), style = "color: #0c1f4a; margin-bottom: 15px;"),
+                
                 conditionalPanel(
                   condition = "output.has_generated_content == true",
                   DT::dataTableOutput("generated_content_table")
@@ -3901,13 +4606,13 @@ Focus on incorporating the most significant keywords while following the guideli
                 conditionalPanel(
                   condition = "output.has_generated_content == false",
                   div(
-                    style = "padding: 60px 40px; text-align: center; background-color: #F8FAFC; border-radius: 8px;",
+                    style = "padding: 60px 40px; text-align: center;",
                     tags$i(class = "fas fa-file-alt", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
                     tags$p(
                       "Run topic modeling first, then configure settings in the sidebar and click ",
                       tags$strong("'Generate Content'", style = "color: #0c1f4a;"),
                       " to create content from your topics.",
-                      style = "font-size: 16px; color: #64748B; margin: 0;"
+                      style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
                     )
                   )
                 )

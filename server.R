@@ -18,7 +18,6 @@ suppressPackageStartupMessages({
   library(tools)
   library(proxy)
   library(cluster)
-  library(visNetwork)
   library(digest)
 })
 
@@ -61,7 +60,7 @@ server <- shinyServer(function(input, output, session) {
   ensure_spacy <- function() {
     if (!spacy_initialized()) {
       tryCatch({
-        suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
+        suppressMessages(TextAnalysisR::init_spacy_nlp("en_core_web_sm"))
         spacy_initialized(TRUE)
         TRUE
       }, error = function(e) {
@@ -130,22 +129,24 @@ server <- shinyServer(function(input, output, session) {
 
     if (python_available) {
       tags$div(
-        style = "margin-top: -10px; margin-bottom: 10px; padding: 8px 12px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 16px;",
-        tags$i(class = "fa fa-check-circle", style = "color: #337ab7; margin-right: 5px;"),
-        tags$strong("PDF Enhanced Mode:", style = "color: #047857;"),
-        tags$span(" Python available for better table extraction", style = "color: #065F46;")
+        class = "status-sidebar-success",
+        style = "margin-top: -10px;",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-info"),
+        tags$strong("PDF Enhanced Mode:"),
+        tags$span(" Python available for better table extraction")
       )
     } else {
       tags$div(
-        style = "margin-top: -10px; margin-bottom: 10px; padding: 8px 12px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 16px;",
-        tags$i(class = "fa fa-info-circle", style = "color: #D97706; margin-right: 5px;"),
-        tags$strong("PDF Basic Mode:", style = "color: #B45309;"),
-        tags$span(" R fallback (text only). ", style = "color: #92400E;"),
+        class = "status-sidebar-warning",
+        style = "margin-top: -10px;",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
+        tags$strong("PDF Basic Mode:"),
+        tags$span(" R fallback (text only). "),
         tags$a(
           "Setup Python",
           href = "#",
           onclick = "Shiny.setInputValue('show_python_setup', Math.random()); return false;",
-          style = "color: #B45309; text-decoration: underline;"
+          style = "text-decoration: underline;"
         )
       )
     }
@@ -159,20 +160,17 @@ server <- shinyServer(function(input, output, session) {
 
     if (is_web) {
       return(tags$div(
-        class = "pdf-info-box",
-        style = "margin-top: -10px; margin-bottom: 15px; padding: 12px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px;",
-        tags$div(
-          style = "font-size: 16px; color: #92400E;",
-          tags$i(class = "fa fa-info-circle", style = "margin-right: 5px;"),
-          "Multimodal PDF extraction available in R package version only."
-        )
+        class = "pdf-info-box status-main-warning",
+        style = "margin-top: -10px;",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
+        "Multimodal PDF extraction available in R package version only."
       ))
     }
 
     if (!python_available) {
       return(tags$div(
-        class = "pdf-info-box",
-        style = "margin-top: -10px; margin-bottom: 15px; padding: 12px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px;",
+        class = "pdf-info-box status-main-info",
+        style = "margin-top: -10px;",
         tags$div(
           style = "margin-bottom: 10px;",
           tags$strong("PDF with Charts/Diagrams?", style = "color: #0c1f4a; font-size: 16px;")
@@ -191,8 +189,8 @@ server <- shinyServer(function(input, output, session) {
     }
 
     tags$div(
-      class = "pdf-info-box",
-      style = "margin-top: -10px; margin-bottom: 15px; padding: 12px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px;",
+      class = "pdf-info-box status-main-info",
+      style = "margin-top: -10px;",
       tags$div(
         style = "margin-bottom: 10px;",
         tags$strong("PDF with Charts/Diagrams?", style = "color: #0c1f4a; font-size: 16px;")
@@ -261,135 +259,11 @@ server <- shinyServer(function(input, output, session) {
     TextAnalysisR::create_empty_plot_message(message, color = color)
   }
 
-  truncate_text_with_ellipsis <- function(text, max_chars = 50) {
-    text <- as.character(text)
-    if (nchar(text) <= max_chars) {
-      return(text)
-    }
-    paste0(substr(text, 1, max_chars), "...")
-  }
-
-  truncate_text_to_words <- function(text, max_words = 150) {
-    text <- as.character(text)
-    words <- strsplit(text, "\\s+")[[1]]
-
-    if (length(words) > max_words) {
-      truncated_text <- paste(words[1:max_words], collapse = " ")
-      return(paste0(truncated_text, "..."))
-    } else {
-      return(text)
-    }
-  }
-
-  wrap_long_text <- function(text, chars_per_line = 50, max_lines = 3) {
-    text <- as.character(text)
-
-    if (nchar(text) <= chars_per_line) return(text)
-
-    if (!grepl(" ", text) && nchar(text) > chars_per_line) {
-      lines <- character()
-      remaining_text <- text
-      while (nchar(remaining_text) > chars_per_line && length(lines) < max_lines - 1) {
-        lines <- c(lines, substr(remaining_text, 1, chars_per_line))
-        remaining_text <- substr(remaining_text, chars_per_line + 1, nchar(remaining_text))
-      }
-      if (nchar(remaining_text) > 0) {
-        if (nchar(remaining_text) > chars_per_line) {
-          lines <- c(lines, paste0(substr(remaining_text, 1, chars_per_line - 3), "..."))
-        } else {
-          lines <- c(lines, remaining_text)
-        }
-      }
-      return(paste(lines, collapse = "\n"))
-    }
-
-    words <- strsplit(text, " ")[[1]]
-    lines <- character()
-    current_line <- ""
-
-    for (word in words) {
-      if (length(lines) >= max_lines - 1 && current_line != "") {
-        lines <- c(lines, paste0(current_line, "..."))
-        break
-      }
-
-      if (current_line == "") {
-        test_line <- word
-      } else {
-        test_line <- paste(current_line, word)
-      }
-
-      if (nchar(test_line) <= chars_per_line) {
-        current_line <- test_line
-      } else {
-        if (current_line != "") {
-          lines <- c(lines, current_line)
-          current_line <- word
-        } else {
-          if (length(lines) < max_lines - 1) {
-            lines <- c(lines, paste0(substr(word, 1, chars_per_line - 3), "..."))
-            current_line <- ""
-          }
-        }
-      }
-    }
-
-    if (nchar(current_line) > 0) {
-      if (length(lines) < max_lines) {
-        lines <- c(lines, current_line)
-      }
-    }
-
-    paste(lines[1:min(length(lines), max_lines)], collapse = "\n")
-  }
-
-  wrap_text_for_tooltip <- function(text, max_words = 150, chars_per_line = 50, max_lines = 3) {
-    text <- as.character(text)
-
-    if (nchar(text) > 150) {
-      text_to_use <- substr(text, 1, 150)
-      needs_ellipsis <- TRUE
-    } else {
-      text_to_use <- text
-      needs_ellipsis <- FALSE
-    }
-
-    if (nchar(text_to_use) <= chars_per_line) {
-      return(text_to_use)
-    }
-
-    result <- ""
-    lines_created <- 0
-    current_pos <- 1
-
-    while (current_pos <= nchar(text_to_use) && lines_created < max_lines) {
-      end_pos <- min(current_pos + chars_per_line - 1, nchar(text_to_use))
-      line_text <- substr(text_to_use, current_pos, end_pos)
-
-      if (end_pos < nchar(text_to_use) && lines_created < max_lines - 1) {
-        last_space <- regexpr(" [^ ]*$", line_text)
-        if (last_space > 0) {
-          line_text <- substr(line_text, 1, last_space - 1)
-          end_pos <- current_pos + last_space - 2
-        }
-      }
-
-      if (result == "") {
-        result <- line_text
-      } else {
-        result <- paste0(result, "\n", line_text)
-      }
-
-      lines_created <- lines_created + 1
-      current_pos <- end_pos + 2
-    }
-
-    if (needs_ellipsis || current_pos <= nchar(text_to_use)) {
-      result <- paste0(result, "...")
-    }
-
-    return(result)
-  }
+  # Text utility functions now use package functions
+  truncate_text_with_ellipsis <- TextAnalysisR::truncate_text_with_ellipsis
+  truncate_text_to_words <- TextAnalysisR::truncate_text_to_words
+  wrap_long_text <- TextAnalysisR::wrap_long_text
+  wrap_text_for_tooltip <- TextAnalysisR::wrap_text_for_tooltip
 
   stm_model_trigger <- reactiveVal(0)
 
@@ -2505,7 +2379,7 @@ server <- shinyServer(function(input, output, session) {
     buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
   ))
 
-  spacyr_processed <- reactiveVal(NULL)
+  spacy_parsed <- reactiveVal(NULL)
   lemma_cache_key <- reactiveVal(NULL)
 
   observeEvent(input$lemma, {
@@ -2551,14 +2425,14 @@ server <- shinyServer(function(input, output, session) {
 
     tryCatch({
       spacy_status <- tryCatch({
-        spacyr::spacy_initialized()
+        TextAnalysisR::spacy_initialized()
       }, error = function(e) {
         FALSE
       })
 
       if (!spacy_status) {
         tryCatch({
-          suppressMessages(spacyr::spacy_initialize(model = "en_core_web_sm"))
+          suppressMessages(TextAnalysisR::init_spacy_nlp("en_core_web_sm"))
         }, error = function(e) {
           error_msg <- if (!is.null(e$message) && nchar(e$message) > 0) {
             e$message
@@ -2576,7 +2450,7 @@ server <- shinyServer(function(input, output, session) {
               tags$li("The 'en_core_web_sm' model is downloaded")
             ),
             tags$p("Run in R console:"),
-            tags$pre("spacyr::spacy_install()"),
+            tags$pre("pip install spacy && python -m spacy download en_core_web_sm"),
             tags$p(tags$strong("Error details:")),
             tags$pre(style = "background-color: #f8f9fa; padding: 10px; border-radius: 4px;", error_msg),
             easyClose = TRUE,
@@ -2589,12 +2463,9 @@ server <- shinyServer(function(input, output, session) {
         })
       }
 
-      texts <- sapply(tokens_to_use, function(x) paste(x, collapse = " "))
-      doc_names <- quanteda::docnames(tokens_to_use)
-
-      # Only extract lemma for performance - other features extracted separately when needed
-      parsed <- spacyr::spacy_parse(
-        texts,
+      # Use spacy_parse_full for lemmatization
+      parsed <- TextAnalysisR::spacy_parse_full(
+        tokens_to_use,
         pos = FALSE,
         tag = FALSE,
         lemma = TRUE,
@@ -2602,17 +2473,7 @@ server <- shinyServer(function(input, output, session) {
         dependency = FALSE
       )
 
-      # Align doc_id with quanteda document names for batch entity matching
-      if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
-        doc_id_map <- data.frame(
-          old_id = paste0("text", seq_along(doc_names)),
-          new_id = doc_names,
-          stringsAsFactors = FALSE
-        )
-        parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
-      }
-
-      spacyr_processed(parsed)
+      spacy_parsed(parsed)
 
       lemma_list <- split(parsed$lemma, parsed$doc_id)
       toks_lemma <- quanteda::as.tokens(lemma_list)
@@ -2898,7 +2759,9 @@ server <- shinyServer(function(input, output, session) {
 
   output$lemma_table <- DT::renderDataTable({
     req(dfm_lemma())
-    quanteda.textstats::textstat_frequency(dfm_lemma())
+    result <- quanteda.textstats::textstat_frequency(dfm_lemma())
+    names(result) <- c("Feature", "Frequency", "Rank", "Docfreq", "Group")
+    result
   },
   rownames = FALSE,
   extensions = 'Buttons',
@@ -2945,9 +2808,9 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observe({
-    req(spacyr_processed())
+    req(spacy_parsed())
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
     pos_choices <- unique(parsed$pos)
 
     updateSelectizeInput(
@@ -2987,9 +2850,9 @@ server <- shinyServer(function(input, output, session) {
 
   observe({
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
-    req(spacyr_processed())
+    req(spacy_parsed())
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
 
     # Check if entity column exists (spacy_parse may be called with entity = FALSE)
     if (!"entity" %in% names(parsed)) {
@@ -3050,12 +2913,14 @@ server <- shinyServer(function(input, output, session) {
   outputOptions(output, "pos_ready", suspendWhenHidden = FALSE)
 
   output$ner_ready <- reactive({
-    (!is.null(final_tokens()) || !is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")) && !is.null(spacyr_processed())
+    # NER is ready when spacy_parsed exists (from POS tagging or entity extraction)
+    !is.null(spacy_parsed()) && nrow(spacy_parsed()) > 0
   })
   outputOptions(output, "ner_ready", suspendWhenHidden = FALSE)
 
   output$dependencies_ready <- reactive({
-    (!is.null(final_tokens()) || !is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")) && !is.null(spacyr_processed())
+    # Dependencies ready when spacy_parsed exists (table shows available columns)
+    !is.null(spacy_parsed()) && nrow(spacy_parsed()) > 0
   })
   outputOptions(output, "dependencies_ready", suspendWhenHidden = FALSE)
 
@@ -3070,25 +2935,85 @@ server <- shinyServer(function(input, output, session) {
   })
   outputOptions(output, "morph_ready", suspendWhenHidden = FALSE)
 
+  # Warning UI for Feature Distribution tab (Number, Tense, VerbForm, Person)
+  output$morph_warning_ui <- renderUI({
+    req(morph_data())
+    selected_features <- input$morph_features
+    basic_features <- c("Number", "Tense", "VerbForm", "Person")
+    has_basic <- any(basic_features %in% selected_features)
+
+    if (!has_basic) {
+      tags$div(
+        class = "status-main-warning",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+        tags$span(
+          "No basic features selected. Please select at least one of: ",
+          tags$strong("Number, Tense, VerbForm, or Person"),
+          " in the sidebar and click 'Analyze Morphology' again."
+        )
+      )
+    } else {
+      NULL
+    }
+  })
+
+  # Warning UI for Additional Features tab removed - using placeholder instead
+
+
+  # Output to control visibility of additional features plots
+  output$has_additional_features <- reactive({
+    selected_features <- input$morph_features
+    additional_features <- c("Case", "Mood", "Aspect")
+    any(additional_features %in% selected_features)
+  })
+  outputOptions(output, "has_additional_features", suspendWhenHidden = FALSE)
+
+  # Check if each additional feature is SELECTED (plots handle empty data gracefully)
+  output$has_case_data <- reactive({
+    "Case" %in% input$morph_features
+  })
+  outputOptions(output, "has_case_data", suspendWhenHidden = FALSE)
+
+  output$has_mood_data <- reactive({
+    "Mood" %in% input$morph_features
+  })
+  outputOptions(output, "has_mood_data", suspendWhenHidden = FALSE)
+
+  output$has_aspect_data <- reactive({
+    "Aspect" %in% input$morph_features
+  })
+  outputOptions(output, "has_aspect_data", suspendWhenHidden = FALSE)
+
+  # Check if any additional feature has data
+  output$has_any_additional_data <- reactive({
+    req(morph_data())
+    data <- morph_data()
+    has_case <- "morph_Case" %in% names(data) && any(!is.na(data$morph_Case) & data$morph_Case != "")
+    has_mood <- "morph_Mood" %in% names(data) && any(!is.na(data$morph_Mood) & data$morph_Mood != "")
+    has_aspect <- "morph_Aspect" %in% names(data) && any(!is.na(data$morph_Aspect) & data$morph_Aspect != "")
+    has_case || has_mood || has_aspect
+  })
+  outputOptions(output, "has_any_additional_data", suspendWhenHidden = FALSE)
+
   # Morphology status UI
   output$morph_status_ui <- renderUI({
     if (is_web) {
       tags$div(
-        style = "margin-bottom: 10px; padding: 6px 10px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 14px;",
-        tags$i(class = "fa fa-info-circle", style = "color: #D97706; margin-right: 4px;"),
-        tags$span("Morphology requires local/Docker", style = "color: #92400E;")
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
+        tags$span("Morphology requires local/Docker")
       )
     } else if (!is.null(morph_data()) && nrow(morph_data()) > 0) {
       tags$div(
-        style = "margin-bottom: 10px; padding: 6px 10px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 14px;",
-        tags$i(class = "fa fa-check-circle", style = "color: #059669; margin-right: 4px;"),
-        tags$span(paste0("Morphology analyzed (", nrow(morph_data()), " tokens)"), style = "color: #047857;")
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+        tags$span(paste0("Morphology analyzed (", nrow(morph_data()), " tokens)"))
       )
     } else {
       tags$div(
-        style = "margin-bottom: 10px; padding: 10px 12px; background-color: #E0F2FE; border: 1px solid #BAE6FD; border-radius: 4px; font-size: 14px;",
-        tags$i(class = "fa fa-info-circle", style = "color: #0284C7; margin-right: 4px;"),
-        tags$span("Click 'Analyze Morphology' after running POS", style = "color: #0369A1; font-size: 14px;")
+        class = "status-sidebar-info",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-info"),
+        tags$span("Click 'Analyze Morphology' after running POS")
       )
     }
   })
@@ -3098,11 +3023,12 @@ server <- shinyServer(function(input, output, session) {
     if (is_web) {
       # Restricted web deployment - show info message
       tags$div(
-        style = "margin-bottom: 15px; padding: 10px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px;",
-        tags$i(class = "fa fa-info-circle", style = "color: #D97706; margin-right: 5px;"),
-        tags$span("Basic POS/NER available. Full morphology requires ", style = "color: #92400E;"),
-        tags$strong("local R package", style = "color: #92400E;"),
-        tags$span(" or Docker deployment.", style = "color: #92400E;")
+        class = "status-main-warning",
+        style = "margin-bottom: 15px;",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
+        tags$span("Basic POS/NER available. Full morphology requires "),
+        tags$strong("local R package"),
+        tags$span(" or Docker deployment.")
       )
     } else {
       # Local or Docker - show spaCy status
@@ -3111,22 +3037,22 @@ server <- shinyServer(function(input, output, session) {
 
       if (!is.null(spacy_error)) {
         tags$div(
-          style = "margin-bottom: 10px; padding: 8px; background-color: #FEF3C7; border: 1px solid #FCD34D; border-radius: 4px; font-size: 12px;",
-          tags$i(class = "fa fa-exclamation-triangle", style = "color: #D97706; margin-right: 5px;"),
-          tags$span("spaCy unavailable - basic features only", style = "color: #92400E;")
+          class = "status-sidebar-warning",
+          tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+          tags$span("spaCy unavailable - basic features only")
         )
       } else if (spacy_ready) {
         tags$div(
-          style = "margin-bottom: 10px; padding: 8px; background-color: #D1FAE5; border: 1px solid #34D399; border-radius: 4px; font-size: 12px;",
-          tags$i(class = "fa fa-check-circle", style = "color: #059669; margin-right: 5px;"),
-          tags$span("spaCy ready - full features available", style = "color: #047857;")
+          class = "status-sidebar-success",
+          tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+          tags$span("spaCy ready - full features available")
         )
       } else {
-        # spaCy not yet initialized - show neutral status (not spinning)
+        # spaCy not yet initialized but available - show green status
         tags$div(
-          style = "margin-bottom: 10px; padding: 10px 12px; background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 4px;",
-          tags$i(class = "fa fa-circle", style = "color: #9CA3AF; margin-right: 6px; font-size: 8px;"),
-          tags$span("spaCy available - click Apply to start", style = "color: #4B5563; font-size: 14px;")
+          class = "status-sidebar-success",
+          tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+          tags$span("spaCy available - click Apply to start")
         )
       }
     }
@@ -3141,8 +3067,8 @@ server <- shinyServer(function(input, output, session) {
     )
     req(tokens_to_use)
 
-    # Check if spacyr_processed already has pos and tag columns
-    current_parsed <- spacyr_processed()
+    # Check if parsed data already has pos and tag columns
+    current_parsed <- spacy_parsed()
     if (!is.null(current_parsed) && all(c("pos", "tag") %in% names(current_parsed))) {
       pos_applied(pos_applied() + 1)
       return()
@@ -3150,11 +3076,11 @@ server <- shinyServer(function(input, output, session) {
 
     include_dep <- isTRUE(input$include_dependency)
 
-    # Use Python spaCy when available (local or Docker), fallback to R spacyr for web
+    # Use Python spaCy
     use_python <- !is_web
 
     if (use_python) {
-      # Use spacyr::spacy_parse (reliable)
+      # Use spacy_parse_full
       showNotification("Extracting POS tags with morphology (Python/spaCy)...", type = "message", duration = 3)
 
       tryCatch({
@@ -3169,34 +3095,17 @@ server <- shinyServer(function(input, output, session) {
 
         }
 
-        parsed <- spacyr::spacy_parse(
-          texts,
+        # Use spacy_parse_full for POS tagging
+        parsed <- TextAnalysisR::spacy_parse_full(
+          tokens_to_use,
           pos = TRUE,
           tag = TRUE,
           lemma = TRUE,
           entity = FALSE,
-          dependency = include_dep
+          dependency = TRUE
         )
 
-        if (nrow(parsed) > 0) {
-
-        }
-
-        # Align doc_id with quanteda document names for batch entity matching
-
-        
-        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
-          doc_id_map <- data.frame(
-            old_id = paste0("text", seq_along(doc_names)),
-            new_id = doc_names,
-            stringsAsFactors = FALSE
-          )
-
-          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
-
-        } else {        }
-
-        spacyr_processed(parsed)
+        spacy_parsed(parsed)
         pos_applied(pos_applied() + 1)
 
         msg <- if (include_dep) "POS tagging with morphology and dependency parsing completed!" else "POS tagging with morphology completed!"
@@ -3210,21 +3119,21 @@ server <- shinyServer(function(input, output, session) {
             tags$hr(),
             tags$p(tags$strong("How to fix:")),
             tags$ol(
-              tags$li("Switch to ", tags$strong("R spacyr"), " mode (select above and click Apply again)"),
+              tags$li("Check your Python/spaCy installation"),
               tags$li("Or setup Python: Run ", tags$code("TextAnalysisR::setup_python_env()"), " in R console"),
               tags$li("Install spaCy model: ", tags$code("python -m spacy download en_core_web_sm"))
             ),
             tags$hr(),
             tags$p(style = "color: #92400E; font-size: 14px; background-color: #FEF3C7; padding: 8px 12px; border-radius: 4px; margin-top: 10px;",
-              "Note: R spacyr provides basic POS/NER. Python spaCy adds morphology features.")
+              "Note: spaCy provides POS, NER, and morphology features.")
           ),
           easyClose = TRUE,
           footer = modalButton("Close")
         ))
       })
     } else {
-      # Use spacyr R package (for web deployment or when Python unavailable)
-      showNotification("Extracting POS tags (spacyr)...", type = "message", duration = 3)
+      # Use spaCy via Python
+      showNotification("Extracting POS tags with spaCy...", type = "message", duration = 3)
 
       tryCatch({
         # Get document names for alignment
@@ -3234,7 +3143,7 @@ server <- shinyServer(function(input, output, session) {
           doc_names <- paste0("text", seq_along(tokens_to_use))
         }
 
-        parsed <- TextAnalysisR::extract_pos_tags(tokens_to_use, include_dependency = include_dep)
+        parsed <- TextAnalysisR::extract_pos_tags(tokens_to_use, include_dependency = TRUE)
 
         # Align doc_id with quanteda document names for batch entity matching
 
@@ -3251,7 +3160,7 @@ server <- shinyServer(function(input, output, session) {
         } else {
         }
 
-        spacyr_processed(parsed)
+        spacy_parsed(parsed)
         pos_applied(pos_applied() + 1)
 
         msg <- if (include_dep) "POS tagging with dependency parsing completed!" else "POS tagging completed!"
@@ -3266,8 +3175,8 @@ server <- shinyServer(function(input, output, session) {
   observeEvent(input$analyze_morphology, {
     req(!is_web)  # Morphology requires Python (local or Docker)
 
-    # Get parsed data from spacyr_processed
-    parsed <- spacyr_processed()
+    # Get parsed data
+    parsed <- spacy_parsed()
     req(parsed)
     req(nrow(parsed) > 0)
 
@@ -3299,25 +3208,16 @@ server <- shinyServer(function(input, output, session) {
           doc_names <- paste0("text", seq_along(texts))
         }
 
-        parsed <- spacyr::spacy_parse(
-          texts,
+        # Use spacy_parse_full for morphology
+        parsed <- TextAnalysisR::spacy_parse_full(
+          tokens_to_use,
           pos = TRUE,
           tag = TRUE,
           lemma = TRUE,
           entity = FALSE,
           dependency = FALSE,
-          additional_attributes = c("morph")
+          morph = TRUE
         )
-
-        # Align doc_id with quanteda document names
-        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
-          doc_id_map <- data.frame(
-            old_id = paste0("text", seq_along(doc_names)),
-            new_id = doc_names,
-            stringsAsFactors = FALSE
-          )
-          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
-        }
       }
 
       # Parse morphology string into individual columns
@@ -3326,7 +3226,7 @@ server <- shinyServer(function(input, output, session) {
       }
 
       morph_data(parsed)
-      spacyr_processed(parsed)  # Update with morphology data
+      spacy_parsed(parsed)  # Update with morphology data
 
       showNotification(
         paste0("Morphology analysis complete! (", nrow(parsed), " tokens analyzed)"),
@@ -3357,6 +3257,21 @@ server <- shinyServer(function(input, output, session) {
   output$morph_person_plot <- plotly::renderPlotly({
     req(morph_data())
     TextAnalysisR::plot_morphology_feature(morph_data(), "Person", "Grammatical Person")
+  })
+
+  output$morph_case_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "Case", "Grammatical Case")
+  })
+
+  output$morph_mood_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "Mood", "Verbal Mood")
+  })
+
+  output$morph_aspect_plot <- plotly::renderPlotly({
+    req(morph_data())
+    TextAnalysisR::plot_morphology_feature(morph_data(), "Aspect", "Verb Aspect")
   })
 
   # Morphology Summary Table
@@ -3401,8 +3316,19 @@ server <- shinyServer(function(input, output, session) {
           tags$li(tags$strong("Aspect:"), " Perfective (Perf), Imperfective (Imp), Progressive (Prog)")
         ),
         tags$hr(),
-        tags$p(style = "color: #92400E; font-size: 14px; background-color: #FEF3C7; padding: 8px 12px; border-radius: 4px; margin-top: 10px;",
-          "Note: Not all features apply to all words. For example, Tense only applies to verbs.")
+        tags$p(style = "font-size: 13px; color: #64748B;",
+          "Note: Not all features apply to all words. For example, Tense only applies to verbs."),
+        tags$hr(style = "margin-top: 20px; margin-bottom: 15px;"),
+        tags$div(
+          style = "background-color: #F3F4F6; padding: 12px; border-radius: 6px;",
+          tags$p(style = "margin: 0; font-size: 16px;",
+            tags$strong("Learn More: "),
+            tags$a(href = "https://spacy.io/usage/linguistic-features#morphology",
+                   target = "_blank",
+                   style = "color: #337ab7; text-decoration: none; font-weight: 500;",
+                   "spaCy Morphological Features")
+          )
+        )
       ),
       easyClose = TRUE,
       footer = modalButton("Close")
@@ -3412,9 +3338,9 @@ server <- shinyServer(function(input, output, session) {
   observeEvent(input$generate_pos_report, {
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
     req(pos_applied() > 0)
-    req(spacyr_processed())
+    req(spacy_parsed())
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
 
     # Check if pos and tag columns exist
     if (!all(c("pos", "tag") %in% names(parsed))) {
@@ -3531,9 +3457,9 @@ server <- shinyServer(function(input, output, session) {
     },
     content = function(file) {
       tryCatch({
-        req(spacyr_processed())
+        req(spacy_parsed())
 
-        parsed <- spacyr_processed()
+        parsed <- spacy_parsed()
 
         if (!is.null(input$pos_filter) && length(input$pos_filter) > 0) {
           parsed <- parsed %>%
@@ -3830,13 +3756,13 @@ server <- shinyServer(function(input, output, session) {
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
     req(pos_applied() > 0)
 
-    if (is.null(spacyr_processed())) {
+    if (is.null(spacy_parsed())) {
       return(TextAnalysisR::create_empty_plot_message(
         "POS tags only available when 'Apply' is clicked (not 'Skip')"
       ))
     }
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
 
     # Check if pos column exists
     if (!"pos" %in% names(parsed)) {
@@ -3875,9 +3801,9 @@ server <- shinyServer(function(input, output, session) {
   output$pos_table <- DT::renderDataTable({
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
     req(pos_applied() > 0)
-    req(spacyr_processed())
+    req(spacy_parsed())
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
 
     # Check if pos and tag columns exist
     req(all(c("pos", "tag") %in% names(parsed)))
@@ -3887,32 +3813,50 @@ server <- shinyServer(function(input, output, session) {
         dplyr::filter(pos %in% input$pos_filter)
     }
 
-    # Check for morphology columns (from Python spaCy)
+    # Check for morphology and dependency columns
     morph_cols <- grep("^morph_", names(parsed), value = TRUE)
     has_morphology <- length(morph_cols) > 0
+    has_dependency <- all(c("head_token_id", "dep_rel") %in% names(parsed))
+    show_dependency <- isTRUE(input$include_dependency) && has_dependency
 
-    if (has_morphology) {
-      # Include morphology in summary - show token-level detail
-      base_cols <- c("doc_id", "token", "lemma", "pos", "tag")
+    if (has_morphology || has_dependency) {
+      # Include detailed view with morphology and/or dependency
+      base_cols <- c("doc_id", "sentence_id", "token_id", "token", "lemma", "pos", "tag")
       display_cols <- intersect(base_cols, names(parsed))
 
-      # Add key morphology columns if present
-      key_morph <- c("morph_Number", "morph_Tense", "morph_VerbForm", "morph_Person", "morph_Case")
-      available_morph <- intersect(key_morph, morph_cols)
-      display_cols <- c(display_cols, available_morph)
+      # Add dependency columns if checkbox is checked
+      if (show_dependency) {
+        display_cols <- c(display_cols, "head_token_id", "dep_rel")
+      }
 
-      # If morph column exists, add it
-      if ("morph" %in% names(parsed)) {
-        display_cols <- c(display_cols, "morph")
+      # Add key morphology columns if present
+      if (has_morphology) {
+        key_morph <- c("morph_Number", "morph_Tense", "morph_VerbForm", "morph_Person", "morph_Case")
+        available_morph <- intersect(key_morph, morph_cols)
+        display_cols <- c(display_cols, available_morph)
+
+        # If morph column exists, add it
+        if ("morph" %in% names(parsed)) {
+          display_cols <- c(display_cols, "morph")
+        }
       }
 
       pos_detail <- parsed %>%
         dplyr::select(dplyr::all_of(display_cols)) %>%
         dplyr::rename_with(~ gsub("morph_", "", .), starts_with("morph_"))
 
+      # Rename dependency columns for clarity
+      if (show_dependency && "head_token_id" %in% names(pos_detail)) {
+        pos_detail <- pos_detail %>%
+          dplyr::rename(
+            `Head` = head_token_id,
+            `Relation` = dep_rel
+          )
+      }
+
       pos_detail
     } else {
-      # Original summary view without morphology
+      # Original summary view without morphology/dependency
       pos_summary <- parsed %>%
         dplyr::count(pos, tag, sort = TRUE) %>%
         dplyr::rename(
@@ -3943,8 +3887,8 @@ server <- shinyServer(function(input, output, session) {
     )
     req(tokens_to_use)
 
-    # Check if spacyr_processed already has entity column
-    current_parsed <- spacyr_processed()
+    # Check if parsed data already has entity column
+    current_parsed <- spacy_parsed()
     if (!is.null(current_parsed) && "entity" %in% names(current_parsed)) {
       return()
     }
@@ -3953,7 +3897,7 @@ server <- shinyServer(function(input, output, session) {
     use_python <- !is_web && isTRUE(input$spacy_mode == "python")
 
     if (use_python) {
-      # Use spacyr::spacy_parse (reliable)
+      # Use spacy_parse_full
       showNotification("Extracting named entities (spaCy)...", type = "message", duration = 3)
 
       tryCatch({
@@ -3968,8 +3912,9 @@ server <- shinyServer(function(input, output, session) {
 
         }
 
-        parsed <- spacyr::spacy_parse(
-          texts,
+        # Use spacy_parse_full for NER
+        parsed <- TextAnalysisR::spacy_parse_full(
+          tokens_to_use,
           pos = TRUE,
           tag = TRUE,
           lemma = TRUE,
@@ -3977,17 +3922,7 @@ server <- shinyServer(function(input, output, session) {
           dependency = FALSE
         )
 
-        # Align doc_id with quanteda document names for batch entity matching
-        if ("doc_id" %in% names(parsed) && length(doc_names) > 0) {
-          doc_id_map <- data.frame(
-            old_id = paste0("text", seq_along(doc_names)),
-            new_id = doc_names,
-            stringsAsFactors = FALSE
-          )
-          parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
-        }
-
-        spacyr_processed(parsed)
+        spacy_parsed(parsed)
         showNotification("Named entity extraction completed!", type = "message", duration = 3)
       }, error = function(e) {
         # Show helpful error modal
@@ -3998,21 +3933,21 @@ server <- shinyServer(function(input, output, session) {
             tags$hr(),
             tags$p(tags$strong("How to fix:")),
             tags$ol(
-              tags$li("Switch to ", tags$strong("R spacyr"), " mode in POS Tagging section and click Apply again"),
+              tags$li("Check that Python and spaCy are properly installed"),
               tags$li("Or setup Python: Run ", tags$code("TextAnalysisR::setup_python_env()"), " in R console"),
               tags$li("Install spaCy model: ", tags$code("python -m spacy download en_core_web_sm"))
             ),
             tags$hr(),
             tags$p(style = "color: #92400E; font-size: 14px; background-color: #FEF3C7; padding: 8px 12px; border-radius: 4px; margin-top: 10px;",
-              "Note: R spacyr provides basic NER. Python spaCy adds morphology features.")
+              "Check your spaCy installation.")
           ),
           easyClose = TRUE,
           footer = modalButton("Close")
         ))
       })
     } else {
-      # Use spacyr R package (for web deployment or when Python unavailable)
-      showNotification("Extracting named entities (spacyr)...", type = "message", duration = 3)
+      # Use spaCy via Python
+      showNotification("Extracting named entities with spaCy...", type = "message", duration = 3)
 
       tryCatch({
         # Get document names for alignment
@@ -4034,7 +3969,7 @@ server <- shinyServer(function(input, output, session) {
           parsed$doc_id <- doc_id_map$new_id[match(parsed$doc_id, doc_id_map$old_id)]
         }
 
-        spacyr_processed(parsed)
+        spacy_parsed(parsed)
         showNotification("Named entity extraction completed!", type = "message", duration = 3)
       }, error = function(e) {
         showNotification(paste("Error:", e$message), type = "error", duration = 5)
@@ -4046,15 +3981,18 @@ server <- shinyServer(function(input, output, session) {
     req(input$apply_ner_filter)
     req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
 
-    if (is.null(spacyr_processed())) {
+    if (is.null(spacy_parsed())) {
       return(TextAnalysisR::create_empty_plot_message(
         "Named entities only available when 'Apply' is clicked (not 'Skip')"
       ))
     }
 
+    # Trigger reactivity on entity type modifications (so plot updates when dropdown changes)
+    entity_type_modifications()
     custom_entities()
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
+
 
     # Check if entity column exists
     if (!"entity" %in% names(parsed)) {
@@ -4118,6 +4056,82 @@ server <- shinyServer(function(input, output, session) {
 
   custom_entities <- reactiveVal(data.frame())
 
+  # Store entity type modifications from dropdown changes
+  # Key: "doc_id|token|original_entity" -> new_entity_type
+  entity_type_modifications <- reactiveVal(list())
+
+  # Store custom entity types with colors
+  # Format: list(ENTITY_NAME = "#hexcolor", ...)
+  custom_entity_colors <- reactiveVal(list())
+
+  # Add custom entity type
+  observeEvent(input$add_custom_entity_type, {
+    entity_name <- trimws(toupper(input$custom_entity_name))
+    entity_color <- input$custom_entity_color
+
+    if (nzchar(entity_name)) {
+      current <- custom_entity_colors()
+      current[[entity_name]] <- entity_color
+      custom_entity_colors(current)
+
+      # Clear the input
+      updateTextInput(session, "custom_entity_name", value = "")
+
+      showNotification(
+        paste0("Custom entity '", entity_name, "' added"),
+        type = "message",
+        duration = 2
+      )
+    }
+  })
+
+  # Render custom entity list
+  output$custom_entity_list <- renderUI({
+    entities <- custom_entity_colors()
+    if (length(entities) == 0) return(NULL)
+
+    tags$div(
+      style = "max-height: 120px; overflow-y: auto; margin-top: 10px;",
+      lapply(names(entities), function(name) {
+        color <- entities[[name]]
+        tags$div(
+          style = "display: flex; align-items: center; gap: 8px; padding: 4px 8px; margin-bottom: 4px; background: #f8f9fa; border-radius: 4px;",
+          tags$span(
+            style = paste0("display: inline-block; width: 16px; height: 16px; background-color: ", color, "; border-radius: 3px;")
+          ),
+          tags$span(name, style = "flex: 1; font-size: 13px; font-weight: 500;"),
+          actionLink(
+            paste0("remove_entity_", name),
+            icon("times"),
+            style = "color: #dc3545; font-size: 12px;",
+            onclick = paste0("Shiny.setInputValue('remove_custom_entity', '", name, "', {priority: 'event'})")
+          )
+        )
+      })
+    )
+  })
+
+  # Remove custom entity type
+  observeEvent(input$remove_custom_entity, {
+    entity_name <- input$remove_custom_entity
+    if (!is.null(entity_name)) {
+      current <- custom_entity_colors()
+      current[[entity_name]] <- NULL
+      custom_entity_colors(current)
+    }
+  })
+
+  # Sync custom colors to JavaScript for table rendering
+  observe({
+    custom_colors <- custom_entity_colors()
+    if (length(custom_colors) > 0) {
+      color_json <- jsonlite::toJSON(custom_colors, auto_unbox = TRUE)
+      shinyjs::runjs(paste0("window.customEntityColors = ", color_json, ";"))
+    } else {
+      shinyjs::runjs("window.customEntityColors = {};")
+    }
+  })
+
   output$entity_plot_uiOutput <- renderUI({
     div(
       style = "display: flex; justify-content: center; margin-bottom: 20px;",
@@ -4127,29 +4141,25 @@ server <- shinyServer(function(input, output, session) {
 
   output$entity_table <- DT::renderDataTable({
     # Allow table to render if either:
-    # 1. NER filter was applied (spacyr_processed exists), OR
+    # 1. NER filter was applied (spacy_parsed exists), OR
     # 2. Custom entities were added via batch coding
-    has_ner <- isTRUE(input$apply_ner_filter > 0) && !is.null(spacyr_processed())
+    has_ner <- isTRUE(input$apply_ner_filter > 0) && !is.null(spacy_parsed())
     has_custom <- nrow(custom_entities()) > 0
 
-    if (has_custom) {
-
-    }
-    
     req(has_ner || has_custom)
-    
+
     # Trigger reactivity on custom_entities changes
     custom_entities()
-    
+
     # If no NER data, return custom entities directly
-    if (has_custom) {
+    if (!has_ner && has_custom) {
       custom_df <- custom_entities()
 
       return(custom_df %>%
-        dplyr::select(Document, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep))
+        dplyr::select(Document, `Variable`, `Token`, Frequency, `First Sentence`, Notes, Keep))
     }
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
 
     # Check if entity column exists
     if (!"entity" %in% names(parsed)) {
@@ -4157,22 +4167,22 @@ server <- shinyServer(function(input, output, session) {
       if (has_custom) {
         custom_df <- custom_entities()
         return(custom_df %>%
-          dplyr::select(Document, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep))
+          dplyr::select(Document, `Variable`, `Token`, Frequency, `First Sentence`, Notes, Keep))
       }
       return(NULL)
     }
 
+    # Show ALL tokens in original word order with entity column (blank for non-entities)
     entity_detail <- parsed %>%
-      dplyr::filter(!is.na(entity), entity != "") %>%
-      dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
-      dplyr::group_by(doc_id, entity_clean, token) %>%
-      dplyr::summarise(
-        Frequency = dplyr::n(),
-        First_Sentence = dplyr::first(sentence_id),
-        Context = paste(unique(substring(token, 1, 100)), collapse = "; "),
-        .groups = "drop"
+      dplyr::mutate(
+        entity_clean = dplyr::if_else(
+          !is.na(entity) & entity != "",
+          gsub("_[BI]$", "", entity),
+          ""
+        )
       ) %>%
-      dplyr::rename(entity = entity_clean)
+      dplyr::arrange(doc_id, sentence_id, token_id) %>%
+      dplyr::select(doc_id, sentence_id, token_id, token, entity = entity_clean)
 
     tokens_obj <- if (!is.null(final_tokens())) {
       final_tokens()
@@ -4191,12 +4201,14 @@ server <- shinyServer(function(input, output, session) {
     doc_number_mapping <- data.frame(
       doc_id = all_doc_ids,
       Document = paste0("Doc ", seq_along(all_doc_ids)),
+      doc_num = seq_along(all_doc_ids),  # Numeric key for sorting
       stringsAsFactors = FALSE
     )
 
     entity_detail <- entity_detail %>%
       dplyr::left_join(doc_number_mapping, by = "doc_id")
 
+    # Add Document ID if selected
     if (!is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
       doc_vars <- quanteda::docvars(tokens_obj)
       if (!is.null(doc_vars) && input$lemma_doc_id_var %in% names(doc_vars)) {
@@ -4212,108 +4224,130 @@ server <- shinyServer(function(input, output, session) {
       }
     }
 
+    # Filter by entity type if specified (but keep all tokens visible in word order)
     if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
+      # When filtering, only show tokens that have the selected entity types
       entity_detail <- entity_detail %>%
-        dplyr::filter(entity %in% input$entity_type_filter)
+        dplyr::filter(entity %in% input$entity_type_filter | entity == "")
     }
 
+    # Arrange by document and word order (sentence_id, token_id)
     entity_detail <- entity_detail %>%
-      dplyr::arrange(entity, desc(Frequency)) %>%
-      dplyr::mutate(
-        Custom_Label = "",
-        Notes = "",
-        Keep = TRUE
-      )
+      dplyr::arrange(doc_num, sentence_id, token_id)
 
+    # Select columns for display
     if (!is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
       entity_detail <- entity_detail %>%
         dplyr::select(
           Document,
           `Document ID`,
-          `Variable` = entity,
-          `Coding` = token,
-          Frequency,
-          `First Sentence` = First_Sentence,
-          Notes,
-          Keep
+          Sentence = sentence_id,
+          `Token ID` = token_id,
+          `Token` = token,
+          `Entity` = entity
         )
     } else {
       entity_detail <- entity_detail %>%
         dplyr::select(
           Document,
-          `Variable` = entity,
-          `Coding` = token,
-          Frequency,
-          `First Sentence` = First_Sentence,
-          Notes,
-          Keep
+          Sentence = sentence_id,
+          `Token ID` = token_id,
+          `Token` = token,
+          `Entity` = entity
         )
     }
 
-    
-    if (nrow(custom_entities()) > 0) {
-      custom_df <- custom_entities()
 
-      if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
+    # Note: Custom entities are managed separately and displayed in their own context
+    # This table now shows all spaCy tokens in word order with entity labels
 
-        custom_df <- custom_df %>%
-          dplyr::filter(`Variable` %in% input$entity_type_filter)
+    # Determine column indices based on Document ID presence
+    has_doc_id <- !is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != ""
+    entity_col_idx <- if (has_doc_id) 5 else 4  # Entity column index (0-based)
 
-      }
+    # Trigger re-render when custom colors change
+    custom_colors <- custom_entity_colors()
 
-      if (!is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
-        custom_df <- custom_df %>%
-          dplyr::mutate(`Document ID` = NA) %>%
-          dplyr::select(Document, `Document ID`, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep)
-      } else {
-        custom_df <- custom_df %>%
-          dplyr::select(Document, `Variable`, `Coding`, Frequency, `First Sentence`, Notes, Keep)
-      }
-
-      # Add source column to sort custom entities first
-      entity_detail <- entity_detail %>%
-        dplyr::mutate(.source = "NER")
-      custom_df <- custom_df %>%
-        dplyr::mutate(.source = "Custom")
-      
-      entity_detail <- dplyr::bind_rows(custom_df, entity_detail) %>%
-        dplyr::arrange(.source, `Variable`, desc(Frequency)) %>%
-        dplyr::select(-.source)
-
+    # Build custom color JS entries
+    custom_color_js <- if (length(custom_colors) > 0) {
+      paste0(
+        sapply(names(custom_colors), function(name) {
+          paste0("'", name, "': '", custom_colors[[name]], "'")
+        }),
+        collapse = ", "
+      )
+    } else {
+      ""
     }
 
-    entity_detail
-  },
-  editable = list(target = "cell", disable = list(columns = c(0, 1, 2, 3, 4, 5))),
-  rownames = FALSE,
-  extensions = 'Buttons',
-  filter = 'top',
-  options = list(
-    scrollX = TRUE,
-    scrollY = "400px",
-    dom = 'Bfrtip',
-    buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
-    pageLength = 25,
-    columnDefs = list(
-      list(targets = c(4, 5, 6), className = 'dt-center'),
-      list(targets = 6, className = 'dt-center', render = DT::JS(
-        "function(data, type, row, meta) {",
-        "  return data ? '<span style=\"color: green;\">Yes</span>' : '<span style=\"color: red;\">No</span>';",
-        "}"
-      ))
+    # Full color map with standard + custom colors
+    color_map_js <- paste0(
+      "'PERSON': '#e91e63', 'ORG': '#2196f3', 'GPE': '#4caf50', ",
+      "'DATE': '#ff9800', 'MONEY': '#9c27b0', 'CARDINAL': '#607d8b', ",
+      "'ORDINAL': '#795548', 'PERCENT': '#00bcd4', 'PRODUCT': '#3f51b5', ",
+      "'EVENT': '#f44336', 'WORK_OF_ART': '#673ab7', 'LAW': '#009688', ",
+      "'LANGUAGE': '#8bc34a', 'LOC': '#03a9f4', 'FAC': '#cddc39', ",
+      "'NORP': '#ffc107', 'TIME': '#ff5722', 'QUANTITY': '#9e9e9e'",
+      if (nzchar(custom_color_js)) paste0(", ", custom_color_js) else ""
     )
-  ),
-  selection = 'multiple'
-  )
+
+    # Disable all columns except Entity (last column)
+    # Without doc_id: 5 columns (0-3 disabled), with doc_id: 6 columns (0-4 disabled)
+    disabled_cols <- if (has_doc_id) c(0, 1, 2, 3, 4) else c(0, 1, 2, 3)
+
+    DT::datatable(
+      entity_detail,
+      rownames = FALSE,
+      extensions = 'Buttons',
+      filter = 'top',
+      editable = list(target = 'cell', disable = list(columns = disabled_cols)),
+      options = list(
+        scrollX = TRUE,
+        scrollY = "400px",
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),
+        pageLength = 50,
+        columnDefs = list(
+          list(targets = "_all", className = 'dt-center'),
+          # Entity column with color-coded badge
+          list(
+            targets = -1,  # Last column (Entity)
+            render = DT::JS(
+              "function(data, type, row, meta) {",
+              "  if (type !== 'display') return data;",
+              "  if (!data || data === '') return '';",
+              "  var colors = {",
+              "    'PERSON': '#e91e63', 'ORG': '#2196f3', 'GPE': '#4caf50',",
+              "    'DATE': '#ff9800', 'MONEY': '#9c27b0', 'CARDINAL': '#607d8b',",
+              "    'ORDINAL': '#795548', 'PERCENT': '#00bcd4', 'PRODUCT': '#3f51b5',",
+              "    'EVENT': '#f44336', 'WORK_OF_ART': '#673ab7', 'LAW': '#009688',",
+              "    'LANGUAGE': '#8bc34a', 'LOC': '#03a9f4', 'FAC': '#cddc39',",
+              "    'NORP': '#ffc107', 'TIME': '#ff5722', 'QUANTITY': '#9e9e9e'",
+              "  };",
+              "  // Check window for custom colors added dynamically",
+              "  if (window.customEntityColors) {",
+              "    Object.assign(colors, window.customEntityColors);",
+              "  }",
+              "  var color = colors[data] || '#757575';",
+              "  return '<span style=\"background-color:' + color + '; color: white; padding: 3px 10px; border-radius: 12px; font-weight: 500; font-size: 12px;\">' + data + '</span>';",
+              "}"
+            )
+          )
+        )
+      ),
+      selection = 'none',
+      class = 'cell-border stripe hover compact'
+    )
+  })
 
   # ============================================================================
   # displaCy Visualizations for NER and Dependency tabs
   # ============================================================================
 
-  # Update document choices when spacyr data is ready
+  # Update document choices when spaCy data is ready
   observe({
-    req(spacyr_processed())
-    doc_ids <- unique(spacyr_processed()$doc_id)
+    req(spacy_parsed())
+    doc_ids <- unique(spacy_parsed()$doc_id)
     # Create display labels
     doc_labels <- paste("Doc", seq_along(doc_ids))
     names(doc_ids) <- doc_labels
@@ -4322,53 +4356,90 @@ server <- shinyServer(function(input, output, session) {
     updateSelectInput(session, "dep_viz_doc", choices = doc_ids)
   })
 
-  # Render displaCy entity visualization
+  # Render displaCy entity visualization with support for manual edits
   output$ner_displacy_html <- renderUI({
-    req(spacyr_processed(), input$ner_viz_doc)
+    req(spacy_parsed(), input$ner_viz_doc)
 
-    # Only available when Python is accessible (not web deployment)
-    if (is_web) {
-      return(HTML('<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>
-              Entity visualization is only available in desktop/Docker mode with Python.
-              </div>'))
+    parsed <- spacy_parsed()
+
+    # Check if entity column exists
+    if (!"entity" %in% names(parsed)) {
+      return(HTML('<div style="color: #64748B; text-align: center; padding: 20px;">No entity data available. Run NER analysis first.</div>'))
     }
 
-    # Get original text for selected document
-    doc_data <- spacyr_processed() %>%
-      dplyr::filter(doc_id == input$ner_viz_doc)
+    # Get document data from spacy_parsed (includes manual edits)
+    doc_data <- parsed %>%
+      dplyr::filter(doc_id == input$ner_viz_doc) %>%
+      dplyr::mutate(
+        entity_clean = dplyr::if_else(
+          !is.na(entity) & entity != "",
+          gsub("_[BI]$", "", entity),
+          ""
+        )
+      ) %>%
+      dplyr::arrange(sentence_id, token_id)
 
-    # Reconstruct text from tokens
-    text <- paste(doc_data$token, collapse = " ")
-
-    # Limit text length to prevent performance issues
-    if (nchar(text) > 2000) {
-      text <- paste0(substr(text, 1, 2000), "...")
+    if (nrow(doc_data) == 0) {
+      return(HTML('<div style="color: #64748B; text-align: center; padding: 20px;">No data for selected document</div>'))
     }
 
-    tryCatch({
-      html <- TextAnalysisR::render_displacy_ent(text)
-      HTML(html)
-    }, error = function(e) {
-      HTML(paste0(
-        '<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>',
-        'Visualization unavailable: ', htmltools::htmlEscape(e$message),
-        '</div>'
-      ))
-    })
+    # Standard spaCy entity colors + custom colors
+    entity_colors <- c(
+      "PERSON" = "#e91e63", "ORG" = "#2196f3", "GPE" = "#4caf50",
+      "DATE" = "#ff9800", "MONEY" = "#9c27b0", "CARDINAL" = "#607d8b",
+      "ORDINAL" = "#795548", "PERCENT" = "#00bcd4", "PRODUCT" = "#3f51b5",
+      "EVENT" = "#f44336", "WORK_OF_ART" = "#673ab7", "LAW" = "#009688",
+      "LANGUAGE" = "#8bc34a", "LOC" = "#03a9f4", "FAC" = "#cddc39",
+      "NORP" = "#ffc107", "TIME" = "#ff5722", "QUANTITY" = "#9e9e9e"
+    )
+
+    # Add custom entity colors
+    custom_colors <- custom_entity_colors()
+    if (length(custom_colors) > 0) {
+      for (name in names(custom_colors)) {
+        entity_colors[name] <- custom_colors[[name]]
+      }
+    }
+
+    # Build HTML similar to spaCy displaCy style
+    html_parts <- character(nrow(doc_data))
+    for (i in seq_len(nrow(doc_data))) {
+      token <- htmltools::htmlEscape(doc_data$token[i])
+      entity <- doc_data$entity_clean[i]
+
+      if (!is.na(entity) && nzchar(entity)) {
+        color <- if (entity %in% names(entity_colors)) entity_colors[entity] else "#757575"
+        # Styled entity span like displaCy
+        html_parts[i] <- sprintf(
+          '<mark class="entity" style="background: %s; padding: 0.25em 0.35em; margin: 0 0.1em; line-height: 1.5; border-radius: 0.35em; box-decoration-break: clone; -webkit-box-decoration-break: clone;">%s<span style="font-size: 0.7em; font-weight: bold; line-height: 1; border-radius: 0.35em; text-transform: uppercase; vertical-align: middle; margin-left: 0.5em; background: rgba(0,0,0,0.2); padding: 0.15em 0.35em; color: white;">%s</span></mark>',
+          color, token, htmltools::htmlEscape(entity)
+        )
+      } else {
+        html_parts[i] <- paste0(token, " ")
+      }
+    }
+
+    final_html <- paste0(
+      '<div style="line-height: 2.5; direction: ltr; font-family: Roboto, sans-serif; font-size: 16px; color: #0c1f4a; padding: 15px; background: #fafafa; border-radius: 8px; max-height: 400px; overflow-y: auto;">',
+      paste(html_parts, collapse = " "),
+      '</div>'
+    )
+
+    HTML(final_html)
   })
 
   # Render displaCy dependency visualization
   output$dep_displacy_html <- renderUI({
-    req(spacyr_processed(), input$dep_viz_doc)
+    req(spacy_parsed(), input$dep_viz_doc)
 
     # Only available when Python is accessible (not web deployment)
     if (is_web) {
-      return(HTML('<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>
+      return(HTML('<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 16px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>
               Dependency visualization is only available in desktop/Docker mode with Python.
               </div>'))
     }
 
-    doc_data <- spacyr_processed() %>%
+    doc_data <- spacy_parsed() %>%
       dplyr::filter(doc_id == input$dep_viz_doc)
 
     # Get first sentence only (dependency trees can be very wide)
@@ -4389,12 +4460,133 @@ server <- shinyServer(function(input, output, session) {
       HTML(svg)
     }, error = function(e) {
       HTML(paste0(
-        '<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 14px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>',
+        '<div style="background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 12px 16px; border-radius: 4px; text-align: center; font-size: 16px;"><i class="fa fa-info-circle" style="margin-right: 8px; color: #F59E0B;"></i>',
         'Visualization unavailable: ', htmltools::htmlEscape(e$message),
         '</div>'
       ))
     })
   })
+
+  # Download handler for NER plot
+  output$download_ner_plot <- downloadHandler(
+    filename = function() {
+      paste0("ner_entities_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".png")
+    },
+    content = function(file) {
+      tryCatch({
+        parsed_data <- spacy_parsed()
+        if (is.null(parsed_data) || nrow(parsed_data) == 0) {
+          p <- ggplot2::ggplot() +
+            ggplot2::theme_void() +
+            ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No entity data available")
+          ggplot2::ggsave(file, p, width = 10, height = 6, dpi = 150)
+        } else {
+          # Check if entity column exists
+          if (!"entity" %in% names(parsed_data)) {
+            p <- ggplot2::ggplot() +
+              ggplot2::theme_void() +
+              ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No entity column in data")
+            ggplot2::ggsave(file, p, width = 10, height = 6, dpi = 150)
+          } else {
+            # Filter for entities and clean entity types (strip _B, _I suffixes)
+            entity_data <- parsed_data %>%
+              dplyr::filter(!is.na(entity) & entity != "") %>%
+              dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity))
+
+            if (nrow(entity_data) == 0) {
+              p <- ggplot2::ggplot() +
+                ggplot2::theme_void() +
+                ggplot2::annotate("text", x = 0.5, y = 0.5, label = "No entities found")
+              ggplot2::ggsave(file, p, width = 10, height = 6, dpi = 150)
+            } else {
+              top_n <- input$ner_top_n %||% 15
+              plot_data <- entity_data %>%
+                dplyr::count(entity_clean, token) %>%
+                dplyr::arrange(dplyr::desc(n)) %>%
+                head(top_n)
+
+              p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = reorder(token, n), y = n, fill = entity_clean)) +
+                ggplot2::geom_col() +
+                ggplot2::coord_flip() +
+                ggplot2::labs(x = "Entity", y = "Frequency", fill = "Type",
+                             title = "Named Entity Frequencies") +
+                ggplot2::theme_minimal() +
+                ggplot2::theme(legend.position = "bottom")
+
+              ggplot2::ggsave(file, p, width = 10, height = 6, dpi = 150)
+            }
+          }
+        }
+      }, error = function(e) {
+        png(file, width = 800, height = 400)
+        plot.new()
+        text(0.5, 0.5, paste("Error creating plot:", e$message))
+        dev.off()
+      })
+    }
+  )
+
+  # Download handlers for Dependency Parsing
+  # Download handler for Dependency Parsing plot (PNG)
+  output$download_dep_plot <- downloadHandler(
+    filename = function() {
+      paste0("dependency_parse_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".png")
+    },
+    content = function(file) {
+      tryCatch({
+        req(spacy_parsed(), input$dep_viz_doc)
+
+        parsed_data <- spacy_parsed()
+        doc_data <- parsed_data[parsed_data$doc_id == input$dep_viz_doc, ]
+
+        if (nrow(doc_data) == 0) {
+          png(file, width = 800, height = 400)
+          plot.new()
+          text(0.5, 0.5, "No dependency data available")
+          dev.off()
+          return()
+        }
+
+        if ("sentence_id" %in% names(doc_data)) {
+          doc_data <- doc_data[doc_data$sentence_id == min(doc_data$sentence_id), ]
+        }
+
+        if (nrow(doc_data) > 20) {
+          doc_data <- doc_data[1:20, ]
+        }
+
+        text <- paste(doc_data$token, collapse = " ")
+        svg_content <- TextAnalysisR::render_displacy_dep(text, compact = TRUE)
+
+        # Create temp HTML file and capture as PNG using webshot2
+        temp_html <- tempfile(fileext = ".html")
+        full_html <- paste0(
+          "<!DOCTYPE html><html><head><style>body{background:white;padding:20px;font-family:Arial,sans-serif;}</style></head><body>",
+          "<h3 style='margin-bottom:20px;'>Dependency Parse: ", htmltools::htmlEscape(input$dep_viz_doc), "</h3>",
+          svg_content,
+          "</body></html>"
+        )
+        writeLines(full_html, temp_html)
+
+        if (requireNamespace("webshot2", quietly = TRUE)) {
+          webshot2::webshot(temp_html, file, vwidth = 1200, vheight = 400, zoom = 2)
+        } else {
+          png(file, width = 800, height = 400)
+          plot.new()
+          text(0.5, 0.5, "Install webshot2 package for PNG export")
+          dev.off()
+        }
+
+        unlink(temp_html)
+      }, error = function(e) {
+        png(file, width = 800, height = 400)
+        plot.new()
+        text(0.5, 0.5, paste("Error:", e$message))
+        dev.off()
+      })
+    }
+  )
+
 
   observeEvent(input$add_custom_entity, {
     req(input$custom_entity_text)
@@ -4407,8 +4599,8 @@ server <- shinyServer(function(input, output, session) {
 
     use_regex <- isTRUE(input$use_regex)
 
-    if (!is.null(spacyr_processed())) {
-      parsed <- spacyr_processed()
+    if (!is.null(spacy_parsed())) {
+      parsed <- spacy_parsed()
 
       search_terms_lower <- tolower(search_terms)
 
@@ -4490,7 +4682,7 @@ server <- shinyServer(function(input, output, session) {
 
         new_entity <- data.frame(
           `Variable` = construct_label,
-          `Coding` = operational_def,
+          `Token` = operational_def,
           `Matched Terms` = matched_terms_str,
           Document = doc_list,
           Frequency = total_frequency,
@@ -4511,11 +4703,11 @@ server <- shinyServer(function(input, output, session) {
 
         new_entity <- data.frame(
           `Variable` = construct_label,
-          `Coding` = operational_def,
+          `Token` = operational_def,
           `Matched Terms` = "(none)",
           Document = "Not found",
           Frequency = 0,
-          `First Sentence` = NA,
+          `First Sentence` = NA_character_,
           Notes = "Not found in documents",
           Keep = TRUE,
           check.names = FALSE,
@@ -4533,11 +4725,11 @@ server <- shinyServer(function(input, output, session) {
 
       new_entity <- data.frame(
         `Variable` = construct_label,
-        `Coding` = operational_def,
+        `Token` = operational_def,
         `Matched Terms` = "(pending)",
         Document = "Manual",
         Frequency = 0,
-        `First Sentence` = NA,
+        `First Sentence` = NA_character_,
         Notes = "Added before text processing",
         Keep = TRUE,
         check.names = FALSE,
@@ -4587,7 +4779,7 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    use_regex <- isTRUE(input$batch_use_regex)
+    use_lemmas <- isTRUE(input$batch_include_lemmas)
     all_new_entities <- list()
     found_count <- 0
     not_found_count <- 0
@@ -4613,12 +4805,12 @@ server <- shinyServer(function(input, output, session) {
 
         incProgress(1/length(lines), detail = paste("Processing:", construct_label))
 
-        if (!is.null(spacyr_processed())) {
-          parsed <- spacyr_processed()
+        if (!is.null(spacy_parsed())) {
+          parsed <- spacy_parsed()
 
           # Debug: Check columns
           if (i == 1) {
-            message("spacyr_processed columns: ", paste(names(parsed), collapse = ", "))
+            message("spacy_parsed columns: ", paste(names(parsed), collapse = ", "))
             message("Sample doc_ids: ", paste(head(unique(parsed$doc_id), 3), collapse = ", "))
           }
 
@@ -4630,8 +4822,8 @@ server <- shinyServer(function(input, output, session) {
 
           search_terms_lower <- tolower(search_terms)
 
-          if (use_regex && "lemma" %in% names(parsed)) {
-            # Include lemmas - match both token and lemma (both lowercased)
+          if (use_lemmas && "lemma" %in% names(parsed)) {
+            # Match lemmas - match both token and lemma forms (both lowercased)
             # Track which search term matched
             matching_tokens <- parsed %>%
               dplyr::mutate(
@@ -4731,12 +4923,12 @@ server <- shinyServer(function(input, output, session) {
             # Create one row per document instead of concatenating all docs
             new_entity <- data.frame(
               `Variable` = rep(construct_label, nrow(entity_summary)),
-              `Coding` = rep(operational_def, nrow(entity_summary)),
+              `Token` = rep(operational_def, nrow(entity_summary)),
               `Matched Terms` = rep(matched_terms_str, nrow(entity_summary)),
               Document = entity_summary$Document,
               Frequency = entity_summary$doc_frequency,
               `First Sentence` = entity_summary$first_sentence,
-              Notes = rep(if (use_regex) "with lemmas" else "exact match", nrow(entity_summary)),
+              Notes = rep(if (use_lemmas) "lemma matching" else "exact match", nrow(entity_summary)),
               Keep = rep(TRUE, nrow(entity_summary)),
               check.names = FALSE,
               stringsAsFactors = FALSE
@@ -4749,11 +4941,11 @@ server <- shinyServer(function(input, output, session) {
 
             new_entity <- data.frame(
               `Variable` = construct_label,
-              `Coding` = operational_def,
+              `Token` = operational_def,
               `Matched Terms` = "(none)",
               Document = "Not found",
               Frequency = 0,
-              `First Sentence` = NA,
+              `First Sentence` = NA_character_,
               Notes = "Not found in documents",
               Keep = TRUE,
               check.names = FALSE,
@@ -4766,11 +4958,11 @@ server <- shinyServer(function(input, output, session) {
 
           new_entity <- data.frame(
             `Variable` = construct_label,
-            `Coding` = operational_def,
+            `Token` = operational_def,
             `Matched Terms` = "(pending)",
             Document = "Manual",
             Frequency = 0,
-            `First Sentence` = NA,
+            `First Sentence` = NA_character_,
             Notes = "Added before text processing",
             Keep = TRUE,
             check.names = FALSE,
@@ -4816,8 +5008,8 @@ server <- shinyServer(function(input, output, session) {
     current_choices <- c("All Types" = "")
 
     # Get all entity types (NER + custom)
-    if (!is.null(spacyr_processed())) {
-      parsed <- spacyr_processed()
+    if (!is.null(spacy_parsed())) {
+      parsed <- spacy_parsed()
       if ("entity" %in% names(parsed)) {
         ner_types <- parsed %>%
           dplyr::filter(!is.na(entity), entity != "") %>%
@@ -4887,8 +5079,8 @@ server <- shinyServer(function(input, output, session) {
 
           incProgress(1/nrow(codebook), detail = paste("Processing:", construct_label))
 
-          if (!is.null(spacyr_processed())) {
-            parsed <- spacyr_processed()
+          if (!is.null(spacy_parsed())) {
+            parsed <- spacy_parsed()
 
             search_terms_lower <- tolower(search_terms)
             matching_tokens <- parsed %>%
@@ -4936,7 +5128,7 @@ server <- shinyServer(function(input, output, session) {
 
               new_entity <- data.frame(
                 `Variable` = construct_label,
-                `Coding` = operational_def,
+                `Token` = operational_def,
                 Document = doc_list,
                 Frequency = total_frequency,
                 `First Sentence` = entity_summary$first_sentence[1],
@@ -4951,7 +5143,7 @@ server <- shinyServer(function(input, output, session) {
             } else {
               new_entity <- data.frame(
                 `Variable` = construct_label,
-                `Coding` = operational_def,
+                `Token` = operational_def,
                 Document = "Not found",
                 Frequency = 0,
                 `First Sentence` = NA,
@@ -4965,7 +5157,7 @@ server <- shinyServer(function(input, output, session) {
           } else {
             new_entity <- data.frame(
               `Variable` = construct_label,
-              `Coding` = operational_def,
+              `Token` = operational_def,
               Document = "Manual",
               Frequency = 0,
               `First Sentence` = NA,
@@ -5039,13 +5231,183 @@ server <- shinyServer(function(input, output, session) {
 
   observeEvent(input$entity_table_cell_edit, {
     info <- input$entity_table_cell_edit
+    if (is.null(info)) return()
+
+    row_idx <- info$row + 1  # JavaScript is 0-indexed, R is 1-indexed
+    col_idx <- info$col       # Keep 0-based for column comparison
+    new_value <- info$value
+
+    # Only process Entity column edits (last column)
+    # Entity column: 4 (0-based) without doc_id, 5 (0-based) with doc_id
+    has_doc_id <- !is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != ""
+    entity_col <- if (has_doc_id) 5 else 4  # 0-based index
+    if (col_idx != entity_col) {
+      return()  # Ignore non-entity column edits
+    }
+
+    tryCatch({
+      parsed <- spacy_parsed()
+      if (!is.null(parsed) && "entity" %in% names(parsed)) {
+        # Rebuild table structure to match the displayed table
+
+        tokens_obj <- if (!is.null(final_tokens())) {
+          final_tokens()
+        } else if (!is.null(lemmatized_tokens())) {
+          lemmatized_tokens()
+        } else if (!is.null(processed_tokens())) {
+          processed_tokens()
+        } else if (!is.null(preprocessed_combined())) {
+          preprocessed_combined()
+        } else {
+          NULL
+        }
+
+        if (!is.null(tokens_obj)) {
+          all_doc_ids <- quanteda::docnames(tokens_obj)
+          doc_number_mapping <- data.frame(
+            doc_id = all_doc_ids,
+            doc_num = seq_along(all_doc_ids),
+            stringsAsFactors = FALSE
+          )
+
+          entity_detail <- parsed %>%
+            dplyr::mutate(
+              entity_clean = dplyr::if_else(
+                !is.na(entity) & entity != "",
+                gsub("_[BI]$", "", entity),
+                ""
+              )
+            ) %>%
+            dplyr::left_join(doc_number_mapping, by = "doc_id") %>%
+            dplyr::arrange(doc_num, sentence_id, token_id)
+
+          # Apply any entity type filters
+          if (!is.null(input$entity_type_filter) && length(input$entity_type_filter) > 0 && input$entity_type_filter[1] != "") {
+            entity_detail <- entity_detail %>%
+              dplyr::filter(entity_clean %in% input$entity_type_filter | entity_clean == "")
+          }
+
+          # Get the target row's doc_id, sentence_id, token_id
+          if (row_idx <= nrow(entity_detail)) {
+            target_row <- entity_detail[row_idx, ]
+            target_doc_id <- target_row$doc_id
+            target_sentence_id <- target_row$sentence_id
+            target_token_id <- target_row$token_id
+
+            # Update the entity in spacy_parsed for the specific token
+            parsed <- parsed %>%
+              dplyr::mutate(
+                entity = dplyr::if_else(
+                  doc_id == target_doc_id &
+                    sentence_id == target_sentence_id &
+                    token_id == target_token_id,
+                  new_value,
+                  entity
+                )
+              )
+
+            # Store the modification
+            current_mods <- entity_type_modifications()
+            mod_key <- paste0(target_doc_id, "_", target_sentence_id, "_", target_token_id)
+            current_mods[[mod_key]] <- new_value
+            entity_type_modifications(current_mods)
+
+            # Update the reactive value to trigger plot and table refresh
+            spacy_parsed(parsed)
+
+            showNotification(
+              paste0("Entity changed to '", new_value, "'"),
+              type = "message",
+              duration = 2
+            )
+          }
+        }
+      }
+    }, error = function(e) {
+      showNotification(
+        paste("Error updating entity:", e$message),
+        type = "error",
+        duration = 3
+      )
+    })
+  })
+
+  # Handle entity type dropdown changes - persist the modification and update plot data
+  observeEvent(input$entity_type_changed, {
+    info <- input$entity_type_changed
+    if (is.null(info)) return()
+
+    row_idx <- info$row + 1  # JavaScript is 0-indexed, R is 1-indexed
+    new_value <- info$value
+
+    # Store the modification for persistence
+    current_mods <- entity_type_modifications()
+    mod_key <- paste0("row_", row_idx)
+    current_mods[[mod_key]] <- new_value
+    entity_type_modifications(current_mods)
+
+    # Update spacy_parsed() to reflect the change in the plot
+    # We need to identify which token was changed and update its entity type
+    tryCatch({
+      parsed <- spacy_parsed()
+      if (!is.null(parsed) && "entity" %in% names(parsed)) {
+        # Rebuild the table data structure to find the token at the given row
+        entity_detail <- parsed %>%
+          dplyr::filter(!is.na(entity), entity != "") %>%
+          dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity)) %>%
+          dplyr::group_by(doc_id, entity_clean, token) %>%
+          dplyr::summarise(
+            Frequency = dplyr::n(),
+            .groups = "drop"
+          ) %>%
+          dplyr::rename(entity = entity_clean) %>%
+          dplyr::arrange(doc_id, entity, dplyr::desc(Frequency))
+
+        # Prepend custom entities if they exist (to match table structure)
+        if (nrow(custom_entities()) > 0) {
+          custom_df <- custom_entities() %>%
+            dplyr::mutate(doc_num = as.numeric(gsub("Doc ", "", Document))) %>%
+            dplyr::arrange(doc_num) %>%
+            dplyr::mutate(
+              doc_id = paste0("text", doc_num),
+              entity = `Variable`,
+              token = `Token`
+            ) %>%
+            dplyr::select(doc_id, entity, token, Frequency)
+
+          entity_detail <- dplyr::bind_rows(custom_df, entity_detail)
+        }
+
+        if (row_idx <= nrow(entity_detail)) {
+          target_row <- entity_detail[row_idx, ]
+          old_entity <- target_row$entity
+          target_token <- target_row$token
+
+          # Update the entity column in spacy_parsed for matching tokens
+          parsed <- parsed %>%
+            dplyr::mutate(
+              entity = dplyr::if_else(
+                token == target_token & gsub("_[BI]$", "", entity) == old_entity,
+                new_value,
+                entity
+              )
+            )
+
+          # Update the reactive value to trigger plot refresh
+          spacy_parsed(parsed)
+        }
+      }
+    }, error = function(e) {
+      # Silently handle errors - the visual update via JavaScript still works
+    })
 
     showNotification(
-      "Cell updated successfully. Note: Edits are for display only and will be included in exports.",
+      paste0("Entity type changed to ", new_value),
       type = "message",
-      duration = 3
+      duration = 2
     )
   })
+
 
   output$export_entities <- downloadHandler(
     filename = function() {
@@ -5053,7 +5415,7 @@ server <- shinyServer(function(input, output, session) {
       paste0("entities_export_", timestamp, ".xlsx")
     },
     content = function(file) {
-      parsed <- spacyr_processed()
+      parsed <- spacy_parsed()
 
       # Check if entity column exists
       if (is.null(parsed) || !"entity" %in% names(parsed)) {
@@ -5062,7 +5424,7 @@ server <- shinyServer(function(input, output, session) {
           custom_export <- custom_entities() %>%
             dplyr::select(
               `Variable`,
-              `Coding`,
+              `Token`,
               Frequency,
               Document,
               Notes,
@@ -5096,7 +5458,7 @@ server <- shinyServer(function(input, output, session) {
         custom_export <- custom_entities() %>%
           dplyr::select(
             `Variable`,
-            `Coding`,
+            `Token`,
             Frequency,
             Document,
             Notes,
@@ -5116,12 +5478,12 @@ server <- shinyServer(function(input, output, session) {
     }
   )
 
-  output$spacyr_full_table <- DT::renderDataTable({
-    req(!is.null(final_tokens()) || (!is.null(last_clicked()) && last_clicked() %in% c("lemma", "skip")))
-    req(spacyr_processed())
+  output$spacy_full_table <- DT::renderDataTable({
+    req(spacy_parsed())
 
-    parsed <- spacyr_processed()
+    parsed <- spacy_parsed()
 
+    # Try to get token object for document mapping
     tokens_obj <- if (!is.null(final_tokens())) {
       final_tokens()
     } else if (!is.null(lemmatized_tokens())) {
@@ -5134,11 +5496,16 @@ server <- shinyServer(function(input, output, session) {
       NULL
     }
 
-    req(tokens_obj)
-    all_doc_ids <- quanteda::docnames(tokens_obj)
+    # Get document IDs - from tokens if available, otherwise from spacy_parsed
+    if (!is.null(tokens_obj)) {
+      all_doc_ids <- quanteda::docnames(tokens_obj)
+    } else {
+      all_doc_ids <- unique(parsed$doc_id)
+    }
     doc_number_mapping <- data.frame(
       doc_id = all_doc_ids,
       Document = paste0("Doc ", seq_along(all_doc_ids)),
+      doc_num = seq_along(all_doc_ids),
       stringsAsFactors = FALSE
     )
 
@@ -5154,8 +5521,8 @@ server <- shinyServer(function(input, output, session) {
                                      "head_token_id", "dep_rel"))) %>%
       dplyr::left_join(doc_number_mapping, by = "doc_id")
 
-    # Add Document ID if selected
-    if (!is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
+    # Add Document ID if selected (only if tokens_obj available)
+    if (!is.null(tokens_obj) && !is.null(input$lemma_doc_id_var) && input$lemma_doc_id_var != "") {
       doc_vars <- quanteda::docvars(tokens_obj)
       if (!is.null(doc_vars) && input$lemma_doc_id_var %in% names(doc_vars)) {
         doc_id_mapping <- data.frame(
@@ -5168,9 +5535,29 @@ server <- shinyServer(function(input, output, session) {
       }
     }
 
-    # Final column ordering - any_of() handles missing columns
-    final_cols <- c("Document", "Document ID", "sentence_id", "token_id", "token",
-                    "lemma", "pos", "tag", "entity", "head_token_id", "dep_rel")
+    # Sort by document number, then sentence, then token
+    result <- result %>%
+      dplyr::arrange(doc_num, sentence_id, token_id)
+
+    # Rename columns to title case (matching entity_table pattern)
+    result <- result %>%
+      dplyr::rename(
+        dplyr::any_of(c(
+          Sentence = "sentence_id",
+          `Token ID` = "token_id",
+          Token = "token",
+          Lemma = "lemma",
+          POS = "pos",
+          Tag = "tag",
+          Entity = "entity",
+          `Head Token ID` = "head_token_id",
+          Dependency = "dep_rel"
+        ))
+      )
+
+    # Final column ordering - any_of() handles missing columns (exclude doc_num)
+    final_cols <- c("Document", "Document ID", "Sentence", "Token ID", "Token",
+                    "Lemma", "POS", "Tag", "Entity", "Head Token ID", "Dependency")
     result %>% dplyr::select(dplyr::any_of(final_cols))
   },
   rownames = FALSE,
@@ -5187,7 +5574,7 @@ server <- shinyServer(function(input, output, session) {
   colnames_cat <- reactive({
     req(mydata())
     categorical <- mydata() %>%
-      dplyr::select(dplyr::where(is.character)) %>%
+      dplyr::select(dplyr::where(~ is.character(.) || is.factor(.))) %>%
       dplyr::select(dplyr::where(~ dplyr::n_distinct(.) <= (0.2 * nrow(mydata()))))
     names(categorical)
   })
@@ -5484,436 +5871,211 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  cooccur_network_data <- reactiveVal(NULL)
+  # Co-occurrence network using v2 Plotly-based visualization
+  # Track if the co-occurrence plot has been initialized
+  cooccur_plot_initialized <- reactiveVal(FALSE)
 
+  # Set initialized flag when button is clicked
   observeEvent(input$plot_word_co_occurrence_network, {
-    params <- get_cooccur_params()
+    cooccur_plot_initialized(TRUE)
+  })
+
+  word_co_occurrence_network_results <- reactive({
+    # Only run if initialized (button was clicked at least once)
+    req(cooccur_plot_initialized())
+
+    # Depend on all relevant inputs for auto-update
+    input$doc_var_co_occurrence
+    input$co_occurence_number_global
+    input$top_node_n_co_occurrence_global
+    input$nrows_co_occurrence
+    input$width_word_co_occurrence_network_plot
+    input$height_word_co_occurrence_network_plot
+    input$node_label_size_cooccur
+    input$community_method_cooccur
+    input$node_size_cooccur
+    input$node_color_cooccur
+
     dfm_to_use <- try(dfm_final(), silent = TRUE)
     if (is.null(dfm_to_use) || inherits(dfm_to_use, "try-error")) {
       dfm_to_use <- dfm_init()
     }
     req(dfm_to_use)
 
-    show_loading_notification("Computing co-occurrence network...", id = "cooccur_network_loading")
+    doc_var_input <- as.character(input$doc_var_co_occurrence %||% "None")
+    doc_var <- if (doc_var_input == "None" || doc_var_input == "") NULL else doc_var_input
+    co_occur_n <- floor(as.numeric(input$co_occurence_number_global %||% 50))
+    top_node_n <- as.numeric(input$top_node_n_co_occurrence_global %||% 30)
+    nrows <- as.numeric(input$nrows_co_occurrence %||% 1)
+
     shinybusy::show_spinner()
+    show_loading_notification("Computing co-occurrence network...", id = "cooccur_network_loading")
 
-    withProgress(message = 'Computing co-occurrence network...', value = 0, {
-      tryCatch({
-        incProgress(0.1, detail = "Computing network...")
-
-        feature_type <- input$semantic_feature_space %||% "words"
-        ngram_range <- if (feature_type == "ngrams") as.numeric(input$semantic_ngram_range %||% "2") else 2
-
-        texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
-        texts_vec <- if (feature_type == "ngrams" && !is.null(texts_df) && "text" %in% names(texts_df)) {
-          texts_df$text
-        } else {
-          NULL
-        }
-
-        embeddings_mat <- if (feature_type == "embeddings") embeddings_cache$embeddings else NULL
-
-        # Category-specific network analysis
-        if (isTRUE(params$use_category_specific) && !is.null(params$doc_var) &&
-            params$doc_var %in% names(dfm_to_use@docvars)) {
-
-          categories <- params$selected_categories
-          results_list <- list()
-          n_cats <- length(categories)
-
-          for (i in seq_along(categories)) {
-            cat_name <- categories[i]
-            cat_params <- params$category_params[[cat_name]]
-
-            incProgress(0.1 + (0.7 * i / n_cats), detail = paste("Processing", cat_name, "..."))
-
-            # Get document indices for this category
-            doc_indices <- which(dfm_to_use@docvars[[params$doc_var]] == cat_name)
-
-            # Subset DFM by category
-            dfm_subset <- tryCatch({
-              if (length(doc_indices) > 0) {
-                quanteda::dfm_subset(dfm_to_use, dfm_to_use@docvars[[params$doc_var]] == cat_name)
-              } else {
-                NULL
-              }
-            }, error = function(e) NULL)
-
-            if (is.null(dfm_subset) || quanteda::ndoc(dfm_subset) < 2) {
-              showNotification(
-                paste("Category", cat_name, "has too few documents. Skipping."),
-                type = "warning", duration = 3
-              )
-              next
-            }
-
-            cat_result <- tryCatch({
-              TextAnalysisR::semantic_cooccurrence_network(
-                dfm_object = dfm_subset,
-                doc_var = NULL,
-                co_occur_n = cat_params$co_occur_n %||% input$co_occurence_number_global,
-                top_node_n = cat_params$top_node_n %||% input$top_node_n_co_occurrence_global,
-                node_label_size = input$node_label_size_cooccur %||% 22,
-                pattern = NULL,
-                showlegend = TRUE,
-                seed = 2025,
-                feature_type = feature_type,
-                ngram_range = ngram_range,
-                texts = if (!is.null(texts_vec)) texts_vec[doc_indices] else NULL,
-                embeddings = embeddings_mat,
-                embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
-                community_method = input$community_method_cooccur %||% "leiden"
-              )
-            }, error = function(e) {
-              message("Error processing category ", cat_name, ": ", e$message)
-              NULL
-            })
-
-            if (!is.null(cat_result)) {
-              results_list[[cat_name]] <- cat_result
-            }
-          }
-
-          incProgress(0.9, detail = "Finalizing...")
-
-          if (length(results_list) == 0) {
-            showNotification(
-              "No networks generated for any category. Try adjusting thresholds.",
-              type = "warning", duration = 5
-            )
-            cooccur_network_data(NULL)
-          } else {
-            cooccur_network_data(list(
-              mode = "category_specific",
-              categories = names(results_list),
-              results = results_list
-            ))
-            showNotification(
-              paste("Successfully computed networks for", length(results_list), "categories"),
-              type = "message", duration = 3
-            )
-          }
-
-        } else {
-          # Single network mode (existing behavior)
-          result <- TextAnalysisR::semantic_cooccurrence_network(
-            dfm_object = dfm_to_use,
-            doc_var = params$doc_var,
-            co_occur_n = params$co_occur_n %||% input$co_occurence_number_global,
-            top_node_n = params$top_node_n %||% input$top_node_n_co_occurrence_global,
-            node_label_size = input$node_label_size_cooccur %||% 22,
-            pattern = NULL,
-            showlegend = TRUE,
-            seed = 2025,
-            feature_type = feature_type,
-            ngram_range = ngram_range,
-            texts = texts_vec,
-            embeddings = embeddings_mat,
-            embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
-            community_method = input$community_method_cooccur %||% "leiden"
-          )
-
-          incProgress(0.9, detail = "Finalizing...")
-
-          if (is.null(result)) {
-            showNotification(
-              "No co-occurrence network generated. Try lowering thresholds.",
-              type = "warning", duration = 5
-            )
-            cooccur_network_data(NULL)
-          } else {
-            cooccur_network_data(list(
-              mode = "single",
-              result = result
-            ))
-            showNotification(
-              "Successfully computed co-occurrence network",
-              type = "message", duration = 3
-            )
-          }
-        }
-
-        remove_notification_by_id("cooccur_network_loading")
-        shinybusy::hide_spinner()
-
-      }, error = function(e) {
-        remove_notification_by_id("cooccur_network_loading")
-        shinybusy::hide_spinner()
-        showNotification(paste("Error:", e$message), type = "error")
-        cooccur_network_data(NULL)
-      })
+    result <- tryCatch({
+      TextAnalysisR::word_co_occurrence_network(
+        dfm_object = dfm_to_use,
+        doc_var = doc_var,
+        co_occur_n = co_occur_n,
+        top_node_n = top_node_n,
+        nrows = nrows,
+        width = input$width_word_co_occurrence_network_plot %||% 900,
+        height = input$height_word_co_occurrence_network_plot %||% 800,
+        node_label_size = input$node_label_size_cooccur %||% 22,
+        community_method = input$community_method_cooccur %||% "leiden",
+        node_size_by = input$node_size_cooccur %||% "degree",
+        node_color_by = input$node_color_cooccur %||% "community"
+      )
+    }, error = function(e) {
+      showNotification(paste("Error:", e$message), type = "error")
+      NULL
     })
 
-  output$word_co_occurrence_network_plot <- visNetwork::renderVisNetwork({
-    data <- cooccur_network_data()
-    req(data)
+    remove_notification_by_id("cooccur_network_loading")
+    shinybusy::hide_spinner()
 
-    # Handle both single and category-specific modes
-    if (!is.null(data$mode) && data$mode == "single") {
-      data$result$plot
-    } else if (!is.null(data$mode) && data$mode == "category_specific") {
-      # For category mode, show first category by default
-      if (length(data$results) > 0) {
-        data$results[[1]]$plot
-      } else {
-        NULL
-      }
-    } else {
-      # Legacy format (direct result)
-      data$plot
-    }
+    result
   })
 
   output$word_co_occurrence_network_plot_uiOutput <- renderUI({
-    data <- cooccur_network_data()
-
-    if (is.null(data)) {
+    result <- word_co_occurrence_network_results()
+    if (is.null(result)) {
       return(tags$div(
         style = "padding: 60px 40px; text-align: center;",
-        tags$div(
-          style = "max-width: 500px; margin: 0 auto;",
-          tags$p(
-            "Click 'Plot Network' to generate co-occurrence network visualization.",
-            style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-          )
+        tags$p(
+          "Click 'Plot Network' to generate co-occurrence network visualization.",
+          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B;"
         )
       ))
     }
-
-    # Handle category-specific mode with tabs
-    if (!is.null(data$mode) && data$mode == "category_specific") {
-      tabs <- lapply(names(data$results), function(cat_name) {
-        cat_data <- data$results[[cat_name]]
-        tabPanel(
-          cat_name,
-          tags$div(
-            style = "margin-top: 15px;",
-            tags$div(
-              style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
-              paste0("Network: ", cat_data$stats$nodes, " nodes, ", cat_data$stats$edges, " edges | ",
-                     "Modularity: ", ifelse(is.null(cat_data$stats$modularity) || is.na(cat_data$stats$modularity), "N/A", cat_data$stats$modularity), " | ",
-                     "Clustering: ", ifelse(is.null(cat_data$stats$global_clustering) || is.na(cat_data$stats$global_clustering), "N/A", cat_data$stats$global_clustering))
-            ),
-            visNetwork::visNetworkOutput(paste0("cooccur_net_", make.names(cat_name)),
-                                         height = paste0(input$height_word_co_occurrence_network_plot, "px"),
-                                         width = paste0(input$width_word_co_occurrence_network_plot, "px"))
-          )
-        )
-      })
-      do.call(tabsetPanel, c(list(id = "cooccur_category_tabs"), tabs))
-    } else {
-      # Single mode
-      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
-
-      tags$div(
-        tags$div(
-          style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
-          paste0("Network: ", result_data$stats$nodes, " nodes, ", result_data$stats$edges, " edges | ",
-                 "Modularity: ", ifelse(is.null(result_data$stats$modularity) || is.na(result_data$stats$modularity), "N/A", result_data$stats$modularity), " | ",
-                 "Clustering: ", ifelse(is.null(result_data$stats$global_clustering) || is.na(result_data$stats$global_clustering), "N/A", result_data$stats$global_clustering))
-        ),
-        visNetwork::visNetworkOutput("word_co_occurrence_network_plot",
-                                     height = paste0(input$height_word_co_occurrence_network_plot, "px"),
-                                     width = paste0(input$width_word_co_occurrence_network_plot, "px"))
-      )
-    }
-  })
-
-  # Dynamic observers for category-specific network plots
-  observe({
-    data <- cooccur_network_data()
-    req(!is.null(data$mode) && data$mode == "category_specific")
-
-    for (cat_name in names(data$results)) {
-      local({
-        cn <- cat_name
-        output_id <- paste0("cooccur_net_", make.names(cn))
-        output[[output_id]] <- visNetwork::renderVisNetwork({
-          data$results[[cn]]$plot
-        })
-      })
-    }
+    result$plot
   })
 
   output$word_co_occurrence_network_table_uiOutput <- renderUI({
-    data <- cooccur_network_data()
-
-    if (is.null(data)) {
+    result <- word_co_occurrence_network_results()
+    if (is.null(result)) {
       return(tags$div(
         style = "padding: 60px 40px; text-align: center;",
-        tags$div(
-          style = "max-width: 500px; margin: 0 auto;",
-          tags$p(
-            "Network centrality table will appear after generating the network.",
-            style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-          )
+        tags$p(
+          "Network centrality table will appear after generating the network.",
+          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B;"
         )
       ))
     }
-
-    # Handle category-specific mode
-    if (!is.null(data$mode) && data$mode == "category_specific") {
-      tabs <- lapply(names(data$results), function(cat_name) {
-        cat_data <- data$results[[cat_name]]
-        tabPanel(
-          cat_name,
-          DT::datatable(
-            cat_data$table,
-            rownames = FALSE,
-            extensions = 'Buttons',
-            options = list(
-              scrollX = TRUE,
-              pageLength = 25,
-              dom = 'Bfrtip',
-              buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-            )
-          ) %>%
-            DT::formatStyle(columns = 1:ncol(cat_data$table), fontSize = "16px")
-        )
-      })
-      do.call(tabsetPanel, c(list(id = "cooccur_table_tabs"), tabs))
-    } else {
-      # Single mode
-      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
-
-      DT::datatable(
-        result_data$table,
-        rownames = FALSE,
-        extensions = 'Buttons',
-        options = list(
-          scrollX = TRUE,
-          pageLength = 25,
-          dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-        )
-      ) %>%
-        DT::formatStyle(columns = 1:ncol(result_data$table), fontSize = "16px")
-    }
+    result$table
   })
 
   output$word_co_occurrence_network_summary_uiOutput <- renderUI({
-    data <- cooccur_network_data()
-
-    if (is.null(data)) {
+    result <- word_co_occurrence_network_results()
+    if (is.null(result)) {
       return(tags$div(
         style = "padding: 60px 40px; text-align: center;",
-        tags$div(
-          style = "max-width: 500px; margin: 0 auto;",
-          tags$p(
-            "Network statistics will appear after generating the network.",
-            style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-          )
+        tags$p(
+          "Network statistics will appear after generating the network.",
+          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B;"
         )
       ))
     }
+    result$summary
+  })
 
-    # Helper function to safely format values
-    format_stat <- function(x) {
-      if (is.null(x) || is.na(x) || is.nan(x)) return("N/A")
-      if (is.numeric(x)) {
-        if (x == round(x)) return(as.character(as.integer(x)))
-        return(as.character(x))
-      }
-      as.character(x)
+  # Word Correlation Network - Top N selector
+
+  output$top_n_selector_corr <- renderUI({
+    req(input$doc_var_correlation, input$doc_var_correlation != "None")
+
+    cat_levels <- unique(mydata()[[input$doc_var_correlation]])
+    cat_levels <- cat_levels[!is.na(cat_levels)]
+    n_cats <- length(cat_levels)
+
+    if (n_cats == 0) return(NULL)
+
+    sliderInput(
+      "top_n_corr",
+      "Top categories to analyze",
+      value = min(3, n_cats),
+      min = 1,
+      max = min(20, n_cats),
+      step = 1
+    )
+  })
+
+  # Word Correlation Network - Category selector
+  output$category_selector_corr <- renderUI({
+    req(input$doc_var_correlation, input$doc_var_correlation != "None")
+    req(input$top_n_corr)
+
+    cat_levels <- unique(mydata()[[input$doc_var_correlation]])
+    cat_levels <- cat_levels[!is.na(cat_levels)]
+
+    doc_counts <- sapply(cat_levels, function(level) {
+      sum(mydata()[[input$doc_var_correlation]] == level, na.rm = TRUE)
+    })
+
+    sorted_cats <- names(sort(doc_counts, decreasing = TRUE))
+    top_n <- min(input$top_n_corr, length(sorted_cats))
+    top_cats <- head(sorted_cats, top_n)
+
+    if (length(top_cats) == 0) {
+      return(tags$div(
+        style = "background-color: #FEE2E2; border: 1px solid #DC2626; color: #7F1D1D; border-radius: 4px; padding: 10px; margin: 10px 0; font-size: 16px;",
+        "No categories available for analysis."
+      ))
     }
 
-    # Handle category-specific mode
-    if (!is.null(data$mode) && data$mode == "category_specific") {
-      tabs <- lapply(names(data$results), function(cat_name) {
-        cat_data <- data$results[[cat_name]]
-        stats_df <- data.frame(
-          Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
-                     "Global Clustering", "Avg Local Clustering",
-                     "Modularity", "Assortativity", "Avg Path Length"),
-          Value = c(
-            format_stat(cat_data$stats$nodes),
-            format_stat(cat_data$stats$edges),
-            format_stat(cat_data$stats$density),
-            format_stat(cat_data$stats$diameter),
-            format_stat(cat_data$stats$global_clustering),
-            format_stat(cat_data$stats$avg_local_clustering),
-            format_stat(cat_data$stats$modularity),
-            format_stat(cat_data$stats$assortativity),
-            format_stat(cat_data$stats$avg_path_length)
-          ),
-          Description = c(
-            "Total unique words in network",
-            "Total connections between words",
-            "Proportion of possible edges present",
-            "Longest shortest path in network",
-            "Overall network clustering tendency",
-            "Average of local clustering coefficients",
-            "Quality of community structure",
-            "Tendency of similar nodes to connect",
-            "Average distance between nodes"
-          ),
-          stringsAsFactors = FALSE
-        )
-        tabPanel(
-          cat_name,
-          DT::datatable(
-            stats_df,
-            rownames = FALSE,
-            extensions = 'Buttons',
-            options = list(
-              scrollX = TRUE,
-              dom = 'Bfrtip',
-              buttons = c('copy', 'csv', 'excel')
-            )
-          ) %>%
-            DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
-        )
-      })
-      do.call(tabsetPanel, c(list(id = "cooccur_stats_tabs"), tabs))
-    } else {
-      # Single mode
-      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
+    choices <- setNames(sorted_cats, paste0(sorted_cats, " (", doc_counts[sorted_cats], " docs)"))
 
-      stats_df <- data.frame(
-        Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
-                   "Global Clustering", "Avg Local Clustering",
-                   "Modularity", "Assortativity", "Avg Path Length"),
-        Value = c(
-          format_stat(result_data$stats$nodes),
-          format_stat(result_data$stats$edges),
-          format_stat(result_data$stats$density),
-          format_stat(result_data$stats$diameter),
-          format_stat(result_data$stats$global_clustering),
-          format_stat(result_data$stats$avg_local_clustering),
-          format_stat(result_data$stats$modularity),
-          format_stat(result_data$stats$assortativity),
-          format_stat(result_data$stats$avg_path_length)
-        ),
-        Description = c(
-          "Total unique words in network",
-          "Total connections between words",
-          "Proportion of possible edges present",
-          "Longest shortest path in network",
-          "Overall network clustering tendency",
-          "Average of local clustering coefficients",
-          "Quality of community structure",
-          "Tendency of similar nodes to connect",
-          "Average distance between nodes"
-        ),
-        stringsAsFactors = FALSE
+    tags$div(
+      tags$div(
+        style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;",
+        tags$label("Selected categories (ranked by document count):", style = "font-weight: bold; font-size: 16px;"),
+        tags$div(
+          style = "font-size: 16px;",
+          actionLink("select_all_corr", "Select All", style = "margin-right: 10px; color: #337ab7;"),
+          "|",
+          actionLink("select_none_corr", "Clear All", style = "margin-left: 10px; color: #337ab7;")
+        )
+      ),
+      tags$div(
+        style = "background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 4px; padding: 10px; max-height: 300px; overflow-y: auto; font-size: 16px;",
+        checkboxGroupInput(
+          "selected_categories_corr",
+          NULL,
+          choices = choices,
+          selected = top_cats
+        )
+      ),
+      tags$div(
+        style = "margin-top: 10px; padding: 8px; background-color: #E0F2FE; border-radius: 4px; font-size: 16px;",
+        tags$strong(textOutput("corr_selection_summary", inline = TRUE))
       )
+    )
+  })
 
-      DT::datatable(
-        stats_df,
-        rownames = FALSE,
-        extensions = 'Buttons',
-        options = list(
-          scrollX = TRUE,
-          dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel')
-        )
-      ) %>%
-        DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
+  # Word Correlation Network - Selection summary
+  output$corr_selection_summary <- renderText({
+    n_selected <- length(input$selected_categories_corr %||% character(0))
+    if (n_selected == 0) {
+      "No categories selected. Please select at least one category to analyze."
+    } else if (n_selected == 1) {
+      paste("1 category selected for analysis")
+    } else {
+      paste(n_selected, "categories selected for analysis")
     }
   })
 
+  # Word Correlation Network - Select All handler
+  observeEvent(input$select_all_corr, {
+    req(input$doc_var_correlation, input$doc_var_correlation != "None")
+    cat_levels <- unique(mydata()[[input$doc_var_correlation]])
+    cat_levels <- cat_levels[!is.na(cat_levels)]
+    doc_counts <- sapply(cat_levels, function(level) {
+      sum(mydata()[[input$doc_var_correlation]] == level, na.rm = TRUE)
+    })
+    sorted_cats <- names(sort(doc_counts, decreasing = TRUE))
+    updateCheckboxGroupInput(session, "selected_categories_corr", selected = sorted_cats)
   })
 
+  # Word Correlation Network - Clear All handler
   observeEvent(input$select_none_corr, {
     updateCheckboxGroupInput(session, "selected_categories_corr", selected = character(0))
   })
@@ -6014,10 +6176,32 @@ server <- shinyServer(function(input, output, session) {
                ignoreInit = TRUE
   )
 
-  corr_network_data <- reactiveVal(NULL)
+  # Correlation network using v2 Plotly-based visualization
+  # Track if the correlation plot has been initialized
+  corr_plot_initialized <- reactiveVal(FALSE)
 
+  # Set initialized flag when button is clicked
   observeEvent(input$plot_word_correlation_network, {
-    params <- get_corr_params()
+    corr_plot_initialized(TRUE)
+  })
+
+  word_correlation_network_results <- reactive({
+    # Only run if initialized (button was clicked at least once)
+    req(corr_plot_initialized())
+
+    # Depend on all relevant inputs for auto-update
+    input$doc_var_correlation
+    input$common_term_n_global
+    input$corr_n_global
+    input$top_node_n_correlation_global
+    input$nrows_correlation
+    input$width_word_correlation_network_plot
+    input$height_word_correlation_network_plot
+    input$node_label_size_corr
+    input$community_method_corr
+    input$node_size_corr
+    input$node_color_corr
+
     dfm_to_use <- try(dfm_outcome(), silent = TRUE)
     if (is.null(dfm_to_use) || inherits(dfm_to_use, "try-error")) {
       dfm_to_use <- try(dfm_final(), silent = TRUE)
@@ -6027,425 +6211,82 @@ server <- shinyServer(function(input, output, session) {
     }
     req(dfm_to_use)
 
-    show_loading_notification("Computing correlation network...", id = "corr_network_loading")
+    doc_var_input <- as.character(input$doc_var_correlation %||% "None")
+    doc_var <- if (doc_var_input == "None" || doc_var_input == "") NULL else doc_var_input
+    common_term_n <- as.numeric(input$common_term_n_global %||% 130)
+    corr_n <- as.numeric(input$corr_n_global %||% 0.4)
+    top_node_n <- as.numeric(input$top_node_n_correlation_global %||% 40)
+    nrows <- as.numeric(input$nrows_correlation %||% 1)
+
     shinybusy::show_spinner()
+    show_loading_notification("Computing correlation network...", id = "corr_network_loading")
 
-    withProgress(message = 'Computing correlation network...', value = 0, {
-      tryCatch({
-        incProgress(0.1, detail = "Computing network...")
-
-        feature_type <- input$semantic_feature_space %||% "words"
-        ngram_range <- if (feature_type == "ngrams") as.numeric(input$semantic_ngram_range %||% "2") else 2
-
-        texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
-        texts_vec <- if (feature_type == "ngrams" && !is.null(texts_df) && "text" %in% names(texts_df)) {
-          texts_df$text
-        } else {
-          NULL
-        }
-
-        embeddings_mat <- if (feature_type == "embeddings") embeddings_cache$embeddings else NULL
-
-        # Category-specific network analysis
-        if (isTRUE(params$use_category_specific) && !is.null(params$doc_var) &&
-            params$doc_var %in% names(dfm_to_use@docvars)) {
-
-          categories <- names(params$category_params)
-          results_list <- list()
-          n_cats <- length(categories)
-
-          for (i in seq_along(categories)) {
-            cat_name <- categories[i]
-            cat_params <- params$category_params[[cat_name]]
-
-            incProgress(0.1 + (0.7 * i / n_cats), detail = paste("Processing", cat_name, "..."))
-
-            # Get document indices for this category
-            doc_indices <- which(dfm_to_use@docvars[[params$doc_var]] == cat_name)
-
-            # Subset DFM by category
-            dfm_subset <- tryCatch({
-              if (length(doc_indices) > 0) {
-                quanteda::dfm_subset(dfm_to_use, dfm_to_use@docvars[[params$doc_var]] == cat_name)
-              } else {
-                NULL
-              }
-            }, error = function(e) NULL)
-
-            if (is.null(dfm_subset) || quanteda::ndoc(dfm_subset) < 2) {
-              showNotification(
-                paste("Category", cat_name, "has too few documents. Skipping."),
-                type = "warning", duration = 3
-              )
-              next
-            }
-
-            cat_result <- tryCatch({
-              TextAnalysisR::semantic_correlation_network(
-                dfm_object = dfm_subset,
-                doc_var = NULL,
-                common_term_n = cat_params$common_term_n %||% input$common_term_n_global,
-                corr_n = cat_params$corr_n %||% input$corr_n_global,
-                top_node_n = cat_params$top_node_n %||% input$top_node_n_correlation_global,
-                node_label_size = input$node_label_size_corr %||% 22,
-                pattern = NULL,
-                showlegend = TRUE,
-                seed = 2025,
-                feature_type = feature_type,
-                ngram_range = ngram_range,
-                texts = if (!is.null(texts_vec)) texts_vec[doc_indices] else NULL,
-                embeddings = embeddings_mat,
-                embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
-                community_method = input$community_method_corr %||% "leiden"
-              )
-            }, error = function(e) {
-              message("Error processing category ", cat_name, ": ", e$message)
-              NULL
-            })
-
-            if (!is.null(cat_result)) {
-              results_list[[cat_name]] <- cat_result
-            }
-          }
-
-          incProgress(0.9, detail = "Finalizing...")
-
-          if (length(results_list) == 0) {
-            showNotification(
-              "No networks generated for any category. Try adjusting thresholds.",
-              type = "warning", duration = 5
-            )
-            corr_network_data(NULL)
-          } else {
-            corr_network_data(list(
-              mode = "category_specific",
-              categories = names(results_list),
-              results = results_list
-            ))
-            showNotification(
-              paste("Successfully computed networks for", length(results_list), "categories"),
-              type = "message", duration = 3
-            )
-          }
-
-        } else {
-          # Single network mode (existing behavior)
-          result <- TextAnalysisR::semantic_correlation_network(
-            dfm_object = dfm_to_use,
-            doc_var = params$doc_var,
-            common_term_n = params$common_term_n %||% input$common_term_n_global,
-            corr_n = params$corr_n %||% input$corr_n_global,
-            top_node_n = params$top_node_n %||% input$top_node_n_correlation_global,
-            node_label_size = input$node_label_size_corr %||% 22,
-            pattern = NULL,
-            showlegend = TRUE,
-            seed = 2025,
-            feature_type = feature_type,
-            ngram_range = ngram_range,
-            texts = texts_vec,
-            embeddings = embeddings_mat,
-            embedding_sim_threshold = input$embedding_sim_threshold %||% 0.5,
-            community_method = input$community_method_corr %||% "leiden"
-          )
-
-          incProgress(0.9, detail = "Finalizing...")
-
-          if (is.null(result)) {
-            showNotification(
-              "No correlation network generated. Try lowering thresholds.",
-              type = "warning", duration = 5
-            )
-            corr_network_data(NULL)
-          } else {
-            corr_network_data(list(
-              mode = "single",
-              result = result
-            ))
-            showNotification(
-              "Successfully computed correlation network",
-              type = "message", duration = 3
-            )
-          }
-        }
-
-        remove_notification_by_id("corr_network_loading")
-        shinybusy::hide_spinner()
-
-      }, error = function(e) {
-        remove_notification_by_id("corr_network_loading")
-        shinybusy::hide_spinner()
-        showNotification(paste("Error:", e$message), type = "error")
-        corr_network_data(NULL)
-      })
+    result <- tryCatch({
+      TextAnalysisR::word_correlation_network(
+        dfm_object = dfm_to_use,
+        doc_var = doc_var,
+        common_term_n = common_term_n,
+        corr_n = corr_n,
+        top_node_n = top_node_n,
+        nrows = nrows,
+        width = input$width_word_correlation_network_plot %||% 900,
+        height = input$height_word_correlation_network_plot %||% 1000,
+        node_label_size = input$node_label_size_corr %||% 22,
+        community_method = input$community_method_corr %||% "leiden",
+        node_size_by = input$node_size_corr %||% "degree",
+        node_color_by = input$node_color_corr %||% "community"
+      )
+    }, error = function(e) {
+      showNotification(paste("Error:", e$message), type = "error")
+      NULL
     })
-  })
 
-  output$word_correlation_network_plot <- visNetwork::renderVisNetwork({
-    data <- corr_network_data()
-    req(data)
+    remove_notification_by_id("corr_network_loading")
+    shinybusy::hide_spinner()
 
-    # Handle both single and category-specific modes
-    if (!is.null(data$mode) && data$mode == "single") {
-      data$result$plot
-    } else if (!is.null(data$mode) && data$mode == "category_specific") {
-      # For category mode, show first category by default
-      if (length(data$results) > 0) {
-        data$results[[1]]$plot
-      } else {
-        NULL
-      }
-    } else {
-      # Legacy format (direct result)
-      data$plot
-    }
+    result
   })
 
   output$word_correlation_network_plot_uiOutput <- renderUI({
-    data <- corr_network_data()
-
-    if (is.null(data)) {
+    result <- word_correlation_network_results()
+    if (is.null(result)) {
       return(tags$div(
         style = "padding: 60px 40px; text-align: center;",
-        tags$div(
-          style = "max-width: 500px; margin: 0 auto;",
-          tags$p(
-            "Click 'Plot Network' to generate correlation network visualization.",
-            style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-          )
+        tags$p(
+          "Click 'Plot Network' to generate correlation network visualization.",
+          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B;"
         )
       ))
     }
-
-    # Handle category-specific mode with tabs
-    if (!is.null(data$mode) && data$mode == "category_specific") {
-      tabs <- lapply(names(data$results), function(cat_name) {
-        cat_data <- data$results[[cat_name]]
-        tabPanel(
-          cat_name,
-          tags$div(
-            style = "margin-top: 15px;",
-            tags$div(
-              style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
-              paste0("Network: ", cat_data$stats$nodes, " nodes, ", cat_data$stats$edges, " edges | ",
-                     "Modularity: ", ifelse(is.null(cat_data$stats$modularity) || is.na(cat_data$stats$modularity), "N/A", cat_data$stats$modularity), " | ",
-                     "Clustering: ", ifelse(is.null(cat_data$stats$global_clustering) || is.na(cat_data$stats$global_clustering), "N/A", cat_data$stats$global_clustering))
-            ),
-            visNetwork::visNetworkOutput(paste0("corr_net_", make.names(cat_name)),
-                                         height = paste0(input$height_word_correlation_network_plot, "px"),
-                                         width = paste0(input$width_word_correlation_network_plot, "px"))
-          )
-        )
-      })
-      do.call(tabsetPanel, c(list(id = "corr_category_tabs"), tabs))
-    } else {
-      # Single mode
-      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
-
-      tags$div(
-        tags$div(
-          style = "background-color: #E0F2FE; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 16px;",
-          paste0("Network: ", result_data$stats$nodes, " nodes, ", result_data$stats$edges, " edges | ",
-                 "Modularity: ", ifelse(is.null(result_data$stats$modularity) || is.na(result_data$stats$modularity), "N/A", result_data$stats$modularity), " | ",
-                 "Clustering: ", ifelse(is.null(result_data$stats$global_clustering) || is.na(result_data$stats$global_clustering), "N/A", result_data$stats$global_clustering))
-        ),
-        visNetwork::visNetworkOutput("word_correlation_network_plot",
-                                     height = paste0(input$height_word_correlation_network_plot, "px"),
-                                     width = paste0(input$width_word_correlation_network_plot, "px"))
-      )
-    }
-  })
-
-  # Dynamic observers for category-specific correlation network plots
-  observe({
-    data <- corr_network_data()
-    req(!is.null(data$mode) && data$mode == "category_specific")
-
-    for (cat_name in names(data$results)) {
-      local({
-        cn <- cat_name
-        output_id <- paste0("corr_net_", make.names(cn))
-        output[[output_id]] <- visNetwork::renderVisNetwork({
-          data$results[[cn]]$plot
-        })
-      })
-    }
+    result$plot
   })
 
   output$word_correlation_network_table_uiOutput <- renderUI({
-    data <- corr_network_data()
-
-    if (is.null(data)) {
+    result <- word_correlation_network_results()
+    if (is.null(result)) {
       return(tags$div(
         style = "padding: 60px 40px; text-align: center;",
-        tags$div(
-          style = "max-width: 500px; margin: 0 auto;",
-          tags$p(
-            "Network centrality table will appear after generating the network.",
-            style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-          )
+        tags$p(
+          "Network centrality table will appear after generating the network.",
+          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B;"
         )
       ))
     }
-
-    # Handle category-specific mode
-    if (!is.null(data$mode) && data$mode == "category_specific") {
-      tabs <- lapply(names(data$results), function(cat_name) {
-        cat_data <- data$results[[cat_name]]
-        tabPanel(
-          cat_name,
-          DT::datatable(
-            cat_data$table,
-            rownames = FALSE,
-            extensions = 'Buttons',
-            options = list(
-              scrollX = TRUE,
-              pageLength = 25,
-              dom = 'Bfrtip',
-              buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-            )
-          ) %>%
-            DT::formatStyle(columns = 1:ncol(cat_data$table), fontSize = "16px")
-        )
-      })
-      do.call(tabsetPanel, c(list(id = "corr_table_tabs"), tabs))
-    } else {
-      # Single mode
-      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
-
-      DT::datatable(
-        result_data$table,
-        rownames = FALSE,
-        extensions = 'Buttons',
-        options = list(
-          scrollX = TRUE,
-          pageLength = 25,
-          dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel', 'pdf', 'print')
-        )
-      ) %>%
-        DT::formatStyle(columns = 1:ncol(result_data$table), fontSize = "16px")
-    }
+    result$table
   })
 
   output$word_correlation_network_summary_uiOutput <- renderUI({
-    data <- corr_network_data()
-
-    if (is.null(data)) {
+    result <- word_correlation_network_results()
+    if (is.null(result)) {
       return(tags$div(
         style = "padding: 60px 40px; text-align: center;",
-        tags$div(
-          style = "max-width: 500px; margin: 0 auto;",
-          tags$p(
-            "Network statistics will appear after generating the network.",
-            style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-          )
+        tags$p(
+          "Network statistics will appear after generating the network.",
+          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B;"
         )
       ))
     }
-
-    # Helper function to safely format values
-    format_stat <- function(x) {
-      if (is.null(x) || is.na(x) || is.nan(x)) return("N/A")
-      if (is.numeric(x)) {
-        if (x == round(x)) return(as.character(as.integer(x)))
-        return(as.character(x))
-      }
-      as.character(x)
-    }
-
-    # Handle category-specific mode
-    if (!is.null(data$mode) && data$mode == "category_specific") {
-      tabs <- lapply(names(data$results), function(cat_name) {
-        cat_data <- data$results[[cat_name]]
-        stats_df <- data.frame(
-          Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
-                     "Global Clustering", "Avg Local Clustering",
-                     "Modularity", "Assortativity", "Avg Path Length"),
-          Value = c(
-            format_stat(cat_data$stats$nodes),
-            format_stat(cat_data$stats$edges),
-            format_stat(cat_data$stats$density),
-            format_stat(cat_data$stats$diameter),
-            format_stat(cat_data$stats$global_clustering),
-            format_stat(cat_data$stats$avg_local_clustering),
-            format_stat(cat_data$stats$modularity),
-            format_stat(cat_data$stats$assortativity),
-            format_stat(cat_data$stats$avg_path_length)
-          ),
-          Description = c(
-            "Total unique words in network",
-            "Total connections between words",
-            "Proportion of possible edges present",
-            "Longest shortest path in network",
-            "Overall network clustering tendency",
-            "Average of local clustering coefficients",
-            "Quality of community structure",
-            "Tendency of similar nodes to connect",
-            "Average distance between nodes"
-          ),
-          stringsAsFactors = FALSE
-        )
-        tabPanel(
-          cat_name,
-          DT::datatable(
-            stats_df,
-            rownames = FALSE,
-            extensions = 'Buttons',
-            options = list(
-              scrollX = TRUE,
-              dom = 'Bfrtip',
-              buttons = c('copy', 'csv', 'excel')
-            )
-          ) %>%
-            DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
-        )
-      })
-      do.call(tabsetPanel, c(list(id = "corr_stats_tabs"), tabs))
-    } else {
-      # Single mode
-      result_data <- if (!is.null(data$mode) && data$mode == "single") data$result else data
-
-      stats_df <- data.frame(
-        Metric = c("Nodes", "Edges", "Edge Density", "Diameter",
-                   "Global Clustering", "Avg Local Clustering",
-                   "Modularity", "Assortativity", "Avg Path Length"),
-        Value = c(
-          format_stat(result_data$stats$nodes),
-          format_stat(result_data$stats$edges),
-          format_stat(result_data$stats$density),
-          format_stat(result_data$stats$diameter),
-          format_stat(result_data$stats$global_clustering),
-          format_stat(result_data$stats$avg_local_clustering),
-          format_stat(result_data$stats$modularity),
-          format_stat(result_data$stats$assortativity),
-          format_stat(result_data$stats$avg_path_length)
-        ),
-        Description = c(
-          "Total unique words in network",
-          "Total connections between words",
-          "Proportion of possible edges present",
-          "Longest shortest path in network",
-          "Overall network clustering tendency",
-          "Average of local clustering coefficients",
-          "Quality of community structure",
-          "Tendency of similar nodes to connect",
-          "Average distance between nodes"
-        ),
-        stringsAsFactors = FALSE
-      )
-
-      DT::datatable(
-        stats_df,
-        rownames = FALSE,
-        extensions = 'Buttons',
-        options = list(
-          scrollX = TRUE,
-          dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel')
-        )
-      ) %>%
-        DT::formatStyle(columns = 1:ncol(stats_df), fontSize = "16px")
-    }
+    result$summary
   })
 
   colnames_con <- reactive({
@@ -7102,6 +6943,230 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
+  # Neural sentiment analysis handler
+  observeEvent(input$run_neural_sentiment, {
+    show_loading_notification("Running neural sentiment analysis...", id = "neural_sentiment_loading")
+    
+    tryCatch({
+      # Check Python availability
+      if (!TextAnalysisR::check_feature("python")) {
+        remove_notification_by_id("neural_sentiment_loading")
+        show_error_notification("Neural sentiment requires Python. Please run TextAnalysisR::setup_python_env()")
+        return()
+      }
+      
+      texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
+      
+      if (is.null(texts_df) || !"text" %in% names(texts_df)) {
+        remove_notification_by_id("neural_sentiment_loading")
+        show_error_notification("No text data available. Please unite text columns first.")
+        return()
+      }
+      
+      texts_vec <- texts_df$text
+      doc_names <- if ("doc_id" %in% names(texts_df)) texts_df$doc_id else paste0("doc", seq_len(nrow(texts_df)))
+      
+      model_name <- input$neural_sentiment_model %||% "distilbert-base-uncased-finetuned-sst-2-english"
+      use_gpu <- FALSE  # GPU disabled for stability - CPU inference is sufficient for most use cases
+      
+      # Run neural sentiment analysis
+      sentiment_analysis_results <- TextAnalysisR::sentiment_embedding_analysis(
+        texts = texts_vec,
+        model_name = model_name,
+        doc_names = doc_names,
+        use_gpu = use_gpu
+      )
+      
+      if (is.null(sentiment_analysis_results)) {
+        remove_notification_by_id("neural_sentiment_loading")
+        show_error_notification("Neural sentiment analysis returned no results.")
+        return()
+      }
+      
+      # Store results
+      sentiment_results$analyzed <- TRUE
+      sentiment_results$data <- sentiment_analysis_results$document_sentiment
+      sentiment_results$summary <- sentiment_analysis_results$summary_stats
+      sentiment_results$method <- "neural"
+      sentiment_results$model <- model_name
+      
+      # Update slider for document view
+      docs_analyzed <- nrow(sentiment_analysis_results$document_sentiment)
+      updateSliderInput(session, "sentiment_top_docs",
+        max = docs_analyzed,
+        value = min(10, docs_analyzed),
+        label = paste0("Analyzed documents to show (", docs_analyzed, " available)")
+      )
+      
+      remove_notification_by_id("neural_sentiment_loading")
+      show_completion_notification(paste("Neural sentiment analysis complete using", 
+                                         gsub(".*/", "", model_name), "model"))
+      
+    }, error = function(e) {
+      remove_notification_by_id("neural_sentiment_loading")
+      show_error_notification(paste("Neural sentiment error:", e$message))
+    })
+  })
+
+  # LLM sentiment model selector based on provider
+  output$llm_sentiment_model_ui <- renderUI({
+    provider <- input$llm_sentiment_provider %||% "ollama"
+
+    if (provider == "ollama") {
+      # Check if Ollama is available and get models
+      ollama_available <- tryCatch({
+        TextAnalysisR::check_ollama()
+      }, error = function(e) FALSE)
+
+      if (ollama_available) {
+        models <- tryCatch({
+          TextAnalysisR::list_ollama_models()
+        }, error = function(e) c("llama3.2", "mistral", "gemma2"))
+
+        selectInput(
+          "llm_sentiment_model",
+          "Ollama Model",
+          choices = models,
+          selected = if ("llama3.2" %in% models) "llama3.2" else models[1]
+        )
+      } else {
+        div(
+          class = "alert alert-warning",
+          style = "padding: 8px; margin-bottom: 10px;",
+          icon("exclamation-triangle"),
+          " Ollama not running. Start Ollama or select another provider."
+        )
+      }
+    } else if (provider == "openai") {
+      selectInput(
+        "llm_sentiment_model",
+        "OpenAI Model",
+        choices = c(
+          "GPT-4o Mini (Fast)" = "gpt-4o-mini",
+          "GPT-4o (Accurate)" = "gpt-4o",
+          "GPT-3.5 Turbo" = "gpt-3.5-turbo"
+        ),
+        selected = "gpt-4o-mini"
+      )
+    } else {
+      selectInput(
+        "llm_sentiment_model",
+        "Gemini Model",
+        choices = c(
+          "Gemini 2.0 Flash" = "gemini-2.0-flash-exp",
+          "Gemini 1.5 Flash" = "gemini-1.5-flash",
+          "Gemini 1.5 Pro" = "gemini-1.5-pro"
+        ),
+        selected = "gemini-2.0-flash-exp"
+      )
+    }
+  })
+
+  # LLM sentiment analysis handler
+  observeEvent(input$run_llm_sentiment, {
+    show_loading_notification("Running LLM sentiment analysis...", id = "llm_sentiment_loading")
+
+    tryCatch({
+      provider <- input$llm_sentiment_provider %||% "ollama"
+
+      # Check provider availability
+      if (provider == "ollama") {
+        if (!TextAnalysisR::check_ollama()) {
+          remove_notification_by_id("llm_sentiment_loading")
+          show_error_notification("Ollama is not running. Please start Ollama first.")
+          return()
+        }
+      } else if (provider == "openai") {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+        if (api_key == "") {
+          remove_notification_by_id("llm_sentiment_loading")
+          show_error_notification("OpenAI API key not found. Set OPENAI_API_KEY environment variable.")
+          return()
+        }
+      } else if (provider == "gemini") {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
+        if (api_key == "") api_key <- Sys.getenv("GOOGLE_API_KEY")
+        if (api_key == "") {
+          remove_notification_by_id("llm_sentiment_loading")
+          show_error_notification("Gemini API key not found. Set GEMINI_API_KEY environment variable.")
+          return()
+        }
+      }
+
+      texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
+
+      if (is.null(texts_df) || !"text" %in% names(texts_df)) {
+        remove_notification_by_id("llm_sentiment_loading")
+        show_error_notification("No text data available. Please unite text columns first.")
+        return()
+      }
+
+      texts_vec <- texts_df$text
+      doc_names <- if ("doc_id" %in% names(texts_df)) texts_df$doc_id else paste0("doc", seq_len(nrow(texts_df)))
+
+      model_name <- input$llm_sentiment_model
+      batch_size <- input$llm_sentiment_batch_size %||% 5
+      include_explanation <- input$llm_sentiment_explanation %||% TRUE
+
+      # Run LLM sentiment analysis
+      llm_sentiment_result <- TextAnalysisR::analyze_sentiment_llm(
+        texts = texts_vec,
+        doc_names = doc_names,
+        provider = provider,
+        model = model_name,
+        batch_size = batch_size,
+        include_explanation = include_explanation,
+        verbose = FALSE
+      )
+
+      if (is.null(llm_sentiment_result) || nrow(llm_sentiment_result) == 0) {
+        remove_notification_by_id("llm_sentiment_loading")
+        show_error_notification("LLM sentiment analysis returned no results.")
+        return()
+      }
+
+      # Standardize column names to match other sentiment methods
+      if (!"sentiment_score" %in% names(llm_sentiment_result) && "score" %in% names(llm_sentiment_result)) {
+        llm_sentiment_result$sentiment_score <- llm_sentiment_result$score
+      }
+      if (!"sentiment_label" %in% names(llm_sentiment_result) && "sentiment" %in% names(llm_sentiment_result)) {
+        llm_sentiment_result$sentiment_label <- llm_sentiment_result$sentiment
+      }
+
+      # Store results
+      sentiment_results$analyzed <- TRUE
+      sentiment_results$data <- llm_sentiment_result
+      sentiment_results$summary <- list(
+        mean_score = mean(llm_sentiment_result$sentiment_score, na.rm = TRUE),
+        n_positive = sum(llm_sentiment_result$sentiment_label == "positive", na.rm = TRUE),
+        n_negative = sum(llm_sentiment_result$sentiment_label == "negative", na.rm = TRUE),
+        n_neutral = sum(llm_sentiment_result$sentiment_label == "neutral", na.rm = TRUE)
+      )
+      sentiment_results$method <- "llm"
+      sentiment_results$model <- paste(provider, model_name, sep = "/")
+
+      # Store explanations if available
+      if ("explanation" %in% names(llm_sentiment_result)) {
+        sentiment_results$explanations <- llm_sentiment_result$explanation
+      }
+
+      # Update slider for document view
+      docs_analyzed <- nrow(llm_sentiment_result)
+      updateSliderInput(session, "sentiment_top_docs",
+        max = docs_analyzed,
+        value = min(10, docs_analyzed),
+        label = paste0("Analyzed documents to show (", docs_analyzed, " available)")
+      )
+
+      remove_notification_by_id("llm_sentiment_loading")
+      show_completion_notification(paste("LLM sentiment analysis complete using", provider, "/", model_name))
+
+    }, error = function(e) {
+      remove_notification_by_id("llm_sentiment_loading")
+      show_error_notification(paste("LLM sentiment error:", e$message))
+    })
+  })
+
   output$sentiment_distribution_plot <- plotly::renderPlotly({
     if (!sentiment_results$analyzed) {
       return(plot_error("Click 'Analyze Sentiment' to generate results"))
@@ -7508,8 +7573,8 @@ server <- shinyServer(function(input, output, session) {
   output$emotion_ready_indicator <- renderUI({
     if (sentiment_results$analyzed && !is.null(sentiment_results$emotion_scores)) {
       tags$div(
-        style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
         tags$strong("Ready:"), "Emotion analysis data is available."
       )
     } else {
@@ -7520,12 +7585,12 @@ server <- shinyServer(function(input, output, session) {
   output$emotion_warning_message <- renderUI({
     if (!sentiment_results$analyzed || is.null(sentiment_results$emotion_scores)) {
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; padding: 10px; margin-bottom: 15px; border-radius: 4px;",
-        tags$i(class = "fa fa-exclamation-triangle", style = "color: #F59E0B; margin-right: 5px;"),
-        tags$strong("Important:", style = "color: #92400E;"),
-        tags$span(" To see emotion analysis, you must:", style = "color: #92400E;"),
+        class = "status-main-warning",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+        tags$strong("Important:"),
+        tags$span(" To see emotion analysis, you must:"),
         tags$ol(
-          style = "margin-top: 8px; margin-bottom: 0; padding-left: 20px; color: #92400E;",
+          style = "margin-top: 8px; margin-bottom: 0; padding-left: 20px;",
           tags$li("Go to 'Overall Sentiment' tab"),
           tags$li("Select 'NRC' lexicon"),
           tags$li("Click 'Analyze Sentiment'")
@@ -7589,6 +7654,10 @@ server <- shinyServer(function(input, output, session) {
 
   observeEvent(input$showPOSInfo, {
     show_guide_modal("pos_guide", "Part-of-Speech (POS) Tags Guide")
+  })
+
+  observeEvent(input$showDepInfo, {
+    show_guide_modal("dep_guide", "Dependency Parsing Guide")
   })
 
   observeEvent(input$showNERInfo, {
@@ -8083,6 +8152,328 @@ server <- shinyServer(function(input, output, session) {
     ) %>%
       formatRound(columns = numeric_cols, digits = 3)
   })
+
+  # ============================================================================
+  # LOG ODDS RATIO ANALYSIS
+  # ============================================================================
+
+  log_odds_results <- reactiveValues(
+    analyzed = FALSE,
+    data = NULL
+  )
+
+  # Reactive output for conditional panel
+  output$log_odds_ready <- reactive({
+    log_odds_results$analyzed
+  })
+  outputOptions(output, "log_odds_ready", suspendWhenHidden = FALSE)
+
+  # Update group variable choices
+  observe({
+    req(mydata())
+    char_vars <- names(mydata())[sapply(mydata(), function(x) {
+      is.character(x) || is.factor(x)
+    })]
+    updateSelectizeInput(session, "log_odds_group_var",
+                         choices = c("Select variable" = "", char_vars),
+                         selected = "")
+  })
+
+  # Update reference category choices based on selected group variable
+  observe({
+    req(input$log_odds_group_var)
+    req(input$log_odds_group_var != "")
+    req(mydata())
+
+    if (input$log_odds_group_var %in% names(mydata())) {
+      levels <- unique(mydata()[[input$log_odds_group_var]])
+      levels <- levels[!is.na(levels)]
+      updateSelectizeInput(session, "log_odds_reference",
+                           choices = c("First category" = "", as.character(levels)),
+                           selected = "")
+    }
+  })
+
+  observeEvent(input$run_log_odds, {
+    # Check for DFM
+    dfm_to_use <- NULL
+
+    tryCatch({
+      dfm_to_use <- dfm_final()
+    }, error = function(e) {
+      tryCatch({
+        dfm_to_use <<- dfm_init()
+      }, error = function(e2) {
+        dfm_to_use <<- NULL
+      })
+    })
+
+    if (is.null(dfm_to_use)) {
+      show_error_notification("Please create a DFM in the Preprocess tab first.")
+      return(NULL)
+    }
+
+    # Check for group variable
+    if (is.null(input$log_odds_group_var) || input$log_odds_group_var == "") {
+      show_error_notification("Please select a grouping variable.")
+      return(NULL)
+    }
+
+    show_loading_notification("Calculating log odds ratios...", id = "log_odds_loading")
+
+    tryCatch({
+      # Ensure the group variable is in DFM docvars
+      if (!input$log_odds_group_var %in% names(quanteda::docvars(dfm_to_use))) {
+        # Try to add it from mydata
+        if (input$log_odds_group_var %in% names(mydata())) {
+          quanteda::docvars(dfm_to_use, input$log_odds_group_var) <- mydata()[[input$log_odds_group_var]]
+        } else {
+          stop("Grouping variable not found in document metadata")
+        }
+      }
+
+      reference_level <- if (input$log_odds_reference == "") NULL else input$log_odds_reference
+
+      result <- TextAnalysisR::calculate_log_odds_ratio(
+        dfm_object = dfm_to_use,
+        group_var = input$log_odds_group_var,
+        comparison_mode = input$log_odds_comparison_mode,
+        reference_level = reference_level,
+        top_n = input$log_odds_top_n,
+        min_count = input$log_odds_min_count
+      )
+
+      log_odds_results$analyzed <- TRUE
+      log_odds_results$data <- result
+
+      remove_notification_by_id("log_odds_loading")
+      show_completion_notification("Log odds ratio analysis completed!")
+
+    }, error = function(e) {
+      remove_notification_by_id("log_odds_loading")
+      show_error_notification(paste0("Error calculating log odds: ", e$message))
+    })
+  })
+
+  output$log_odds_plot <- plotly::renderPlotly({
+    req(log_odds_results$analyzed)
+    req(log_odds_results$data)
+    req(nrow(log_odds_results$data) > 0)
+
+    tryCatch({
+      TextAnalysisR::plot_log_odds_ratio(
+        log_odds_data = log_odds_results$data,
+        top_n = input$log_odds_top_n %||% 10
+      )
+    }, error = function(e) {
+      create_error_plot(paste("Error creating plot:", e$message))
+    })
+  })
+
+  output$log_odds_plot_uiOutput <- renderUI({
+    if (log_odds_results$analyzed && !is.null(log_odds_results$data) && nrow(log_odds_results$data) > 0) {
+      plotly::plotlyOutput("log_odds_plot", height = "600px", width = "100%")
+    } else {
+      div(
+        style = "padding: 40px; text-align: center;",
+        tags$i(class = "fa fa-info-circle", style = "font-size: 36px; color: #CBD5E1;"),
+        tags$p("No log odds data available", style = "color: #64748B; margin-top: 10px;")
+      )
+    }
+  })
+
+  output$log_odds_table <- DT::renderDataTable({
+    req(log_odds_results$analyzed)
+    req(log_odds_results$data)
+
+    table_data <- log_odds_results$data %>%
+      dplyr::select(term, category1, category2, count1, count2, log_odds_ratio) %>%
+      dplyr::mutate(
+        log_odds_ratio = round(log_odds_ratio, 3),
+        direction = ifelse(log_odds_ratio > 0,
+                          paste0("\u2191 ", category1),
+                          paste0("\u2193 ", category2))
+      ) %>%
+      dplyr::rename(
+        Term = term,
+        `Category 1` = category1,
+        `Category 2` = category2,
+        `Count 1` = count1,
+        `Count 2` = count2,
+        `Log Odds` = log_odds_ratio,
+        Direction = direction
+      )
+
+    datatable(
+      table_data,
+      options = list(
+        pageLength = 20,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel'),
+        order = list(list(5, 'desc'))  # Order by Log Odds descending
+      ),
+      rownames = FALSE
+    )
+  })
+
+
+  # ============================================================================
+  # LEXICAL DISPERSION ANALYSIS
+  # ============================================================================
+  
+  dispersion_results <- reactiveValues(
+    analyzed = FALSE,
+    data = NULL,
+    metrics = NULL
+  )
+  
+  # Conditional output for dispersion ready state
+  output$dispersion_ready <- reactive({
+    dispersion_results$analyzed
+  })
+  outputOptions(output, "dispersion_ready", suspendWhenHidden = FALSE)
+  
+  # Update term choices based on DFM (same source as Frequency Trends)
+  observe({
+    dfm_to_use <- NULL
+
+    tryCatch({
+      dfm_to_use <- dfm_outcome()
+    }, error = function(e) {
+      tryCatch({
+        dfm_to_use <<- dfm_final()
+      }, error = function(e2) {
+        tryCatch({
+          dfm_to_use <<- dfm_init()
+        }, error = function(e3) {
+          dfm_to_use <<- NULL
+        })
+      })
+    })
+
+    if (!is.null(dfm_to_use)) {
+      tstat_freq <- quanteda.textstats::textstat_frequency(dfm_to_use)
+      sorted_vocab <- head(tstat_freq$feature, 100)
+
+      updateSelectizeInput(session, "dispersion_terms",
+        choices = sorted_vocab,
+        server = TRUE
+      )
+    }
+  })
+  
+  # Run dispersion analysis
+  observeEvent(input$run_dispersion, {
+    req(input$dispersion_terms)
+    req(length(input$dispersion_terms) > 0)
+    
+    # Get tokens from the preprocessing chain
+    tokens_to_use <- if (!is.null(final_tokens())) {
+      final_tokens()
+    } else if (!is.null(lemmatized_tokens())) {
+      lemmatized_tokens()
+    } else if (!is.null(processed_tokens())) {
+      processed_tokens()
+    } else if (!is.null(preprocessed_combined())) {
+      preprocessed_combined()
+    } else {
+      NULL
+    }
+    
+    if (is.null(tokens_to_use)) {
+      show_error_notification("Please process tokens first in the Preprocess tab.")
+      return()
+    }
+    
+    show_loading_notification("Calculating lexical dispersion...", id = "dispersion_loading")
+
+    tryCatch({
+      terms <- input$dispersion_terms
+      scale <- input$dispersion_scale %||% "relative"
+
+      # Calculate dispersion
+      result <- calculate_lexical_dispersion(
+        tokens_object = tokens_to_use,
+        terms = terms,
+        scale = scale
+      )
+
+      if (nrow(result) == 0) {
+        try(removeNotification("dispersion_loading"), silent = TRUE)
+        show_warning_notification("No occurrences found for the selected terms.")
+        return()
+      }
+
+      dispersion_results$analyzed <- TRUE
+      dispersion_results$data <- result
+
+      # Calculate metrics if requested
+      if (isTRUE(input$dispersion_show_metrics)) {
+        dispersion_results$metrics <- calculate_dispersion_metrics(
+          tokens_object = tokens_to_use,
+          terms = terms
+        )
+      }
+
+      try(removeNotification("dispersion_loading"), silent = TRUE)
+      show_completion_notification("Lexical dispersion analysis complete!")
+
+    }, error = function(e) {
+      try(removeNotification("dispersion_loading"), silent = TRUE)
+      show_error_notification(paste("Error:", e$message))
+    })
+  })
+  
+  # Render dispersion plot
+  output$dispersion_plot_uiOutput <- renderUI({
+    req(dispersion_results$analyzed)
+    
+    div(
+      style = "margin-bottom: 0;",
+      plotly::plotlyOutput("dispersion_plot", height = "500px", width = "100%")
+    )
+  })
+  
+  output$dispersion_plot <- renderPlotly({
+    req(dispersion_results$analyzed)
+    req(dispersion_results$data)
+    
+    plot_lexical_dispersion(
+      dispersion_data = dispersion_results$data,
+      scale = input$dispersion_scale %||% "relative",
+      title = "Lexical Dispersion"
+    )
+  })
+  
+  # Render dispersion metrics table
+  output$dispersion_metrics_table <- DT::renderDataTable({
+    req(dispersion_results$analyzed)
+    req(dispersion_results$metrics)
+    
+    table_data <- dispersion_results$metrics %>%
+      dplyr::rename(
+        Term = term,
+        Frequency = frequency,
+        `Doc Count` = doc_count,
+        `Doc Ratio` = doc_ratio,
+        `Juilland's D` = juilland_d,
+        `Rosengren's S` = rosengren_s
+      )
+    
+    datatable(
+      table_data,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel'),
+        order = list(list(1, 'desc'))
+      ),
+      rownames = FALSE
+    )
+  })
+
 
   keyword_results <- reactiveValues(
     analyzed = FALSE,
@@ -8851,7 +9242,7 @@ server <- shinyServer(function(input, output, session) {
           }
         }
 
-        p <- plotly::plot_ly() %>%
+        p <- plotly::plot_ly(type = "scatter", mode = "markers") %>%
           plotly::add_heatmap(
             z = sim_matrix,
             x = x_labels,
@@ -9305,7 +9696,7 @@ server <- shinyServer(function(input, output, session) {
     }
   }
 
-  calculate_enhanced_similarity <- function(texts, method = "cosine", use_embeddings = FALSE, embedding_model = "all-MiniLM-L6-v2") {
+  compute_similarity_cached <- function(texts, method = "cosine", use_embeddings = FALSE, embedding_model = "all-MiniLM-L6-v2") {
     memory_monitor("similarity_analysis")
 
     package_result <- tryCatch({
@@ -9817,7 +10208,7 @@ server <- shinyServer(function(input, output, session) {
 
     tryCatch({
       all_docs <- c(query_doc, candidate_docs)
-      similarity_result <- calculate_enhanced_similarity(all_docs, method = method, use_embeddings = TRUE)
+      similarity_result <- compute_similarity_cached(all_docs, method = method, use_embeddings = TRUE)
 
       if (is.null(similarity_result)) {
         return(NULL)
@@ -10100,10 +10491,40 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
+  # Update Topic Modeling K Search covariates
+  observeEvent(mydata(), {
+    req(mydata())
+
+    # Update categorical covariates for K Search
+    updateSelectizeInput(session, "stm_categorical_var",
+                         choices = c("None" = "", colnames_cat()),
+                         selected = "",
+                         server = TRUE)
+
+    # Update continuous covariates for K Search
+    updateSelectizeInput(session, "stm_continuous_var",
+                         choices = c("None" = "", colnames_con()),
+                         selected = "",
+                         server = TRUE)
+
+    # Update categorical covariates for STM Model (conditioned3 == 5)
+    updateSelectizeInput(session, "stm_categorical_var_2",
+                         choices = c("None" = "", colnames_cat()),
+                         selected = "",
+                         server = TRUE)
+
+    # Update continuous covariates for STM Model (conditioned3 == 5)
+    updateSelectizeInput(session, "stm_continuous_var_2",
+                         choices = c("None" = "", colnames_con()),
+                         selected = "",
+                         server = TRUE)
+  }, ignoreInit = FALSE)
+
   output$semantic_feature_space_selector <- renderUI({
     input$semantic_analysis_tabs
 
-    if (input$semantic_analysis_tabs == "summary") {
+    # Hide Feature Space selector for summary, cooccurrence, and correlation tabs
+    if (input$semantic_analysis_tabs %in% c("summary", "cooccurrence", "correlation")) {
       return(NULL)
     }
 
@@ -10116,13 +10537,13 @@ server <- shinyServer(function(input, output, session) {
     label_content <- if (input$semantic_analysis_tabs == "similarity") {
       tags$div(
         style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;",
-        tags$label("Feature Space:", style = "margin: 0;"),
+        tags$label("Feature Space", style = "margin: 0;"),
         actionLink("showSemanticMethodsInfo", icon("info-circle"),
                   style = "color: #337ab7; font-size: 16px;",
                   title = "Click for detailed method descriptions")
       )
     } else {
-      tags$label("Feature Space:", style = "margin-bottom: 5px;")
+      tags$label("Feature Space", style = "margin-bottom: 5px;")
     }
 
     tagList(
@@ -10218,29 +10639,34 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    model_name <- input$embedding_model_setup %||% "all-MiniLM-L6-v2"
+    # Get preferred provider and model from UI (if available)
+    provider <- input$embedding_provider_setup %||% "auto"
+    model_name <- input$embedding_model_setup %||% NULL  # NULL = use default for provider
 
-    loading_id <- show_loading_notification("Generating embeddings... This may take a moment.")
+    loading_id <- show_loading_notification("Generating embeddings... Auto-detecting best provider.")
 
     tryCatch({
-      embeddings <- TextAnalysisR::generate_embeddings(
+      embeddings <- TextAnalysisR::get_best_embeddings(
         texts = texts_vec,
+        provider = provider,
         model = model_name,
         verbose = FALSE
       )
 
       embeddings_cache$embeddings <- embeddings
-      embeddings_cache$model <- model_name
+      embeddings_cache$model <- model_name %||% "auto-detected"
+      embeddings_cache$provider <- provider
       embeddings_cache$texts_hash <- digest::digest(texts_vec, algo = "md5")
       embeddings_cache$timestamp <- Sys.time()
+      embeddings_cache$source <- "generate_embeddings"
+      embeddings_cache$n_docs <- nrow(embeddings)
 
       remove_notification_by_id(loading_id)
 
       show_completion_notification(
         paste0(
           "Embeddings generated successfully! ",
-          nrow(embeddings), " documents processed with ",
-          model_name, " model."
+          nrow(embeddings), " documents processed."
         )
       )
 
@@ -10250,8 +10676,8 @@ server <- shinyServer(function(input, output, session) {
       show_error_notification(
         paste0(
           "Error generating embeddings: ", e$message, ". ",
-          "Please ensure Python and sentence-transformers are installed. ",
-          "See Setup > Installation guide for help."
+          "Options: 1) Start Ollama, 2) Run setup_python_env(), ",
+          "3) Set OPENAI_API_KEY or GEMINI_API_KEY."
         )
       )
     })
@@ -10402,7 +10828,7 @@ server <- shinyServer(function(input, output, session) {
     }
 
     similarity_result <- switch(feature_type,
-                                "embeddings" = calculate_enhanced_similarity(data_prep$texts, use_embeddings = TRUE, embedding_model = embedding_model),
+                                "embeddings" = compute_similarity_cached(data_prep$texts, use_embeddings = TRUE, embedding_model = embedding_model),
                                 "words" = calculate_words_similarity(),
                                 "ngrams" = calculate_ngrams_similarity(),
                                 "topics" = calculate_topics_similarity(),
@@ -10924,7 +11350,7 @@ server <- shinyServer(function(input, output, session) {
         session,
         "WARNING"
       )
-      TextAnalysisR:::show_error_notification(
+      TextAnalysisR::show_error_notification(
         "You have made too many search requests. Please wait before trying again."
       )
       return()
@@ -10994,44 +11420,64 @@ server <- shinyServer(function(input, output, session) {
     search_method <- input$search_method %||% "keyword"
 
     if (search_method == "rag") {
-      if (!TextAnalysisR::check_feature("langgraph")) {
+      provider <- input$rag_provider %||% "ollama"
+
+      # Check provider availability and get API key
+      api_key <- NULL
+
+      if (provider == "ollama") {
+        # Check Ollama availability (local only)
         if (is_web) {
-          showNotification("RAG search not available in web version. Use R package.", type = "warning")
-        } else {
+          showNotification("Ollama requires local installation. Please use OpenAI or Gemini on web.", type = "warning")
+          return()
+        }
+
+        if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
           showModal(modalDialog(
-            title = "Python Environment Required",
-            HTML("<p>RAG Q&A requires Python environment with LangGraph.</p>
+            title = "Ollama Required",
+            HTML("<p>RAG Q&A with Ollama requires Ollama to be running locally.</p>
                  <p><strong>Setup:</strong></p>
                  <ol>
-                   <li>Run: <code>TextAnalysisR::setup_python_env()</code></li>
-                   <li>Install Ollama and pull a model: <code>ollama pull llama3</code></li>
-                   <li>Restart the app</li>
+                   <li>Download Ollama from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>
+                   <li>Run: <code>ollama pull nomic-embed-text</code> (for embeddings)</li>
+                   <li>Run: <code>ollama pull phi3:mini</code> (for chat)</li>
+                   <li>Start Ollama and try again</li>
                  </ol>"),
             easyClose = TRUE,
             footer = modalButton("Close")
           ))
+          return()
         }
-        return()
-      }
 
-      python_check <- tryCatch({
-        TextAnalysisR::check_python_env()
-      }, error = function(e) list(available = FALSE))
+        chat_model <- input$rag_ollama_model %||% "phi3:mini"
 
-      if (!python_check$available) {
-        showModal(modalDialog(
-          title = "Python Environment Required",
-          HTML("<p>RAG Q&A requires Python environment with LangGraph.</p>
-               <p><strong>Setup:</strong></p>
-               <ol>
-                 <li>Run: <code>TextAnalysisR::setup_python_env()</code></li>
-                 <li>Install Ollama and pull a model: <code>ollama pull llama3</code></li>
-                 <li>Restart the app</li>
-               </ol>"),
-          easyClose = TRUE,
-          footer = modalButton("Close")
-        ))
-        return()
+      } else if (provider == "openai") {
+        # Get OpenAI API key from input or environment
+        api_key <- input$rag_openai_api_key
+        if (is.null(api_key) || !nzchar(api_key)) {
+          api_key <- Sys.getenv("OPENAI_API_KEY")
+        }
+
+        if (!nzchar(api_key)) {
+          showNotification("OpenAI API key required. Enter in the field or set OPENAI_API_KEY.", type = "error")
+          return()
+        }
+
+        chat_model <- input$rag_openai_model %||% "gpt-4o-mini"
+
+      } else if (provider == "gemini") {
+        # Get Gemini API key from input or environment
+        api_key <- input$rag_gemini_api_key
+        if (is.null(api_key) || !nzchar(api_key)) {
+          api_key <- Sys.getenv("GEMINI_API_KEY")
+        }
+
+        if (!nzchar(api_key)) {
+          showNotification("Gemini API key required. Enter in the field or set GEMINI_API_KEY.", type = "error")
+          return()
+        }
+
+        chat_model <- input$rag_gemini_model %||% "gemini-2.0-flash"
       }
 
       showNotification("Generating answer with LLM...", type = "message",
@@ -11041,7 +11487,9 @@ server <- shinyServer(function(input, output, session) {
         TextAnalysisR::run_rag_search(
           query = query,
           documents = valid_docs,
-          ollama_model = input$rag_llm_model %||% "llama3",
+          provider = provider,
+          api_key = api_key,
+          chat_model = chat_model,
           top_k = input$semantic_search_top_k %||% 5
         )
       }, error = function(e) {
@@ -12181,7 +12629,15 @@ server <- shinyServer(function(input, output, session) {
         if (cluster_method == "semantic_unified") {
           texts <- document_display_data()$combined_text
 
-          unified_result <- TextAnalysisR::fit_embedding_topics(
+          # Reuse cached embeddings if available and compatible
+          cached_embeddings <- NULL
+          if (!is.null(embeddings_cache$embeddings) &&
+              nrow(embeddings_cache$embeddings) == length(texts)) {
+            cached_embeddings <- embeddings_cache$embeddings
+            showNotification("Using cached embeddings for topic modeling", type = "message", duration = 2)
+          }
+
+          unified_result <- TextAnalysisR::fit_embedding_model(
             texts = texts,
             method = input$unified_method,
             n_topics = input$unified_n_topics,
@@ -12189,8 +12645,19 @@ server <- shinyServer(function(input, output, session) {
             clustering_method = "kmeans",
             min_topic_size = input$unified_min_topic_size,
             seed = input$semantic_cluster_seed,
-            verbose = FALSE
+            verbose = FALSE,
+            precomputed_embeddings = cached_embeddings
           )
+
+          # Store embeddings in cache if newly generated
+          if (is.null(cached_embeddings) && !is.null(unified_result$embeddings)) {
+            embeddings_cache$embeddings <- unified_result$embeddings
+            embeddings_cache$model <- input$embedding_model %||% "all-MiniLM-L6-v2"
+            embeddings_cache$texts_hash <- digest::digest(texts, algo = "md5")
+            embeddings_cache$timestamp <- Sys.time()
+            embeddings_cache$source <- "topic_modeling_unified"
+            embeddings_cache$n_docs <- nrow(unified_result$embeddings)
+          }
 
           advanced_results$semantic_unified <- unified_result
 
@@ -12230,7 +12697,7 @@ server <- shinyServer(function(input, output, session) {
             topic_keywords = neural_result$topic_keywords
           )
         } else if (cluster_method == "dbscan" && !is.null(existing_embedding)) {
-          calculate_enhanced_clustering(
+          compute_clustering(
             similarity_matrix = similarity_matrix,
             method = cluster_method,
             n_clusters = n_clusters,
@@ -12443,7 +12910,7 @@ server <- shinyServer(function(input, output, session) {
 
     clustering_result <- tryCatch(
       {
-        calculate_enhanced_clustering(
+        compute_clustering(
           similarity_matrix = similarity_matrix,
           method = cluster_method,
           n_clusters = n_clusters,
@@ -12697,6 +13164,7 @@ server <- shinyServer(function(input, output, session) {
   }
 
   output$semantic_similarity_plot <- plotly::renderPlotly({
+    triggered <- similarity_analysis_triggered()
     calc_in_progress <- calculation_state$in_progress
     feature_type <- isolate(input$semantic_feature_space %||% "words")
 
@@ -12732,14 +13200,13 @@ server <- shinyServer(function(input, output, session) {
       )
     })
 
-    if (!is.null(comparison_results$cached_plots[[cached_plot_key]]) &&
-        similarity_analysis_triggered()) {
+    if (!is.null(comparison_results$cached_plots[[cached_plot_key]]) && triggered) {
       return(comparison_results$cached_plots[[cached_plot_key]])
     }
 
     viz_shown <- calculation_state$visualization_shown[[feature_type]] %||% FALSE
 
-    if (!similarity_analysis_triggered() && !viz_shown) {
+    if (!triggered && !viz_shown) {
       if (!is.null(comparison_results$calculation_status[[feature_type]]) &&
           comparison_results$calculation_status[[feature_type]]) {
         return(create_error_plot(
@@ -12787,11 +13254,9 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$semantic_similarity_stats <- DT::renderDataTable({
-    if (similarity_analysis_triggered()) {
-      similarity_analysis_triggered()
-    }
+    triggered <- similarity_analysis_triggered()
 
-    if (!similarity_analysis_triggered()) {
+    if (!triggered) {
       return(NULL)
     }
 
@@ -12922,7 +13387,7 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  # Contrastive Similarity Analysis Logic
+  # Comparative Analysis Logic
   output$has_gap_analysis <- reactive({
     !is.null(comparison_results$gap_analysis)
   })
@@ -12993,7 +13458,7 @@ server <- shinyServer(function(input, output, session) {
 
     docs_data <- document_display_data()
     if (is.null(docs_data) || nrow(docs_data) < 2) {
-      showNotification("Need at least 2 documents for contrastive analysis.", type = "error", duration = 5)
+      showNotification("Need at least 2 documents for comparative analysis.", type = "error", duration = 5)
       return(NULL)
     }
 
@@ -13001,20 +13466,20 @@ server <- shinyServer(function(input, output, session) {
     # Check for category_display column (created by document_display_data from doc_category_var)
     if (is.null(category_var) || category_var == "" || !"category_display" %in% names(docs_data) ||
         all(docs_data$category_display == "Document")) {
-      showNotification("Please select a category variable for contrastive analysis.", type = "warning", duration = 5)
+      showNotification("Please select a category variable for comparative analysis.", type = "warning", duration = 5)
       return(NULL)
     }
 
     categories <- unique(docs_data$category_display)
     if (length(categories) < 2) {
-      showNotification("Contrastive analysis requires at least 2 categories.", type = "warning", duration = 5)
+      showNotification("Comparative analysis requires at least 2 categories.", type = "warning", duration = 5)
       return(NULL)
     }
 
     tryCatch({
       shinyjs::runjs("$('#gap_analysis_ready_status').hide();")
 
-      showNotification("Running contrastive analysis...", type = "message", duration = 2, id = "gap_progress")
+      showNotification("Running comparative analysis...", type = "message", duration = 2, id = "gap_progress")
 
       similarity_matrix <- similarity_data$similarity_matrix
       n_docs <- nrow(similarity_matrix)
@@ -13072,11 +13537,11 @@ server <- shinyServer(function(input, output, session) {
 
       removeNotification("gap_progress")
       shinyjs::runjs("$('#gap_analysis_ready_status').show();")
-      showNotification("Contrastive analysis complete!", type = "message", duration = 3)
+      showNotification("Comparative analysis complete!", type = "message", duration = 3)
 
     }, error = function(e) {
       removeNotification("gap_progress")
-      showNotification(paste("Contrastive analysis error:", e$message), type = "error", duration = 7)
+      showNotification(paste("Comparative analysis error:", e$message), type = "error", duration = 7)
     })
   })
 
@@ -13299,8 +13764,8 @@ server <- shinyServer(function(input, output, session) {
 
     if (config_outdated) {
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-exclamation-triangle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
         tags$strong("Configuration Changed:"), "Document configuration has been modified. Please recalculate similarity data in the Similarity Analysis tab to reflect the new settings."
       )
     } else if (data_available) {
@@ -13312,8 +13777,8 @@ server <- shinyServer(function(input, output, session) {
       )
 
       tags$div(
-        style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
         tags$strong("Ready:"), paste(feature_label, "similarity data is available for dimensionality reduction.")
       )
     } else {
@@ -13325,8 +13790,8 @@ server <- shinyServer(function(input, output, session) {
       )
 
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-info-circle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
         tags$strong("Note:"), paste(feature_label, "similarity requires calculation first. Go to Similarity Analysis tab and calculate with '", feature_label, "' feature space.")
       )
     }
@@ -13370,14 +13835,14 @@ server <- shinyServer(function(input, output, session) {
 
     if (data_available) {
       tags$div(
-        style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
         tags$strong("Ready:"), paste(feature_label, "similarity data is available for document grouping.")
       )
     } else {
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-exclamation-triangle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
         tags$strong("Calculate Required:"), paste(" Go to Document Similarity tab and calculate", feature_label, "similarity first.")
       )
     }
@@ -13421,14 +13886,14 @@ server <- shinyServer(function(input, output, session) {
 
     if (data_available) {
       tags$div(
-        style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
         tags$strong("Ready:"), paste(feature_label, "similarity data is available for sentiment analysis.")
       )
     } else {
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-exclamation-triangle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
         tags$strong("Calculate Required:"), paste(" Go to Document Similarity tab and calculate", feature_label, "similarity first.")
       )
     }
@@ -13468,20 +13933,20 @@ server <- shinyServer(function(input, output, session) {
 
     if (!data_available) {
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-info-circle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
         tags$strong("Note:"), paste(feature_label, "similarity requires calculation first. Go to Document Similarity tab and calculate with '", feature_label, "' feature space.")
       )
     } else if (!clustering_available) {
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-info-circle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
         tags$strong("Note:"), "Cluster labeling requires clustering first. Go to Document Groups tab and discover groups."
       )
     } else {
       tags$div(
-        style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
         tags$strong("Ready:"), "Clustering data is available for labeling."
       )
     }
@@ -13544,8 +14009,8 @@ server <- shinyServer(function(input, output, session) {
 
     if (method_available) {
       tags$div(
-        style = "background-color: #D1FAE5; border: 1px solid #10B981; color: #065F46; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-check-circle", style = "margin-right: 5px; color: #10B981;"),
+        class = "status-sidebar-success",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
         tags$strong("Ready:"), paste(method_label, "data is available for search.")
       )
     } else {
@@ -13556,8 +14021,8 @@ server <- shinyServer(function(input, output, session) {
       }
 
       tags$div(
-        style = "background-color: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 4px 12px; margin-bottom: 10px; font-size: 16px; border-radius: 4px;",
-        tags$i(class = "fa fa-exclamation-triangle", style = "margin-right: 5px; color: #F59E0B;"),
+        class = "status-sidebar-warning",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
         tags$strong("Calculate Required:"), paste(" Go to Document Similarity tab and calculate", feature_label, "similarity first.")
       )
     }
@@ -13794,6 +14259,76 @@ server <- shinyServer(function(input, output, session) {
   })
   outputOptions(output, "has_correlation_plot", suspendWhenHidden = FALSE)
 
+  # Feature space status for co-occurrence network
+  output$cooccur_feature_status <- renderUI({
+    feature_space <- input$cooccur_feature_space %||% "words"
+    dfm_available <- tryCatch({
+      dfm_obj <- dfm_reactive()
+      !is.null(dfm_obj) && inherits(dfm_obj, "dfm")
+    }, error = function(e) FALSE)
+    ngram_available <- tryCatch({
+      ngrams <- ngram_stats()
+      !is.null(ngrams) && nrow(ngrams) > 0
+    }, error = function(e) FALSE)
+
+    if (feature_space == "words") {
+      if (dfm_available) {
+        div(class = "status-sidebar-success", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+            "DFM ready for word-level analysis")
+      } else {
+        div(class = "status-sidebar-warning", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+            "Create DFM in Preprocess tab first")
+      }
+    } else if (feature_space == "ngrams") {
+      if (ngram_available) {
+        div(class = "status-sidebar-success", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+            "N-grams ready for analysis")
+      } else {
+        div(class = "status-sidebar-info", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-info-circle status-icon status-icon-info"),
+            "Detect n-grams in Preprocess > Multi-Word Dictionary")
+      }
+    }
+  })
+
+  # Feature space status for correlation network
+  output$corr_feature_status <- renderUI({
+    feature_space <- input$corr_feature_space %||% "words"
+    dfm_available <- tryCatch({
+      dfm_obj <- dfm_reactive()
+      !is.null(dfm_obj) && inherits(dfm_obj, "dfm")
+    }, error = function(e) FALSE)
+    ngram_available <- tryCatch({
+      ngrams <- ngram_stats()
+      !is.null(ngrams) && nrow(ngrams) > 0
+    }, error = function(e) FALSE)
+
+    if (feature_space == "words") {
+      if (dfm_available) {
+        div(class = "status-sidebar-success", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+            "DFM ready for word-level analysis")
+      } else {
+        div(class = "status-sidebar-warning", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+            "Create DFM in Preprocess tab first")
+      }
+    } else if (feature_space == "ngrams") {
+      if (ngram_available) {
+        div(class = "status-sidebar-success", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+            "N-grams ready for analysis")
+      } else {
+        div(class = "status-sidebar-info", style = "margin-bottom: 10px;",
+            tags$i(class = "fa fa-info-circle status-icon status-icon-info"),
+            "Detect n-grams in Preprocess > Multi-Word Dictionary")
+      }
+    }
+  })
+
   output$has_frequency_plot <- reactive({
     !is.null(input$plot_term) && input$plot_term > 0 &&
       !is.null(input$continuous_var_3) && input$continuous_var_3 != "" &&
@@ -13812,14 +14347,14 @@ server <- shinyServer(function(input, output, session) {
   outputOptions(output, "has_quotes", suspendWhenHidden = FALSE)
 
   output$has_categorical_plot <- reactive({
-    !is.null(input$effect_cat_btn) && input$effect_cat_btn != "" &&
-      !is.null(input$display_cat)
+    !is.null(input$stm_effect_cat_btn) && input$stm_effect_cat_btn != "" &&
+      !is.null(input$stm_display_cat)
   })
   outputOptions(output, "has_categorical_plot", suspendWhenHidden = FALSE)
 
   output$has_continuous_plot <- reactive({
-    !is.null(input$effect_con_btn) && input$effect_con_btn != "" &&
-      !is.null(input$display_con)
+    !is.null(input$stm_effect_con_btn) && input$stm_effect_con_btn != "" &&
+      !is.null(input$stm_display_con)
   })
   outputOptions(output, "has_continuous_plot", suspendWhenHidden = FALSE)
 
@@ -15425,29 +15960,9 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  clean_similarity_matrix <- function(similarity_matrix) {
-    similarity_matrix[!is.finite(similarity_matrix)] <- 0
-
-    if (nrow(similarity_matrix) == ncol(similarity_matrix)) {
-      similarity_matrix <- (similarity_matrix + t(similarity_matrix)) / 2
-    }
-
-    if (nrow(similarity_matrix) == ncol(similarity_matrix)) {
-      diag(similarity_matrix) <- 1
-    }
-
-    return(similarity_matrix)
-  }
-
-  renumber_clusters_sequentially <- function(clusters) {
-    if (is.null(clusters) || length(clusters) == 0) {
-      return(clusters)
-    }
-
-    unique_clusters <- sort(unique(clusters))
-    cluster_mapping <- setNames(1:length(unique_clusters), unique_clusters)
-    return(cluster_mapping[as.character(clusters)])
-  }
+  # Matrix utility functions now use package functions
+  clean_similarity_matrix <- TextAnalysisR::clean_similarity_matrix
+  renumber_clusters_sequentially <- TextAnalysisR::renumber_clusters_sequentially
 
   advanced_results <- reactiveValues(
     ai_labels = NULL,
@@ -15478,9 +15993,9 @@ server <- shinyServer(function(input, output, session) {
       embeddings <- if (!is.null(embeddings_cache$embeddings)) {
         embeddings_cache$embeddings
       } else {
-        TextAnalysisR::generate_embeddings(
+        TextAnalysisR::get_best_embeddings(
           texts = docs_data$combined_text,
-          model = "all-MiniLM-L6-v2",
+          provider = "auto",
           verbose = FALSE
         )
       }
@@ -15582,9 +16097,9 @@ server <- shinyServer(function(input, output, session) {
       embeddings <- if (!is.null(embeddings_cache$embeddings)) {
         embeddings_cache$embeddings
       } else {
-        TextAnalysisR::generate_embeddings(
+        TextAnalysisR::get_best_embeddings(
           texts = texts,
-          model = "all-MiniLM-L6-v2",
+          provider = "auto",
           verbose = FALSE
         )
       }
@@ -15600,7 +16115,7 @@ server <- shinyServer(function(input, output, session) {
           )
           semantic_results[[method]] <- result
         } else if (method == "bertopic") {
-          result <- TextAnalysisR::fit_embedding_topics(
+          result <- TextAnalysisR::fit_embedding_model(
             texts = texts,
             method = "umap_hdbscan",
             n_topics = 10,
@@ -15747,7 +16262,7 @@ server <- shinyServer(function(input, output, session) {
         tags$small(
           style = "color: #991B1B;",
           icon("times-circle"), " Ollama not available. Install from: ",
-          tags$a(href = "https://ollama.ai", target = "_blank", "ollama.ai")
+          tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
         )
       )
     }
@@ -15780,31 +16295,90 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
+  # Cluster Label Generation - supports Ollama, OpenAI, and Gemini providers
   observeEvent(input$generate_cluster_labels, {
     if (is.null(comparison_results$clustering)) {
       showNotification("Please run clustering analysis first", type = "error")
       return()
     }
 
-    provider <- if (is.null(input$cluster_label_provider)) "auto" else input$cluster_label_provider
+    # Get provider selection
+    provider <- input$cluster_label_provider %||% "ollama"
+    api_key <- NULL
+    model <- NULL
 
-    if (provider == "ollama" && !TextAnalysisR::check_feature("ollama")) {
-      showNotification("Ollama not available. Install from ollama.com or use OpenAI.", type = "warning")
-      return()
-    }
+    # Check if running on web deployment
+    is_web <- !is.null(getOption("shiny.host")) ||
+      grepl("shinyapps\\.io|textanalysisr\\.org", Sys.getenv("SHINY_URL", ""))
 
-    model <- if (provider == "ollama" || (provider == "auto" && ollama_available_cluster())) {
-      if (!is.null(input$cluster_ollama_model)) {
-        input$cluster_ollama_model
-      } else {
-        "phi3:mini"
+    # Provider-specific validation
+    if (provider == "ollama") {
+      # Ollama is local only - not available on web deployment
+      if (is_web) {
+        shiny::showNotification(
+          "Ollama requires local installation. Please use OpenAI or Gemini on web.",
+          type = "error",
+          duration = 5
+        )
+        return()
       }
-    } else {
-      if (!is.null(input$cluster_openai_model)) {
-        input$cluster_openai_model
-      } else {
-        "gpt-3.5-turbo"
+
+      # Check if Ollama is running
+      if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
+        shiny::showModal(shiny::modalDialog(
+          title = "Ollama Required",
+          HTML(paste0(
+            "<p>Ollama is not running or not installed.</p>",
+            "<p><strong>To set up Ollama:</strong></p>",
+            "<ol>",
+            "<li>Download from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>",
+            "<li>Install and start Ollama</li>",
+            "<li>Run: <code>ollama pull phi3:mini</code></li>",
+            "</ol>"
+          )),
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        ))
+        return()
       }
+
+      model <- input$cluster_ollama_model %||% "phi3:mini"
+
+    } else if (provider == "openai") {
+      # Get API key from input or environment
+      api_key <- input$cluster_openai_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+      }
+
+      if (!nzchar(api_key)) {
+        shiny::showNotification(
+          "OpenAI API key required. Enter in the API Key field or set OPENAI_API_KEY in .Renviron",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      model <- input$cluster_openai_model %||% "gpt-4o-mini"
+
+    } else if (provider == "gemini") {
+      # Get API key from input or environment
+      api_key <- input$cluster_gemini_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
+      }
+
+      if (!nzchar(api_key)) {
+        shiny::showNotification(
+          "Gemini API key required. Enter in the API Key field or set GEMINI_API_KEY in .Renviron",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      model <- input$cluster_gemini_model %||% "gemini-2.0-flash"
     }
 
     show_loading_notification(paste("Generating AI labels using", provider, "..."), id = "loadingAILabels")
@@ -15856,6 +16430,7 @@ server <- shinyServer(function(input, output, session) {
         model = model,
         temperature = 0.3,
         max_tokens = 50,
+        api_key = api_key,
         verbose = FALSE
       )
 
@@ -15891,8 +16466,8 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  K_range <- eventReactive(input$K_range, {
-    seq(input$K_range[1], input$K_range[2])
+  K_range <- eventReactive(input$stm_K_range, {
+    seq(input$stm_K_range[1], input$stm_K_range[2])
   })
 
   # Cache for STM conversion to avoid redundant DFM->STM conversions
@@ -15952,13 +16527,13 @@ server <- shinyServer(function(input, output, session) {
   })
 
   prevalence_formula_K_search <- reactive({
-    categorical_var <- if (!is.null(input$categorical_var)) {
-      trimws(unlist(strsplit(as.character(input$categorical_var), ",")))
+    categorical_var <- if (!is.null(input$stm_categorical_var)) {
+      trimws(unlist(strsplit(as.character(input$stm_categorical_var), ",")))
     } else {
       NULL
     }
-    continuous_var <- if (!is.null(input$continuous_var)) {
-      trimws(unlist(strsplit(as.character(input$continuous_var), ",")))
+    continuous_var <- if (!is.null(input$stm_continuous_var)) {
+      trimws(unlist(strsplit(as.character(input$stm_continuous_var), ",")))
     } else {
       NULL
     }
@@ -16025,7 +16600,7 @@ server <- shinyServer(function(input, output, session) {
     params_hash = NULL
   )
 
-  K_search <- eventReactive(input$search, {
+  K_search <- eventReactive(input$stm_search, {
     tryCatch({
       TextAnalysisR:::check_rate_limit(session$token, user_requests, max_requests = 100, window_seconds = 3600)
     }, error = function(e) {
@@ -16035,7 +16610,7 @@ server <- shinyServer(function(input, output, session) {
         session,
         "WARNING"
       )
-      TextAnalysisR:::show_error_notification(
+      TextAnalysisR::show_error_notification(
         "You have made too many search requests. Please wait before trying again."
       )
       return(NULL)
@@ -16048,8 +16623,8 @@ server <- shinyServer(function(input, output, session) {
       return(NULL)
     }
 
-    if (!is.null(input$K_range)) {
-      if (input$K_range[1] < 2) {
+    if (!is.null(input$stm_K_range)) {
+      if (input$stm_K_range[1] < 2) {
         shiny::showModal(shiny::modalDialog(
           title = "Invalid K Range",
           p("The minimum number of topics (K) must be at least 2."),
@@ -16066,11 +16641,11 @@ server <- shinyServer(function(input, output, session) {
     current_params_hash <- digest::digest(list(
       dfm_hash = stm_conversion_cache$dfm_hash,
       K_range = K_range(),
-      init_type = input$init_type_search,
+      init_type = input$stm_init_type_search,
       prevalence = deparse(prevalence_formula_K_search()),
-      gamma_prior = input$gamma_prior_search,
-      kappa_prior = input$kappa_prior_search,
-      max_em_its = input$max_em_its_search
+      gamma_prior = input$stm_gamma_prior_search,
+      kappa_prior = input$stm_kappa_prior_search,
+      max_em_its = input$stm_max_em_its_search
     ), algo = "md5")
 
     if (!is.null(searchK_cache$result) &&
@@ -16090,7 +16665,7 @@ server <- shinyServer(function(input, output, session) {
             TextAnalysisR::find_optimal_k(
               dfm_object = dfm_obj,
               topic_range = K_range(),
-              max.em.its = input$max_em_its_search,
+              max.em.its = input$stm_max_em_its_search,
               verbose = TRUE
             )
           } else {
@@ -16100,14 +16675,14 @@ server <- shinyServer(function(input, output, session) {
               data = out()$meta,
               documents = out()$documents,
               vocab = out()$vocab,
-              init.type = input$init_type_search,
+              init.type = input$stm_init_type_search,
               K = K_range(),
               prevalence = prevalence_formula_K_search(),
               verbose = TRUE,
-              gamma.prior = input$gamma_prior_search,
+              gamma.prior = input$stm_gamma_prior_search,
               sigma.prior = 0,
-              kappa.prior = input$kappa_prior_search,
-              max.em.its = input$max_em_its_search,
+              kappa.prior = input$stm_kappa_prior_search,
+              max.em.its = input$stm_max_em_its_search,
               emtol = 1e-04,  # Relaxed tolerance for faster convergence
               cores = n_cores,
               control = list(alpha = 1)
@@ -16125,10 +16700,10 @@ server <- shinyServer(function(input, output, session) {
               K = K_range(),
               prevalence = prevalence_formula_K_search(),
               verbose = TRUE,
-              gamma.prior = input$gamma_prior_search,
+              gamma.prior = input$stm_gamma_prior_search,
               sigma.prior = 0,
-              kappa.prior = input$kappa_prior_search,
-              max.em.its = input$max_em_its_search,
+              kappa.prior = input$stm_kappa_prior_search,
+              max.em.its = input$stm_max_em_its_search,
               emtol = 1e-04,  # Relaxed tolerance for faster convergence
               cores = n_cores,
               control = list(alpha = 1)
@@ -16182,8 +16757,8 @@ server <- shinyServer(function(input, output, session) {
       paste(lines_no_indent, collapse = " ")
     }
 
-    k_range_text <- if (!is.null(input$K_range)) {
-      paste0(input$K_range[1], " to ", input$K_range[2])
+    k_range_text <- if (!is.null(input$stm_K_range)) {
+      paste0(input$stm_K_range[1], " to ", input$stm_K_range[2])
     } else {
       "Not selected"
     }
@@ -16377,96 +16952,107 @@ server <- shinyServer(function(input, output, session) {
 
   ai_recommendation <- reactiveVal(NULL)
 
+  # K Recommendation Generation - supports Ollama, OpenAI, and Gemini providers
   observeEvent(input$generate_k_recommendation, {
     req(K_search())
 
-    if (file.exists(".env")) {
-      dotenv::load_dot_env()
-    }
+    # Get provider selection
+    provider <- input$k_rec_provider %||% "ollama"
+    api_key <- NULL
+    model <- NULL
 
-    existing_key <- Sys.getenv("OPENAI_API_KEY")
+    # Check if running on web deployment
+    is_web <- !is.null(getOption("shiny.host")) ||
+      grepl("shinyapps\\.io|textanalysisr\\.org", Sys.getenv("SHINY_URL", ""))
 
-    shiny::showModal(shiny::modalDialog(
-      title = if (nzchar(existing_key)) "Confirm or Update API Key" else "OpenAI API Key Required",
-      tagList(
-        if (nzchar(existing_key)) {
-          shiny::p("An API key is already configured. You can use it or replace it with a new one.")
-        },
-        tags$div(
-          tags$label("API Key:", `for` = "openai_api_key_search"),
-          tags$div(
-            class = "input-group",
-            style = "width: 100%;",
-            shiny::passwordInput("openai_api_key_search",
-                               label = NULL,
-                               value = existing_key,
-                               placeholder = "sk-...",
-                               width = "100%"),
-            tags$span(
-              class = "input-group-btn",
-              style = "vertical-align: top;",
-              tags$button(
-                id = "toggle_api_key_search_modal",
-                type = "button",
-                class = "btn btn-default",
-                style = "height: 34px; border-left: none; border-radius: 0 4px 4px 0;",
-                onclick = "
-                  var input = document.getElementById('openai_api_key_search');
-                  var icon = this.querySelector('i');
-                  if (input.type === 'password') {
-                    input.type = 'text';
-                    icon.className = 'fa fa-eye-slash';
-                    this.title = 'Hide API key';
-                  } else {
-                    input.type = 'password';
-                    icon.className = 'fa fa-eye';
-                    this.title = 'Show API key';
-                  }
-                ",
-                title = "Show API key",
-                tags$i(class = "fa fa-eye")
-              )
-            )
-          ),
-          tags$small("Tip: Click the eye icon to show/hide your API key",
-                     style = "color: #666; display: block; margin-top: 5px;")
+    # Provider-specific validation
+    if (provider == "ollama") {
+      # Ollama is local only - not available on web deployment
+      if (is_web) {
+        shiny::showNotification(
+          "Ollama requires local installation. Please use OpenAI or Gemini on web.",
+          type = "error",
+          duration = 5
         )
-      ),
-      footer = tagList(
-        shiny::actionButton("submit_api_key_search", "Submit", class = "btn-primary"),
-        shiny::modalButton("Cancel")
-      ),
-      easyClose = TRUE
-    ))
-  })
+        return()
+      }
 
-  observeEvent(input$submit_api_key_search, {
-    req(nzchar(input$openai_api_key_search))
+      # Check if Ollama is running
+      if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
+        shiny::showModal(shiny::modalDialog(
+          title = "Ollama Required",
+          HTML(paste0(
+            "<p>Ollama is not running or not installed.</p>",
+            "<p><strong>To set up Ollama:</strong></p>",
+            "<ol>",
+            "<li>Download from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>",
+            "<li>Install and start Ollama</li>",
+            "<li>Run: <code>ollama pull phi3:mini</code></li>",
+            "</ol>"
+          )),
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        ))
+        return()
+      }
 
-    if (!TextAnalysisR:::validate_api_key(input$openai_api_key_search, strict = TRUE)) {
-      TextAnalysisR:::log_security_event(
-        "INVALID_API_KEY_ATTEMPT",
-        "Malformed API key submitted for semantic search",
-        session,
-        "WARNING"
-      )
-      TextAnalysisR:::show_error_notification(
-        "Invalid API key format. OpenAI keys should start with 'sk-' and be 48+ characters."
-      )
-      return()
+      model <- input$k_rec_ollama_model %||% "phi3:mini"
+
+    } else if (provider == "openai") {
+      # Get API key from input or environment
+      api_key <- input$k_rec_openai_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+      }
+
+      if (!nzchar(api_key)) {
+        shiny::showNotification(
+          "OpenAI API key required. Enter in the API Key field or set OPENAI_API_KEY in .Renviron",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      # Validate API key format
+      if (!TextAnalysisR:::validate_api_key(api_key, strict = TRUE)) {
+        TextAnalysisR:::log_security_event(
+          "INVALID_API_KEY_ATTEMPT",
+          "Malformed API key submitted for K recommendation",
+          session,
+          "WARNING"
+        )
+        shiny::showNotification(
+          "Invalid API key format. OpenAI keys should start with 'sk-' and be 48+ characters.",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      model <- input$k_rec_openai_model %||% "gpt-4o-mini"
+
+    } else if (provider == "gemini") {
+      # Get API key from input or environment
+      api_key <- input$k_rec_gemini_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
+      }
+
+      if (!nzchar(api_key)) {
+        shiny::showNotification(
+          "Gemini API key required. Enter in the API Key field or set GEMINI_API_KEY in .Renviron",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      model <- input$k_rec_gemini_model %||% "gemini-2.0-flash"
     }
 
-    Sys.setenv(OPENAI_API_KEY = input$openai_api_key_search)
-    TextAnalysisR:::log_security_event(
-      "API_KEY_UPDATED",
-      "Valid API key configured for semantic search",
-      session,
-      "INFO"
-    )
-    shiny::removeModal()
-
+    # Process metrics
     search_result <- K_search()
-
     metrics_summary <- search_result$results
 
     for (col in names(metrics_summary)) {
@@ -16505,7 +17091,6 @@ server <- shinyServer(function(input, output, session) {
       arrange(desc(overall_score))
 
     optimal_candidates <- list()
-
     optimal_candidates$best_overall <- metrics_summary$K[which.max(metrics_summary$overall_score)]
 
     if (nrow(metrics_summary) > 2) {
@@ -16564,58 +17149,68 @@ server <- shinyServer(function(input, output, session) {
       "\n\nFormat your response as clear paragraphs without section headers."
     )
 
-    shiny::showNotification(HTML("Generating AI recommendation...<br>This may take a few moments."), type = "message", duration = NULL, id = "ai_gen_notification")
+    shiny::showNotification(
+      HTML(paste0("Generating AI recommendation using ", provider, "...<br>This may take a few moments.")),
+      type = "message",
+      duration = NULL,
+      id = "ai_gen_notification"
+    )
 
     tryCatch({
+      # Build the prompt
+      system_prompt <- input$ai_system_search
+      user_prompt <- paste(input$ai_user_search, "\n\n", analysis_context)
 
-      response <- httr::POST(
-        url = "https://api.openai.com/v1/chat/completions",
-        httr::add_headers(Authorization = paste("Bearer", Sys.getenv("OPENAI_API_KEY"))),
-        httr::content_type_json(),
-        encode = "json",
-        body = list(
-          model = input$ai_model_search,
-          messages = list(
-            list(role = "system", content = input$ai_system_search),
-            list(role = "user", content = paste(
-              input$ai_user_search,
-              "\n\n",
-              analysis_context
-            ))
-          ),
+      # Call the appropriate provider
+      recommendation <- if (provider == "ollama") {
+        TextAnalysisR::call_ollama(
+          prompt = user_prompt,
+          system_prompt = system_prompt,
+          model = model,
           temperature = 0.7,
           max_tokens = 500
         )
-      )
-
-      if (httr::status_code(response) == 200) {
-        content <- httr::content(response)
-        recommendation <- content$choices[[1]]$message$content
-
-        recommended_k <- as.numeric(gsub(".*K\\s*=\\s*(\\d+).*", "\\1",
-                                        regmatches(recommendation,
-                                                  regexpr("K\\s*=\\s*\\d+", recommendation))))
-
-        ai_recommendation(list(
-          text = recommendation,
-          recommended_k = if (length(recommended_k) > 0 && !is.na(recommended_k[1])) recommended_k[1] else NA,
-          timestamp = Sys.time()
-        ))
-
-        tryCatch(removeNotification(id = "ai_gen_notification"), error = function(e) {})
-        tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
-        show_completion_notification("AI recommendation generated successfully!", duration = 3)
-      } else {
-        tryCatch(removeNotification(id = "ai_gen_notification"), error = function(e) {})
-        tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
-        show_error_notification("Error generating AI recommendation. Please check API key.")
+      } else if (provider == "openai") {
+        TextAnalysisR::call_openai_chat(
+          prompt = user_prompt,
+          system_prompt = system_prompt,
+          model = model,
+          api_key = api_key,
+          temperature = 0.7,
+          max_tokens = 500
+        )
+      } else if (provider == "gemini") {
+        TextAnalysisR::call_gemini_chat(
+          prompt = user_prompt,
+          system_prompt = system_prompt,
+          model = model,
+          api_key = api_key,
+          temperature = 0.7,
+          max_tokens = 500
+        )
       }
+
+      # Extract K value from recommendation
+      recommended_k <- as.numeric(gsub(".*K\\s*=\\s*(\\d+).*", "\\1",
+                                      regmatches(recommendation,
+                                                regexpr("K\\s*=\\s*\\d+", recommendation))))
+
+      ai_recommendation(list(
+        text = recommendation,
+        recommended_k = if (length(recommended_k) > 0 && !is.na(recommended_k[1])) recommended_k[1] else NA,
+        timestamp = Sys.time()
+      ))
+
+      tryCatch(removeNotification(id = "ai_gen_notification"), error = function(e) {})
+      tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
+      show_completion_notification("AI recommendation generated successfully!", duration = 3)
+
     }, error = function(e) {
       tryCatch(removeNotification(id = "ai_gen_notification"), error = function(e) {})
       error_msg <- if (!is.null(e$message) && nchar(e$message) > 0) {
         paste("AI recommendation error:", e$message)
       } else {
-        "Error generating AI recommendation. Please check your API key and try again."
+        "Error generating AI recommendation. Please check your settings and try again."
       }
       shiny::showNotification(error_msg, type = "error", duration = 5)
     })
@@ -16741,7 +17336,7 @@ server <- shinyServer(function(input, output, session) {
   # TOPIC MODELING TAB
   ################################################################################
 
-  output$K_number_uiOutput <- renderUI({
+  output$stm_K_number_uiOutput <- renderUI({
     sliderInput(
       "K_number",
       "Choose K (number of topics).",
@@ -16755,16 +17350,8 @@ server <- shinyServer(function(input, output, session) {
     input$K_number
   })
 
-  # Hybrid model K number UI output
-  output$hybrid_K_number_uiOutput <- renderUI({
-    sliderInput(
-      "hybrid_K_number",
-      "Choose K (number of topics).",
-      value = 10,
-      min = 0,
-      max = 50
-    )
-  })
+  # Note: hybrid_K_number_uiOutput is defined after hybrid_K_search() at line ~16801
+  # to use search results for the selectInput choices
 
   hybrid_K_number <- eventReactive(input$hybrid_K_number, {
     input$hybrid_K_number
@@ -16773,17 +17360,19 @@ server <- shinyServer(function(input, output, session) {
   observe({
     req(colnames_cat())
     updateSelectizeInput(session,
-                         "categorical_var_2",
-                         choices = colnames_cat(),
+                         "stm_categorical_var_2",
+                         choices = c("None" = "", colnames_cat()),
+                         selected = "",
                          server = TRUE
     )
   })
 
   observe({
-    updateSelectInput(session,
-                      "continuous_var_2",
-                      choices = colnames_con(),
-                      selected = " "
+    updateSelectizeInput(session,
+                         "stm_continuous_var_2",
+                         choices = c("None" = "", colnames_con()),
+                         selected = "",
+                         server = TRUE
     )
   })
 
@@ -16796,13 +17385,13 @@ server <- shinyServer(function(input, output, session) {
   output_message <- reactiveVal(NULL)
 
   prevalence_formula_K_n <- reactive({
-    categorical_var <- if (!is.null(input$categorical_var_2)) {
-      trimws(unlist(strsplit(as.character(input$categorical_var_2), ",")))
+    categorical_var <- if (!is.null(input$stm_categorical_var_2)) {
+      trimws(unlist(strsplit(as.character(input$stm_categorical_var_2), ",")))
     } else {
       NULL
     }
-    continuous_var <- if (!is.null(input$continuous_var_2)) {
-      trimws(unlist(strsplit(as.character(input$continuous_var_2), ",")))
+    continuous_var <- if (!is.null(input$stm_continuous_var_2)) {
+      trimws(unlist(strsplit(as.character(input$stm_continuous_var_2), ",")))
     } else {
       NULL
     }
@@ -16883,7 +17472,7 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$run, {
+  observeEvent(input$stm_run, {
     dfm_obj <- get_available_dfm()
 
     if (is.null(dfm_obj)) {
@@ -16949,14 +17538,14 @@ server <- shinyServer(function(input, output, session) {
 
     req(input$K_number)
 
-    categorical_var <- if (!is.null(input$categorical_var_2)) {
-      unlist(strsplit(as.character(input$categorical_var_2), ",\\s*"))
+    categorical_var <- if (!is.null(input$stm_categorical_var_2)) {
+      unlist(strsplit(as.character(input$stm_categorical_var_2), ",\\s*"))
     } else {
       NULL
     }
 
-    continuous_var <- if (!is.null(input$continuous_var_2)) {
-      unlist(strsplit(as.character(input$continuous_var_2), ",\\s*"))
+    continuous_var <- if (!is.null(input$stm_continuous_var_2)) {
+      unlist(strsplit(as.character(input$stm_continuous_var_2), ",\\s*"))
     } else {
       NULL
     }
@@ -17010,7 +17599,7 @@ server <- shinyServer(function(input, output, session) {
 
     tryCatch(
       {
-        init_type_to_use <- input$init_type_K
+        init_type_to_use <- input$stm_init_type_K
 
         stm_result <- tryCatch({
           stm::stm(
@@ -17021,10 +17610,10 @@ server <- shinyServer(function(input, output, session) {
             K = K_num,
             prevalence = prevalence_formula_K_n(),
             verbose = TRUE,
-            gamma.prior = input$gamma_prior_K,
+            gamma.prior = input$stm_gamma_prior_K,
             sigma.prior = 0,
-            kappa.prior = input$kappa_prior_K,
-            max.em.its = input$max_em_its_K,
+            kappa.prior = input$stm_kappa_prior_K,
+            max.em.its = input$stm_max_em_its_K,
             emtol = 1e-04,
             control = list(alpha = 50/K_num)
           )
@@ -17039,10 +17628,10 @@ server <- shinyServer(function(input, output, session) {
               K = K_num,
               prevalence = prevalence_formula_K_n(),
               verbose = TRUE,
-              gamma.prior = input$gamma_prior_K,
+              gamma.prior = input$stm_gamma_prior_K,
               sigma.prior = 0,
-              kappa.prior = input$kappa_prior_K,
-              max.em.its = input$max_em_its_K,
+              kappa.prior = input$stm_kappa_prior_K,
+              max.em.its = input$stm_max_em_its_K,
               emtol = 1e-04,
               control = list(alpha = 50/K_num)
             )
@@ -17055,29 +17644,17 @@ server <- shinyServer(function(input, output, session) {
         generated_labels(NULL)
 
         previous_K_number(input$K_number)
-        previous_categorical_var_2(input$categorical_var_2)
-        previous_continuous_var_2(input$continuous_var_2)
-        previous_topic_measure(input$topic_measure)
+        previous_categorical_var_2(input$stm_categorical_var_2)
+        previous_continuous_var_2(input$stm_continuous_var_2)
+        previous_topic_measure(input$stm_topic_measure)
 
         current_slider_values <- list(
-          frex = input$top_term_number_frex %||% 5,
-          lift = input$top_term_number_lift %||% 5,
-          score = input$top_term_number_score %||% 5,
-          beta = input$top_term_number_beta %||% 5
+          frex = input$stm_top_term_number_frex %||% 5,
+          lift = input$stm_top_term_number_lift %||% 5,
+          score = input$stm_top_term_number_score %||% 5,
+          beta = input$stm_top_term_number_beta %||% 5
         )
         previous_slider_values(current_slider_values)
-
-        output$output_message <- renderUI({
-          HTML(paste0(
-            "<div style='background-color: #f0f8ff; border: 1px solid #4682b4; padding: 10px; border-radius: 5px;'>",
-            "<h5><strong style='color: #2c5aa0;'>Model Information</strong></h5>",
-            "<p><b>Prevalence formula:</b> ",
-            ifelse(is.null(prevalence_formula()), "No document-level covariates", deparse(prevalence_formula())),
-            "</p>",
-            "<p><b>Computing STM model with K =</b> ", input$K_number, "</p>",
-            "</div>"
-          ))
-        })
 
         tryCatch(removeNotification(id = "stm_model_notification"), error = function(e) {})
         show_completion_notification("STM model completed successfully!", duration = 3)
@@ -17105,7 +17682,45 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$run_embedding, {
+  # Python status indicator for Embedding topic modeling
+  output$embedding_topic_python_status <- renderUI({
+    # Check Python and required packages
+    python_ok <- tryCatch({
+      requireNamespace("reticulate", quietly = TRUE) &&
+        reticulate::py_module_available("sentence_transformers")
+    }, error = function(e) FALSE)
+
+    bertopic_ok <- tryCatch({
+      python_ok && reticulate::py_module_available("bertopic")
+    }, error = function(e) FALSE)
+
+    if (python_ok && bertopic_ok) {
+      tags$div(
+        class = "status-sidebar-success",
+        style = "margin-bottom: 10px;",
+        tags$i(class = "fa fa-check-circle status-icon status-icon-success"),
+        tags$span("Python + BERTopic ready")
+      )
+    } else if (python_ok) {
+      tags$div(
+        class = "status-sidebar-warning",
+        style = "margin-bottom: 10px;",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+        tags$span("BERTopic not found. Run: "),
+        tags$code("pip install bertopic", style = "font-size: 12px;")
+      )
+    } else {
+      tags$div(
+        class = "status-sidebar-warning",
+        style = "margin-bottom: 10px;",
+        tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
+        tags$span("Python required. Run: "),
+        tags$code("pip install sentence-transformers bertopic", style = "font-size: 12px;")
+      )
+    }
+  })
+
+  observeEvent(input$embedding_run, {
     if (!TextAnalysisR::require_feature("embeddings", session)) {
       return()
     }
@@ -17125,33 +17740,35 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    show_loading_notification(HTML(paste("Running embedding-based topic modeling with", input$embedding_n_topics, "topics...<br>This may take several minutes.")),
+    n_topics_msg <- if (input$embedding_method == "umap_hdbscan") "automatic" else input$embedding_n_topics
+    show_loading_notification(HTML(paste("Running embedding-based topic modeling with", n_topics_msg, "topics...<br>This may take several minutes.")),
                               id = "embedding_model_notification")
 
     tryCatch({
       texts <- united_tbl()$united_texts
 
       if (input$embedding_method == "umap_hdbscan") {
-        embedding_result <- TextAnalysisR::fit_embedding_topics(
+        embedding_result <- TextAnalysisR::fit_embedding_model(
           texts = texts,
           method = input$embedding_method,
           embedding_model = input$embedding_model_name,
-          umap_neighbors = input$umap_neighbors,
-          umap_min_dist = input$umap_min_dist,
-          min_topic_size = input$min_topic_size,
-          reduce_outliers = input$reduce_outliers,
-          diversity = input$topic_diversity,
-          representation_method = input$topic_representation,
+          umap_neighbors = input$embedding_umap_neighbors,
+          umap_min_dist = input$embedding_umap_min_dist,
+          min_topic_size = input$embedding_min_topic_size,
+          cluster_selection_method = input$embedding_cluster_selection,
+          reduce_outliers = input$embedding_reduce_outliers,
+          diversity = input$embedding_topic_diversity,
+          representation_method = input$embedding_topic_representation,
           seed = 123,
           verbose = TRUE
         )
       } else {
-        embedding_result <- TextAnalysisR::fit_embedding_topics(
+        embedding_result <- TextAnalysisR::fit_embedding_model(
           texts = texts,
           method = input$embedding_method,
           n_topics = input$embedding_n_topics,
           embedding_model = input$embedding_model_name,
-          representation_method = input$topic_representation,
+          representation_method = input$embedding_topic_representation,
           seed = 123,
           verbose = TRUE
         )
@@ -17182,7 +17799,7 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
-  hybrid_K_search <- eventReactive(input$search_hybrid, {
+  hybrid_K_search <- eventReactive(input$hybrid_search, {
     tryCatch({
       TextAnalysisR:::check_rate_limit(session$token, user_requests, max_requests = 100, window_seconds = 3600)
     }, error = function(e) {
@@ -17192,7 +17809,7 @@ server <- shinyServer(function(input, output, session) {
         session,
         "WARNING"
       )
-      TextAnalysisR:::show_error_notification(
+      TextAnalysisR::show_error_notification(
         "You have made too many search requests. Please wait before trying again."
       )
       return(NULL)
@@ -17316,7 +17933,7 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  observeEvent(input$hybrid_display, {
+  observeEvent(input$hybrid_run, {
     req(input$hybrid_K_number)
     dfm_obj <- get_available_dfm()
 
@@ -17364,17 +17981,39 @@ server <- shinyServer(function(input, output, session) {
         prevalence_formula <- as.formula(paste("~", paste(covariate_names, collapse = " + ")))
       }
 
+      # Reuse cached embeddings if available and compatible
+      cached_embeddings <- NULL
+      if (!is.null(embeddings_cache$embeddings) &&
+          nrow(embeddings_cache$embeddings) == length(texts)) {
+        cached_embeddings <- embeddings_cache$embeddings
+        showNotification("Using cached embeddings for hybrid model", type = "message", duration = 2)
+      }
+
       hybrid_result <- TextAnalysisR::fit_hybrid_model(
         texts = texts,
         metadata = metadata,
         n_topics_stm = as.numeric(input$hybrid_K_number),
         embedding_model = input$hybrid_embedding_model,
+        n_embedding_dims = input$hybrid_n_embedding_dims %||% 5,
         stm_prevalence = prevalence_formula,
         stm_init_type = input$hybrid_init_type_K %||% "Spectral",
-        alignment_method = "cosine",
+        stm_gamma_prior = input$hybrid_gamma_prior_K %||% "Pooled",
+        stm_kappa_prior = input$hybrid_kappa_prior_K %||% "L1",
+        stm_max_em_its = input$hybrid_max_em_its_K %||% 75,
         verbose = TRUE,
-        seed = 123
+        seed = 123,
+        precomputed_embeddings = cached_embeddings
       )
+
+      # Store embeddings in cache if newly generated
+      if (is.null(cached_embeddings) && !is.null(hybrid_result$embedding_result$embeddings)) {
+        embeddings_cache$embeddings <- hybrid_result$embedding_result$embeddings
+        embeddings_cache$model <- input$hybrid_embedding_model
+        embeddings_cache$texts_hash <- digest::digest(texts, algo = "md5")
+        embeddings_cache$timestamp <- Sys.time()
+        embeddings_cache$source <- "topic_modeling_hybrid"
+        embeddings_cache$n_docs <- nrow(hybrid_result$embedding_result$embeddings)
+      }
 
       stm_K_number(hybrid_result$stm_result$model)
 
@@ -17382,18 +18021,6 @@ server <- shinyServer(function(input, output, session) {
 
       tryCatch(removeNotification(id = "hybrid_model_notification"), error = function(e) {})
       show_completion_notification("Hybrid model completed successfully!", duration = 3)
-
-      output$output_message <- renderUI({
-        HTML(paste0(
-          "<div style='background-color: #f0f8ff; border: 1px solid #4682b4; padding: 10px; border-radius: 5px;'>",
-          "<h5><strong style='color: #2c5aa0;'>Hybrid Model Information</strong></h5>",
-          "<p><b>STM Topics:</b> ", input$hybrid_K_number, "</p>",
-          "<p><b>Embedding Model:</b> ", input$hybrid_embedding_model %||% "all-MiniLM-L6-v2", "</p>",
-          "<p><b>Alignment Score:</b> ", round(hybrid_result$alignment$score, 3), "</p>",
-          "<p><b>Method:</b> STM Hybrid</p>",
-          "</div>"
-        ))
-      })
 
     }, error = function(e) {
       tryCatch(removeNotification(id = "hybrid_model_notification"), error = function(e) {})
@@ -17411,7 +18038,7 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
-  observeEvent(input$display_embedding_topics, {
+  observeEvent(input$embedding_display, {
     if (is.null(stm_K_number())) {
       showNotification("Please run the embedding model first.", type = "warning", duration = 3)
       return()
@@ -17699,9 +18326,11 @@ server <- shinyServer(function(input, output, session) {
           sqrt(sum((x - centroid)^2))
         })
 
-        closest_indices <- topic_docs[order(distances)[1:min(5, length(topic_docs))]]
+        n_quotes <- input$embedding_quote_number %||% 5
+        closest_indices <- topic_docs[order(distances)[1:min(n_quotes, length(topic_docs))]]
       } else {
-        closest_indices <- head(topic_docs, 5)
+        n_quotes <- input$embedding_quote_number %||% 5
+        closest_indices <- head(topic_docs, n_quotes)
       }
 
       example_texts <- texts[closest_indices]
@@ -17718,7 +18347,7 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  observeEvent(input$display_hybrid_topics, {
+  observeEvent(input$hybrid_display, {
     if (is.null(stm_K_number()) || is.null(attr(stm_K_number(), "hybrid_result"))) {
       showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
       return()
@@ -17776,9 +18405,10 @@ server <- shinyServer(function(input, output, session) {
 
     output$hybrid_topic_table <- DT::renderDataTable({
       if ("topic_keywords" %in% names(hybrid_result)) {
+        n_terms <- input$hybrid_top_term_number_2 %||% 5
         topic_df <- data.frame(
           Topic = names(hybrid_result$topic_keywords),
-          Keywords = sapply(hybrid_result$topic_keywords, function(x) paste(x, collapse = ", ")),
+          Keywords = sapply(hybrid_result$topic_keywords, function(x) paste(head(x, n_terms), collapse = ", ")),
           Coherence = round(hybrid_result$quality_metrics$semantic_coherence, 3),
           Exclusivity = round(hybrid_result$quality_metrics$exclusivity, 3),
           stringsAsFactors = FALSE
@@ -17788,7 +18418,7 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
-  effect_hybrid_result <- eventReactive(input$effect_hybrid, {
+  hybrid_effect_result <- eventReactive(input$hybrid_effect, {
     if (is.null(stm_K_number()) || is.null(attr(stm_K_number(), "hybrid_result"))) {
       showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
       return(NULL)
@@ -17848,7 +18478,7 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observe({
-    effect_result <- effect_hybrid_result()
+    effect_result <- hybrid_effect_result()
     if (!is.null(effect_result)) {
       output$effect_table <- DT::renderDataTable({
         td <- tidytext::tidy(effect_result) %>%
@@ -17858,20 +18488,193 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  output$effect_hybrid_download_table <- downloadHandler(
+  output$hybrid_effect_download_table <- downloadHandler(
     filename = function() {
       paste0("hybrid_effect_estimates_", Sys.Date(), ".xlsx")
     },
     content = function(file) {
-      if (is.null(effect_hybrid_result())) {
+      if (is.null(hybrid_effect_result())) {
         showNotification("No effect estimates available for download. Please run the effect estimation first.", type = "error")
         return()
       }
-      td <- tidytext::tidy(effect_hybrid_result()) %>%
+      td <- tidytext::tidy(hybrid_effect_result()) %>%
         dplyr::mutate(across(where(is.numeric), ~ round(., 3)))
       openxlsx::write.xlsx(td, file)
     }
   )
+
+  # Update Hybrid Effects categorical selector from selected covariates
+  observe({
+    selected_cat <- input$hybrid_categorical_var_2
+    updateSelectizeInput(session,
+                         "hybrid_effect_cat_btn",
+                         choices = selected_cat,
+                         selected = if (!is.null(selected_cat) && length(selected_cat) > 0) selected_cat[1] else NULL
+    )
+  })
+
+  # Update Hybrid Effects continuous selector from selected covariates
+  observe({
+    selected_con <- input$hybrid_continuous_var_2
+    updateSelectizeInput(session,
+                         "hybrid_effect_con_btn",
+                         choices = selected_con,
+                         selected = if (!is.null(selected_con) && length(selected_con) > 0) selected_con[1] else NULL
+    )
+  })
+
+  # Hybrid effects categorical reactive
+  hybrid_effects_categorical_var <- reactive({
+    if (is.null(hybrid_effect_result()) || is.null(input$hybrid_effect_cat_btn)) {
+      return(NULL)
+    }
+    tryCatch(
+      {
+        stminsights::get_effects(
+          estimates = hybrid_effect_result(),
+          variable = input$hybrid_effect_cat_btn,
+          type = "pointestimate"
+        )
+      },
+      error = function(e) {
+        showNotification(paste("Error calculating hybrid categorical effects:", e$message), type = "error")
+        return(NULL)
+      }
+    )
+  })
+
+  # Hybrid effects continuous reactive
+  hybrid_effects_continuous_var <- reactive({
+    if (is.null(hybrid_effect_result()) || is.null(input$hybrid_effect_con_btn)) {
+      return(NULL)
+    }
+    tryCatch(
+      {
+        stminsights::get_effects(
+          estimates = hybrid_effect_result(),
+          variable = input$hybrid_effect_con_btn,
+          type = "continuous"
+        )
+      },
+      error = function(e) {
+        showNotification(paste("Error calculating hybrid continuous effects:", e$message), type = "error")
+        return(NULL)
+      }
+    )
+  })
+
+  # Hybrid categorical effects plot handler
+  observeEvent(input$hybrid_display_cat, {
+    output$hybrid_cat_plot <- plotly::renderPlotly({
+      plot_topic_effects_categorical(
+        effects_data = hybrid_effects_categorical_var(),
+        ncol = input$hybrid_ncol_cat,
+        height = 600,
+        width = 1000
+      )
+    })
+  })
+
+  output$hybrid_cat_plot_uiOutput <- renderUI({
+    req(input$hybrid_effect_cat_btn)
+    req(input$hybrid_display_cat)
+    plotly::plotlyOutput(
+      "hybrid_cat_plot",
+      height = 600,
+      width = "100%"
+    )
+  })
+
+  observeEvent(input$hybrid_display_cat, {
+    req(input$hybrid_effect_cat_btn)
+    output$hybrid_cat_table <- DT::renderDataTable({
+      if (is.null(hybrid_effects_categorical_var()) || nrow(hybrid_effects_categorical_var()) == 0) {
+        return(DT::datatable(
+          data.frame(Message = "No categorical effects available. Please run the effect estimation first."),
+          rownames = FALSE,
+          options = list(dom = "t", ordering = FALSE)
+        ))
+      }
+      hybrid_effects_categorical_var() %>%
+        dplyr::select(topic, value, proportion, lower, upper) %>%
+        dplyr::mutate(across(where(is.numeric), ~ round(., 3))) %>%
+        DT::datatable(
+          rownames = FALSE,
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            width = "100%",
+            dom = "Bfrtip",
+            buttons = c("copy", "csv", "excel", "pdf", "print")
+          )
+        )
+    })
+  })
+
+  output$hybrid_cat_table_uiOutput <- renderUI({
+    req(input$hybrid_effect_cat_btn)
+    req(input$hybrid_display_cat)
+    htmltools::tags$div(
+      style = "margin-top: 20px;",
+      DT::dataTableOutput("hybrid_cat_table", width = "100%")
+    )
+  })
+
+  # Hybrid continuous effects plot handler
+  observeEvent(input$hybrid_display_con, {
+    output$hybrid_con_plot <- plotly::renderPlotly({
+      plot_topic_effects_continuous(
+        effects_data = hybrid_effects_continuous_var(),
+        ncol = input$hybrid_ncol_con,
+        height = 600,
+        width = 1000
+      )
+    })
+  })
+
+  output$hybrid_con_plot_uiOutput <- renderUI({
+    req(input$hybrid_effect_con_btn)
+    req(input$hybrid_display_con)
+    plotly::plotlyOutput(
+      "hybrid_con_plot",
+      height = 600,
+      width = "100%"
+    )
+  })
+
+  observeEvent(input$hybrid_display_con, {
+    req(input$hybrid_effect_con_btn)
+    output$hybrid_con_table <- DT::renderDataTable({
+      if (is.null(hybrid_effects_continuous_var()) || nrow(hybrid_effects_continuous_var()) == 0) {
+        return(DT::datatable(
+          data.frame(Message = "No continuous effects available. Please run the effect estimation first."),
+          rownames = FALSE,
+          options = list(dom = "t", ordering = FALSE)
+        ))
+      }
+      hybrid_effects_continuous_var() %>%
+        dplyr::mutate(across(where(is.numeric), ~ round(., 3))) %>%
+        DT::datatable(
+          rownames = FALSE,
+          extensions = "Buttons",
+          options = list(
+            scrollX = TRUE,
+            width = "100%",
+            dom = "Bfrtip",
+            buttons = c("copy", "csv", "excel", "pdf", "print")
+          )
+        )
+    })
+  })
+
+  output$hybrid_con_table_uiOutput <- renderUI({
+    req(input$hybrid_effect_con_btn)
+    req(input$hybrid_display_con)
+    htmltools::tags$div(
+      style = "margin-top: 20px;",
+      DT::dataTableOutput("hybrid_con_table", width = "100%")
+    )
+  })
 
   observe({
     if (!is.null(stm_K_number()) && "topic_assignments" %in% names(stm_K_number())) {
@@ -17902,6 +18705,24 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
+  # Update Hybrid Display K covariates (var_2)
+  observe({
+    req(colnames_cat())
+    updateSelectizeInput(session,
+                         "hybrid_categorical_var_2",
+                         choices = c("None" = "", colnames_cat()),
+                         selected = "",
+                         server = TRUE)
+  })
+
+  observe({
+    updateSelectizeInput(session,
+                         "hybrid_continuous_var_2",
+                         choices = c("None" = "", colnames_con()),
+                         selected = "",
+                         server = TRUE)
+  })
+
   output$text_output <- renderText({
     output_message()
   })
@@ -17910,16 +18731,47 @@ server <- shinyServer(function(input, output, session) {
 
   previous_topic_measure <- reactiveVal(NULL)
 
-  get_top_term_number <- reactive({
-    measure <- if (is.null(input$topic_measure)) "frex" else input$topic_measure
+  # Get current topic measure based on modeling path (STM or Hybrid)
+  get_topic_measure <- reactive({
+    is_hybrid <- !is.null(input$topic_modeling_path) && input$topic_modeling_path == "hybrid"
+    if (is_hybrid) {
+      input$hybrid_topic_measure %||% "frex"
+    } else {
+      input$stm_topic_measure %||% "frex"
+    }
+  })
 
-    switch(measure,
-           "frex" = input$top_term_number_frex %||% 5,
-           "lift" = input$top_term_number_lift %||% 5,
-           "score" = input$top_term_number_score %||% 5,
-           "beta" = input$top_term_number_beta %||% 5,
-           5
-    )
+  # Get number of columns for topic term display based on modeling path
+  get_ncol_top_terms <- reactive({
+    is_hybrid <- !is.null(input$topic_modeling_path) && input$topic_modeling_path == "hybrid"
+    if (is_hybrid) {
+      input$hybrid_ncol_top_terms %||% 2
+    } else {
+      input$stm_ncol_top_terms %||% 2
+    }
+  })
+
+  # Get top term number based on current measure and modeling path
+  get_top_term_number <- reactive({
+    is_hybrid <- !is.null(input$topic_modeling_path) && input$topic_modeling_path == "hybrid"
+
+    if (is_hybrid) {
+      measure <- input$hybrid_topic_measure %||% "frex"
+      switch(measure,
+             "frex" = input$hybrid_top_term_number_frex %||% 5,
+             "lift" = input$hybrid_top_term_number_lift %||% 5,
+             "score" = input$hybrid_top_term_number_score %||% 5,
+             "beta" = input$hybrid_top_term_number_beta %||% 5,
+             5)
+    } else {
+      measure <- input$stm_topic_measure %||% "frex"
+      switch(measure,
+             "frex" = input$stm_top_term_number_frex %||% 5,
+             "lift" = input$stm_top_term_number_lift %||% 5,
+             "score" = input$stm_top_term_number_score %||% 5,
+             "beta" = input$stm_top_term_number_beta %||% 5,
+             5)
+    }
   })
 
   stm_topic_terms <- reactive({
@@ -17927,7 +18779,7 @@ server <- shinyServer(function(input, output, session) {
       return(NULL)
     }
 
-    measure <- if (is.null(input$topic_measure)) "frex" else input$topic_measure
+    measure <- get_topic_measure()
 
     tryCatch(
       {
@@ -18072,8 +18924,8 @@ server <- shinyServer(function(input, output, session) {
       paste("Topic", 1:n_topics)
     }
 
-    if (!is.null(input$label_topics) && input$label_topics != "") {
-      manual_labels <- trimws(strsplit(input$label_topics, ",")[[1]])
+    if (!is.null(input$stm_label_topics) && input$stm_label_topics != "") {
+      manual_labels <- trimws(strsplit(input$stm_label_topics, ",")[[1]])
       for (i in seq_len(min(length(manual_labels), n_topics))) {
         if (manual_labels[i] != "") {
           labels[i] <- manual_labels[i]
@@ -18133,164 +18985,103 @@ server <- shinyServer(function(input, output, session) {
   })
 
   shiny::observeEvent(input$topic_generate_labels, {
-    if (!is.null(generated_labels()) && input$system == previous_system() && input$user == previous_user()) {
+    if (!is.null(generated_labels()) && input$stm_system_prompt == previous_system() && input$stm_user_prompt == previous_user()) {
       shiny::showModal(shiny::modalDialog(
         title = "Notification",
         "Topic labels were already generated.",
         easyClose = TRUE,
         footer = shiny::modalButton("Close")
       ))
-    } else {
-      shiny::req(beta_td())
-      if (file.exists(".env")) {
-        dotenv::load_dot_env()
-      }
-
-      existing_key <- Sys.getenv("OPENAI_API_KEY")
-      needs_label_generation(TRUE)
-      shiny::showModal(shiny::modalDialog(
-        title = if (nzchar(existing_key)) "Confirm or Update API Key" else "OpenAI API Key Required",
-        tagList(
-          if (nzchar(existing_key)) {
-            shiny::p("An API key is already configured. You can use it or replace it with a new one.")
-          },
-          tags$div(
-            tags$label("API Key:", `for` = "openai_api_input"),
-            tags$div(
-              class = "input-group",
-              style = "width: 100%;",
-              shiny::passwordInput("openai_api_input",
-                                 label = NULL,
-                                 value = existing_key,
-                                 placeholder = "sk-...",
-                                 width = "100%"),
-              tags$span(
-                class = "input-group-btn",
-                style = "vertical-align: top;",
-                tags$button(
-                  id = "toggle_api_key_modal",
-                  type = "button",
-                  class = "btn btn-default",
-                  style = "height: 34px; border-left: none; border-radius: 0 4px 4px 0;",
-                  onclick = "
-                    var input = document.getElementById('openai_api_input');
-                    var icon = this.querySelector('i');
-                    if (input.type === 'password') {
-                      input.type = 'text';
-                      icon.className = 'fa fa-eye-slash';
-                      this.title = 'Hide API key';
-                    } else {
-                      input.type = 'password';
-                      icon.className = 'fa fa-eye';
-                      this.title = 'Show API key';
-                    }
-                  ",
-                  title = "Show API key",
-                  tags$i(class = "fa fa-eye")
-                )
-              )
-            ),
-            tags$small("Tip: Click the eye icon to show/hide your API key",
-                       style = "color: #666; display: block; margin-top: 5px;")
-          )
-        ),
-        footer = tagList(
-          shiny::actionButton("submit_api_key", "Submit", class = "btn-primary"),
-          shiny::modalButton("Cancel")
-        ),
-        easyClose = TRUE
-      ))
       return()
-
-      shiny::showNotification("Generating topic labels...", type = "message", duration = NULL, id = "label_gen_notification")
-
-      top_topic_terms <- stm_topic_terms() %>%
-        dplyr::group_by(topic) %>%
-        dplyr::top_n(input$top_term_number_labeling, beta) %>%
-        dplyr::ungroup()
-
-      new_labels_td <- TextAnalysisR::generate_topic_labels(
-        top_topic_terms,
-        model = input$model,
-        system = if(nzchar(input$system)) input$system else NULL,
-        user = if(nzchar(input$user)) input$user else NULL,
-        temperature = input$temperature,
-        openai_api_key = api_key,
-        verbose = FALSE
-      )
-
-      generated_labels(tibble::as_tibble(new_labels_td))
-
-      previous_system(input$system)
-      previous_user(input$user)
-
-      tryCatch(removeNotification(id = "label_gen_notification"), error = function(e) {})
-      tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
-      show_completion_notification("Topic labels generated successfully!", duration = 3)
     }
-  })
 
-  shiny::observeEvent(input$submit_api_key, {
-    if (nzchar(input$openai_api_input)) {
-      if (!TextAnalysisR:::validate_api_key(input$openai_api_input, strict = TRUE)) {
-        TextAnalysisR:::log_security_event(
-          "INVALID_API_KEY_ATTEMPT",
-          "Malformed API key submitted for topic labeling",
-          session,
-          "WARNING"
-        )
-        TextAnalysisR:::show_error_notification(
-          "Invalid API key format. OpenAI keys should start with 'sk-' and be 48+ characters."
-        )
+    shiny::req(beta_td())
+
+    provider <- input$stm_label_provider %||% "ollama"
+    api_key <- NULL
+
+    # Check provider availability and get API key
+    if (provider == "ollama") {
+      if (is_web) {
+        showNotification("Ollama requires local installation. Please use OpenAI or Gemini.", type = "warning")
         return()
       }
-
-      Sys.setenv(OPENAI_API_KEY = input$openai_api_input)
-      TextAnalysisR:::log_security_event(
-        "API_KEY_UPDATED",
-        "Valid API key configured for topic labeling",
-        session,
-        "INFO"
-      )
-      shiny::removeModal()
-      show_completion_notification("OpenAI API Key saved successfully for this session.", duration = 3)
-      if (needs_label_generation()) {
-        needs_label_generation(FALSE)
-        shiny::isolate({
-
-          shiny::showNotification("Generating topic labels...", type = "message", duration = NULL, id = "label_gen_notification")
-
-          top_topic_terms <- stm_topic_terms() %>%
-            dplyr::group_by(topic) %>%
-            dplyr::top_n(input$top_term_number_labeling, beta) %>%
-            dplyr::ungroup()
-
-          new_labels_td <- TextAnalysisR::generate_topic_labels(
-            top_topic_terms,
-            model = input$model,
-            system = if(nzchar(input$system)) input$system else NULL,
-            user = if(nzchar(input$user)) input$user else NULL,
-            temperature = input$temperature,
-            openai_api_key = input$openai_api_input,
-            verbose = FALSE
-          )
-
-          generated_labels(tibble::as_tibble(new_labels_td))
-
-          previous_system(input$system)
-          previous_user(input$user)
-
-          tryCatch(removeNotification(id = "label_gen_notification"), error = function(e) {})
-          tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
-          show_completion_notification("Topic labels generated successfully!", duration = 3)
-        })
+      if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
+        showModal(modalDialog(
+          title = "Ollama Required",
+          HTML("<p>Topic labeling with Ollama requires Ollama to be running locally.</p>
+               <p><strong>Setup:</strong></p>
+               <ol>
+                 <li>Download Ollama from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>
+                 <li>Run: <code>ollama pull phi3:mini</code></li>
+                 <li>Start Ollama and try again</li>
+               </ol>"),
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+        return()
       }
-    } else {
-      shiny::showNotification("Please enter a valid API key.", type = "error", duration = 3)
+      model <- input$stm_label_ollama_model %||% "phi3:mini"
+
+    } else if (provider == "openai") {
+      api_key <- input$stm_label_openai_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+      }
+      if (!nzchar(api_key)) {
+        showNotification("OpenAI API key required. Enter in the field or set OPENAI_API_KEY.", type = "error")
+        return()
+      }
+      model <- input$stm_label_openai_model %||% "gpt-4o-mini"
+
+    } else if (provider == "gemini") {
+      api_key <- input$stm_label_gemini_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
+      }
+      if (!nzchar(api_key)) {
+        showNotification("Gemini API key required. Enter in the field or set GEMINI_API_KEY.", type = "error")
+        return()
+      }
+      model <- input$stm_label_gemini_model %||% "gemini-2.0-flash"
     }
+
+    shiny::showNotification("Generating topic labels...", type = "message", duration = NULL, id = "label_gen_notification")
+
+    top_topic_terms <- stm_topic_terms() %>%
+      dplyr::group_by(topic) %>%
+      dplyr::top_n(input$stm_top_term_number_labeling, beta) %>%
+      dplyr::ungroup()
+
+    new_labels_td <- tryCatch({
+      TextAnalysisR::generate_topic_labels(
+        top_topic_terms,
+        provider = provider,
+        model = model,
+        system = if(nzchar(input$stm_system_prompt)) input$stm_system_prompt else NULL,
+        user = if(nzchar(input$stm_user_prompt)) input$stm_user_prompt else NULL,
+        temperature = input$stm_temperature,
+        api_key = api_key,
+        verbose = FALSE
+      )
+    }, error = function(e) {
+      tryCatch(removeNotification(id = "label_gen_notification"), error = function(e) {})
+      showNotification(paste("Label generation failed:", e$message), type = "error", duration = 8)
+      return(NULL)
+    })
+
+    if (is.null(new_labels_td)) return()
+
+    generated_labels(tibble::as_tibble(new_labels_td))
+    previous_system(input$stm_system_prompt)
+    previous_user(input$stm_user_prompt)
+
+    tryCatch(removeNotification(id = "label_gen_notification"), error = function(e) {})
+    tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
+    show_completion_notification("Topic labels generated successfully!", duration = 3)
   })
 
-  # Content generation from topics
+  # Content generation from topics - supports Ollama, OpenAI, and Gemini providers
   shiny::observeEvent(input$generate_topic_content, {
     # Check if content was already generated for same type
     if (!is.null(generated_content()) && input$content_type == previous_content_type()) {
@@ -18300,195 +19091,203 @@ server <- shinyServer(function(input, output, session) {
         easyClose = TRUE,
         footer = shiny::modalButton("Close")
       ))
-    } else {
-      shiny::req(beta_td())
-      if (file.exists(".env")) {
-        dotenv::load_dot_env()
+      return()
+    }
+
+    shiny::req(beta_td())
+
+    # Get provider selection
+    provider <- input$content_provider %||% "ollama"
+    api_key <- NULL
+    model <- NULL
+
+    # Check if running on web deployment
+    is_web <- !is.null(getOption("shiny.host")) ||
+      grepl("shinyapps\\.io|textanalysisr\\.org", Sys.getenv("SHINY_URL", ""))
+
+    # Provider-specific validation
+    if (provider == "ollama") {
+      # Ollama is local only - not available on web deployment
+      if (is_web) {
+        shiny::showNotification(
+          "Ollama requires local installation. Please use OpenAI or Gemini on web.",
+          type = "error",
+          duration = 5
+        )
+        return()
       }
 
-      existing_key <- Sys.getenv("OPENAI_API_KEY")
-      needs_content_generation(TRUE)
-      shiny::showModal(shiny::modalDialog(
-        title = if (nzchar(existing_key)) "Confirm or Update API Key" else "OpenAI API Key Required",
-        tagList(
-          if (nzchar(existing_key)) {
-            shiny::p("An API key is already configured. You can use it or replace it with a new one.")
-          },
-          tags$div(
-            tags$label("API Key:", `for` = "content_api_input"),
-            tags$div(
-              class = "input-group",
-              style = "width: 100%;",
-              shiny::passwordInput("content_api_input",
-                                 label = NULL,
-                                 value = existing_key,
-                                 placeholder = "sk-...",
-                                 width = "100%"),
-              tags$span(
-                class = "input-group-btn",
-                style = "vertical-align: top;",
-                tags$button(
-                  id = "toggle_content_api_key",
-                  type = "button",
-                  class = "btn btn-default",
-                  style = "height: 34px; border-left: none; border-radius: 0 4px 4px 0;",
-                  onclick = "
-                    var input = document.getElementById('content_api_input');
-                    var icon = this.querySelector('i');
-                    if (input.type === 'password') {
-                      input.type = 'text';
-                      icon.className = 'fa fa-eye-slash';
-                      this.title = 'Hide API key';
-                    } else {
-                      input.type = 'password';
-                      icon.className = 'fa fa-eye';
-                      this.title = 'Show API key';
-                    }
-                  ",
-                  title = "Show API key",
-                  tags$i(class = "fa fa-eye")
-                )
-              )
-            ),
-            tags$small("Tip: Click the eye icon to show/hide your API key",
-                       style = "color: #666; display: block; margin-top: 5px;")
-          )
-        ),
-        footer = tagList(
-          shiny::actionButton("submit_content_api_key", "Submit", class = "btn-primary"),
-          shiny::modalButton("Cancel")
-        ),
-        easyClose = TRUE
-      ))
-    }
-  })
+      # Check if Ollama is running
+      if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
+        shiny::showModal(shiny::modalDialog(
+          title = "Ollama Required",
+          HTML(paste0(
+            "<p>Ollama is not running or not installed.</p>",
+            "<p><strong>To set up Ollama:</strong></p>",
+            "<ol>",
+            "<li>Download from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>",
+            "<li>Install and start Ollama</li>",
+            "<li>Run: <code>ollama pull phi3:mini</code></li>",
+            "</ol>"
+          )),
+          easyClose = TRUE,
+          footer = shiny::modalButton("Close")
+        ))
+        return()
+      }
 
-  shiny::observeEvent(input$submit_content_api_key, {
-    if (nzchar(input$content_api_input)) {
-      if (!TextAnalysisR:::validate_api_key(input$content_api_input, strict = TRUE)) {
+      model <- input$content_ollama_model %||% "phi3:mini"
+
+    } else if (provider == "openai") {
+      # Get API key from input or environment
+      api_key <- input$content_openai_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+      }
+
+      if (!nzchar(api_key)) {
+        shiny::showNotification(
+          "OpenAI API key required. Enter in the API Key field or set OPENAI_API_KEY in .Renviron",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      # Validate API key format
+      if (!TextAnalysisR:::validate_api_key(api_key, strict = TRUE)) {
         TextAnalysisR:::log_security_event(
           "INVALID_API_KEY_ATTEMPT",
           "Malformed API key submitted for content generation",
           session,
           "WARNING"
         )
-        TextAnalysisR:::show_error_notification(
-          "Invalid API key format. OpenAI keys should start with 'sk-' and be 48+ characters."
+        shiny::showNotification(
+          "Invalid API key format. OpenAI keys should start with 'sk-' and be 48+ characters.",
+          type = "error",
+          duration = 5
         )
         return()
       }
 
-      Sys.setenv(OPENAI_API_KEY = input$content_api_input)
-      TextAnalysisR:::log_security_event(
-        "API_KEY_UPDATED",
-        "Valid API key configured for content generation",
-        session,
-        "INFO"
-      )
-      shiny::removeModal()
-      show_completion_notification("OpenAI API Key saved successfully for this session.", duration = 3)
+      model <- input$content_openai_model %||% "gpt-4o-mini"
 
-      if (needs_content_generation()) {
-        needs_content_generation(FALSE)
-        shiny::isolate({
-          content_type <- input$content_type
-          content_type_label <- switch(content_type,
-            "survey_item" = "Survey Items",
-            "research_question" = "Research Questions",
-            "theme_description" = "Theme Descriptions",
-            "policy_recommendation" = "Policy Recommendations",
-            "interview_question" = "Interview Questions",
-            "custom" = "Custom Content"
-          )
-
-          shiny::showNotification(
-            paste0("Generating ", content_type_label, "..."),
-            type = "message", duration = NULL, id = "content_gen_notification"
-          )
-
-          top_topic_terms <- stm_topic_terms() %>%
-            dplyr::group_by(topic) %>%
-            dplyr::top_n(input$content_top_terms, beta) %>%
-            dplyr::ungroup()
-
-          # Use the system and user prompts from the UI (populated by content type or user-edited)
-          system_prompt <- if (nzchar(input$content_system_prompt)) {
-            input$content_system_prompt
-          } else {
-            NULL
-          }
-
-          user_prompt_template <- if (nzchar(input$content_user_prompt)) {
-            input$content_user_prompt
-          } else {
-            NULL
-          }
-
-          # Use content-specific model and temperature
-          new_content <- TextAnalysisR::generate_topic_content(
-            topic_terms_df = top_topic_terms,
-            content_type = content_type,
-            topic_var = "topic",
-            term_var = "term",
-            weight_var = "beta",
-            provider = "openai",
-            model = input$content_model,
-            temperature = input$content_temperature,
-            system_prompt = system_prompt,
-            user_prompt_template = user_prompt_template,
-            max_tokens = input$content_max_tokens,
-            api_key = input$content_api_input,
-            verbose = FALSE
-          )
-
-          generated_content(tibble::as_tibble(new_content))
-          previous_content_type(content_type)
-
-          tryCatch(removeNotification(id = "content_gen_notification"), error = function(e) {})
-          show_completion_notification(paste0(content_type_label, " generated successfully!"), duration = 3)
-
-          # Show results in a modal
-          output_var <- switch(content_type,
-            "survey_item" = "survey_item",
-            "research_question" = "research_question",
-            "theme_description" = "theme_description",
-            "policy_recommendation" = "policy_recommendation",
-            "interview_question" = "interview_question",
-            "custom" = "generated_content"
-          )
-
-          shiny::showModal(shiny::modalDialog(
-            title = paste("Generated", content_type_label),
-            size = "l",
-            DT::renderDataTable({
-              DT::datatable(
-                new_content,
-                options = list(
-                  pageLength = 10,
-                  scrollX = TRUE,
-                  dom = 'Bfrtip',
-                  buttons = list(
-                    'copy',
-                    list(extend = 'csv', title = 'Generated_Content'),
-                    list(extend = 'excel', title = 'Generated_Content'),
-                    list(extend = 'pdf', title = 'Generated_Content'),
-                    'print'
-                  )
-                ),
-                extensions = 'Buttons',
-                rownames = FALSE
-              )
-            }),
-            footer = tagList(
-              shiny::modalButton("Close")
-            ),
-            easyClose = TRUE
-          ))
-        })
+    } else if (provider == "gemini") {
+      # Get API key from input or environment
+      api_key <- input$content_gemini_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
       }
-    } else {
-      shiny::showNotification("Please enter a valid API key.", type = "error", duration = 3)
+
+      if (!nzchar(api_key)) {
+        shiny::showNotification(
+          "Gemini API key required. Enter in the API Key field or set GEMINI_API_KEY in .Renviron",
+          type = "error",
+          duration = 5
+        )
+        return()
+      }
+
+      model <- input$content_gemini_model %||% "gemini-2.0-flash"
     }
+
+    # Generate content
+    content_type <- input$content_type
+    content_type_label <- switch(content_type,
+      "survey_item" = "Survey Items",
+      "research_question" = "Research Questions",
+      "theme_description" = "Theme Descriptions",
+      "policy_recommendation" = "Policy Recommendations",
+      "interview_question" = "Interview Questions",
+      "custom" = "Custom Content"
+    )
+
+    shiny::showNotification(
+      paste0("Generating ", content_type_label, " using ", provider, "..."),
+      type = "message",
+      duration = NULL,
+      id = "content_gen_notification"
+    )
+
+    tryCatch({
+      top_topic_terms <- stm_topic_terms() %>%
+        dplyr::group_by(topic) %>%
+        dplyr::top_n(input$content_top_terms, beta) %>%
+        dplyr::ungroup()
+
+      # Use the system and user prompts from the UI
+      system_prompt <- if (nzchar(input$content_system_prompt)) {
+        input$content_system_prompt
+      } else {
+        NULL
+      }
+
+      user_prompt_template <- if (nzchar(input$content_user_prompt)) {
+        input$content_user_prompt
+      } else {
+        NULL
+      }
+
+      # Generate content with selected provider
+      new_content <- TextAnalysisR::generate_topic_content(
+        topic_terms_df = top_topic_terms,
+        content_type = content_type,
+        topic_var = "topic",
+        term_var = "term",
+        weight_var = "beta",
+        provider = provider,
+        model = model,
+        temperature = input$content_temperature,
+        system_prompt = system_prompt,
+        user_prompt_template = user_prompt_template,
+        max_tokens = input$content_max_tokens,
+        api_key = api_key,
+        verbose = FALSE
+      )
+
+      generated_content(tibble::as_tibble(new_content))
+      previous_content_type(content_type)
+
+      tryCatch(removeNotification(id = "content_gen_notification"), error = function(e) {})
+      show_completion_notification(paste0(content_type_label, " generated successfully!"), duration = 3)
+
+      # Show results in a modal
+      shiny::showModal(shiny::modalDialog(
+        title = paste("Generated", content_type_label),
+        size = "l",
+        DT::renderDataTable({
+          DT::datatable(
+            new_content,
+            options = list(
+              pageLength = 10,
+              scrollX = TRUE,
+              dom = 'Bfrtip',
+              buttons = list(
+                'copy',
+                list(extend = 'csv', title = 'Generated_Content'),
+                list(extend = 'excel', title = 'Generated_Content'),
+                list(extend = 'pdf', title = 'Generated_Content'),
+                'print'
+              )
+            ),
+            extensions = 'Buttons',
+            rownames = FALSE
+          )
+        }),
+        footer = tagList(
+          shiny::modalButton("Close")
+        ),
+        easyClose = TRUE
+      ))
+
+    }, error = function(e) {
+      tryCatch(removeNotification(id = "content_gen_notification"), error = function(e) {})
+      shiny::showNotification(
+        paste("Content generation failed:", e$message),
+        type = "error",
+        duration = 8
+      )
+    })
   })
 
   # Download handler for generated content
@@ -18544,7 +19343,7 @@ server <- shinyServer(function(input, output, session) {
   output$topic_term_plot <- plotly::renderPlotly({
     stm_model_trigger()
     shiny::req(beta_td())
-    shiny::req(input$topic_measure)
+    shiny::req(get_topic_measure())
 
     wrap_width <- if (is.null(input$width)) {
       30
@@ -18554,8 +19353,8 @@ server <- shinyServer(function(input, output, session) {
       25
     }
 
-    manual_labels <- if (input$label_topics != "") {
-      strsplit(input$label_topics, split = ",")[[1]]
+    manual_labels <- if (input$stm_label_topics != "") {
+      strsplit(input$stm_label_topics, split = ",")[[1]]
     } else {
       NULL
     }
@@ -18606,7 +19405,7 @@ server <- shinyServer(function(input, output, session) {
       )
     }
 
-    measure <- if (is.null(input$topic_measure)) "frex" else input$topic_measure
+    measure <- get_topic_measure()
     measure_label <- switch(measure,
                             "frex" = "FREX Score",
                             "lift" = "Lift Score",
@@ -18617,7 +19416,7 @@ server <- shinyServer(function(input, output, session) {
     plot_word_probability(
       top_topic_terms = topic_term_data,
       topic_label = final_labels,
-      ncol = input$ncol_top_terms,
+      ncol = get_ncol_top_terms(),
       height = input$height,
       width = input$width,
       ylab = measure_label,
@@ -18658,8 +19457,8 @@ server <- shinyServer(function(input, output, session) {
       dplyr::mutate(topic_label = paste("Topic", topic)) %>%
       dplyr::mutate(topic_label = stringr::str_wrap(topic_label, width = current_wrap_width))
 
-    manual_labels <- if (input$label_topics != "") {
-      strsplit(input$label_topics, split = ",")[[1]]
+    manual_labels <- if (input$stm_label_topics != "") {
+      strsplit(input$stm_label_topics, split = ",")[[1]]
     } else {
       NULL
     }
@@ -18713,6 +19512,7 @@ server <- shinyServer(function(input, output, session) {
         options = list(dom = "t", ordering = FALSE)
       ))
     }
+    current_measure <- get_topic_measure()
     topic_table_data() %>%
       DT::datatable(
         rownames = FALSE,
@@ -18720,11 +19520,11 @@ server <- shinyServer(function(input, output, session) {
         extensions = "Buttons",
         colnames = c(
           "Topic Label", "Topic", "Term",
-          if (is.null(input$topic_measure) || input$topic_measure == "beta") {
+          if (is.null(current_measure) || current_measure == "beta") {
             "Probability"
-          } else if (input$topic_measure == "frex") {
+          } else if (current_measure == "frex") {
             "FREX Score"
-          } else if (input$topic_measure == "lift") {
+          } else if (current_measure == "lift") {
             "Lift Score"
           } else {
             "Value"
@@ -18760,7 +19560,7 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  calculate_enhanced_clustering <- function(similarity_matrix, method = "kmeans", n_clusters = NULL,
+  compute_clustering <- function(similarity_matrix, method = "kmeans", n_clusters = NULL,
                                             umap_params = list(), dbscan_params = list(),
                                             existing_embedding = NULL, embedding_method = NULL) {
     tryCatch({
@@ -18949,7 +19749,7 @@ server <- shinyServer(function(input, output, session) {
 
     beta_data %>%
       dplyr::group_by(topic) %>%
-      dplyr::top_n(input$top_term_number_2, beta) %>%
+      dplyr::top_n(input$stm_top_term_number_2, beta) %>%
       dplyr::arrange(beta) %>%
       dplyr::summarise(terms = paste(term, collapse = ", ")) %>%
       dplyr::ungroup() %>%
@@ -19016,7 +19816,7 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$display, {
+  observeEvent(input$stm_display, {
     gamma_data <- gamma_terms()
     if (is.null(gamma_data)) {
       shiny::showModal(shiny::modalDialog(
@@ -19028,10 +19828,10 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    if (input$label_topics == "") {
+    if (input$stm_label_topics == "") {
       tn <- NULL
     } else {
-      tn <- strsplit(input$label_topics, split = ",")[[1]]
+      tn <- strsplit(input$stm_label_topics, split = ",")[[1]]
     }
 
     observe({
@@ -19126,7 +19926,7 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$topic_prevalence_plot_uiOutput <- renderUI({
-    req(input$display)
+    req(input$stm_display)
     if (!is.null(gamma_terms())) {
       div(
         style = "margin-bottom: 20px; overflow: hidden;",
@@ -19139,11 +19939,11 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  observeEvent(input$display, {
-    if (input$label_topics == "") {
+  observeEvent(input$stm_display, {
+    if (input$stm_label_topics == "") {
       tn <- NULL
     } else {
-      tn <- strsplit(input$label_topics, split = ",")[[1]]
+      tn <- strsplit(input$stm_label_topics, split = ",")[[1]]
     }
 
     output$topic_by_prevalence_table <- DT::renderDataTable({
@@ -19224,14 +20024,14 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  colnames_cat_3 <- reactive({
+  colnames_mydata <- reactive({
     req(out(), mydata())
     names(mydata())
   })
 
   observe({
-    req(colnames_cat_3())
-    choices <- colnames_cat_3()
+    req(colnames_mydata())
+    choices <- colnames_mydata()
     if (length(choices) > 0) {
       updateSelectizeInput(session,
                            "topic_texts",
@@ -19247,14 +20047,14 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  thoughts <- eventReactive(eventExpr = input$quote, {
-    if (is.null(stm_K_number()) || is.null(out()) || is.null(input$topic_texts) || is.null(mydata())) {
+  thoughts <- eventReactive(eventExpr = input$stm_quote, {
+    if (is.null(stm_K_number()) || is.null(out()) || is.null(input$stm_topic_texts) || is.null(mydata())) {
       return(NULL)
     }
     tryCatch(
       {
         pn <- input$topic_number_quote %>% as.numeric()
-        tn <- input$topic_texts
+        tn <- input$stm_topic_texts
 
         if (!is.null(out()$meta) && ncol(out()$meta) > 0) {
           if ("united_texts" %in% names(out()$meta)) {
@@ -19387,7 +20187,209 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  effect_stm_K_number <- eventReactive(eventExpr = input$effect, {
+
+  # Update hybrid_topic_texts choices when hybrid model is fitted
+  observe({
+    req(stm_K_number())
+    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    req(hybrid_result)
+    req(mydata())
+
+    choices <- names(mydata())
+    if (length(choices) > 0) {
+      updateSelectizeInput(session,
+                           "hybrid_topic_texts",
+                           choices = choices,
+                           selected = choices[1])
+    } else {
+      updateSelectizeInput(session,
+                           "hybrid_topic_texts",
+                           choices = character(0),
+                           selected = NULL)
+    }
+  })
+
+  # Hybrid quote handler
+  observeEvent(input$hybrid_quote, {
+    if (is.null(stm_K_number())) {
+      showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
+      return()
+    }
+
+    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    if (is.null(hybrid_result)) {
+      showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
+      return()
+    }
+
+    selected_topic <- as.numeric(input$hybrid_topic_number_quote)
+    if (is.na(selected_topic)) {
+      showNotification("Please select a topic first.", type = "warning")
+      return()
+    }
+
+    tryCatch({
+      stm_model <- hybrid_result$stm_result$model
+      if (is.null(stm_model)) {
+        showNotification("STM model not found in hybrid result.", type = "error")
+        return()
+      }
+
+      # Get texts from metadata or mydata
+      text_col <- input$hybrid_topic_texts
+      if (!is.null(text_col) && text_col %in% names(hybrid_result$metadata)) {
+        texts <- as.character(hybrid_result$metadata[[text_col]])
+      } else if (!is.null(text_col) && text_col %in% names(mydata())) {
+        texts <- as.character(mydata()[[text_col]])
+      } else if ("united_texts" %in% names(hybrid_result$metadata)) {
+        texts <- as.character(hybrid_result$metadata$united_texts)
+      } else {
+        text_cols <- names(hybrid_result$metadata)[sapply(hybrid_result$metadata, is.character)]
+        if (length(text_cols) > 0) {
+          texts <- as.character(hybrid_result$metadata[[text_cols[1]]])
+        } else {
+          showNotification("No text column found in hybrid metadata.", type = "error")
+          return()
+        }
+      }
+
+      thoughts_result <- stm::findThoughts(
+        stm_model,
+        texts = texts,
+        n = 3,
+        topics = selected_topic
+      )
+
+      if (!is.null(thoughts_result$docs[[1]]) && length(thoughts_result$docs[[1]]) > 0) {
+        doc_indices <- thoughts_result$index[[1]]
+        result_df <- data.frame(
+          `Document Index` = doc_indices,
+          `Example Text` = thoughts_result$docs[[1]],
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+
+        output$quote_table <- DT::renderDataTable({
+          DT::datatable(result_df, options = list(pageLength = 5))
+        })
+      } else {
+        showNotification("No documents found for this topic.", type = "warning")
+      }
+    }, error = function(e) {
+      showNotification(paste("Error finding topic quotes:", e$message), type = "error")
+    })
+  })
+
+  # Hybrid topic label generation handler
+  shiny::observeEvent(input$hybrid_generate_labels, {
+    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    if (is.null(hybrid_result) || is.null(hybrid_result$stm_result$model)) {
+      showNotification("Please run the hybrid model first.", type = "warning")
+      return()
+    }
+
+    provider <- input$hybrid_label_provider %||% "ollama"
+    api_key <- NULL
+
+    # Check provider availability and get API key
+    if (provider == "ollama") {
+      if (is_web) {
+        showNotification("Ollama requires local installation. Please use OpenAI or Gemini.", type = "warning")
+        return()
+      }
+      if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
+        showModal(modalDialog(
+          title = "Ollama Required",
+          HTML("<p>Topic labeling with Ollama requires Ollama to be running locally.</p>
+               <p><strong>Setup:</strong></p>
+               <ol>
+                 <li>Download Ollama from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>
+                 <li>Run: <code>ollama pull phi3:mini</code></li>
+                 <li>Start Ollama and try again</li>
+               </ol>"),
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+        return()
+      }
+      model <- input$hybrid_label_ollama_model %||% "phi3:mini"
+
+    } else if (provider == "openai") {
+      api_key <- input$hybrid_label_openai_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("OPENAI_API_KEY")
+      }
+      if (!nzchar(api_key)) {
+        showNotification("OpenAI API key required. Enter in the field or set OPENAI_API_KEY.", type = "error")
+        return()
+      }
+      model <- input$hybrid_label_openai_model %||% "gpt-4o-mini"
+
+    } else if (provider == "gemini") {
+      api_key <- input$hybrid_label_gemini_api_key
+      if (is.null(api_key) || !nzchar(api_key)) {
+        api_key <- Sys.getenv("GEMINI_API_KEY")
+      }
+      if (!nzchar(api_key)) {
+        showNotification("Gemini API key required. Enter in the field or set GEMINI_API_KEY.", type = "error")
+        return()
+      }
+      model <- input$hybrid_label_gemini_model %||% "gemini-2.0-flash"
+    }
+
+    shiny::showNotification("Generating hybrid topic labels...", type = "message", duration = NULL, id = "hybrid_label_gen_notification")
+
+    tryCatch({
+      stm_model <- hybrid_result$stm_result$model
+      n_terms <- input$hybrid_top_term_number_labeling %||% 7
+
+      # Get topic terms using labelTopics
+      label_result <- stm::labelTopics(stm_model, n = n_terms)
+      frex_terms <- label_result$frex
+
+      # Get beta values for ranking
+      beta_matrix <- exp(stm_model$beta$logbeta[[1]])
+
+      topic_terms <- data.frame()
+      for (i in 1:nrow(frex_terms)) {
+        terms <- as.character(frex_terms[i, ])
+        vocab_indices <- match(terms, stm_model$vocab)
+        term_probs <- beta_matrix[i, vocab_indices]
+
+        topic_data <- data.frame(
+          topic = i,
+          term = terms,
+          beta = term_probs,
+          stringsAsFactors = FALSE
+        )
+        topic_terms <- rbind(topic_terms, topic_data)
+      }
+
+      new_labels_td <- TextAnalysisR::generate_topic_labels(
+        topic_terms,
+        provider = provider,
+        model = model,
+        system = if(nzchar(input$hybrid_system_prompt)) input$hybrid_system_prompt else NULL,
+        user = if(nzchar(input$hybrid_user_prompt)) input$hybrid_user_prompt else NULL,
+        temperature = input$hybrid_temperature,
+        api_key = api_key,
+        verbose = FALSE
+      )
+
+      if (!is.null(new_labels_td) && nrow(new_labels_td) > 0) {
+        labels_text <- paste(new_labels_td$topic_label, collapse = ", ")
+        updateTextInput(session, "hybrid_label_topics", value = labels_text)
+      }
+
+      tryCatch(removeNotification(id = "hybrid_label_gen_notification"), error = function(e) {})
+      show_completion_notification("Hybrid topic labels generated successfully!", duration = 3)
+
+    }, error = function(e) {
+      tryCatch(removeNotification(id = "hybrid_label_gen_notification"), error = function(e) {})
+      showNotification(paste("Label generation failed:", e$message), type = "error", duration = 8)
+    })
+  })
+  effect_stm_K_number <- eventReactive(eventExpr = input$stm_effect, {
     if (is.null(stm_K_number()) || is.null(out())) {
       showNotification("No STM model available. Please run topic modeling first.", type = "warning")
       return(NULL)
@@ -19395,8 +20397,8 @@ server <- shinyServer(function(input, output, session) {
 
     tryCatch(
       {
-        categorical_var <- if (!is.null(input$categorical_var_2)) unlist(strsplit(as.character(input$categorical_var_2), ",\\s*")) else NULL
-        continuous_var <- if (!is.null(input$continuous_var_2)) unlist(strsplit(as.character(input$continuous_var_2), ",\\s*")) else NULL
+        categorical_var <- if (!is.null(input$stm_categorical_var_2)) unlist(strsplit(as.character(input$stm_categorical_var_2), ",\\s*")) else NULL
+        continuous_var <- if (!is.null(input$stm_continuous_var_2)) unlist(strsplit(as.character(input$stm_continuous_var_2), ",\\s*")) else NULL
 
         terms <- c()
         if (!is.null(categorical_var) && length(categorical_var) > 0) {
@@ -19467,7 +20469,7 @@ server <- shinyServer(function(input, output, session) {
     rownames = FALSE
   )
 
-  output$effect_download_table <- downloadHandler(
+  output$stm_effect_download_table <- downloadHandler(
     filename = function() {
       paste0(ifelse(is.null(input$file) || input$file == "", "estimated regression data", input$file), ".xlsx")
     },
@@ -19485,7 +20487,7 @@ server <- shinyServer(function(input, output, session) {
   # Step 6: Plot topic prevalence effects by a categorical variable.
 
   observe({
-    selected_cat <- input$categorical_var_2
+    selected_cat <- input$stm_categorical_var_2
     updateSelectizeInput(session,
                       "effect_cat_btn",
                       choices = selected_cat,
@@ -19494,14 +20496,14 @@ server <- shinyServer(function(input, output, session) {
   })
 
   effects_categorical_var <- reactive({
-    if (is.null(effect_stm_K_number()) || is.null(input$effect_cat_btn)) {
+    if (is.null(effect_stm_K_number()) || is.null(input$stm_effect_cat_btn)) {
       return(NULL)
     }
     tryCatch(
       {
         stminsights::get_effects(
           estimates = effect_stm_K_number(),
-          variable = input$effect_cat_btn,
+          variable = input$stm_effect_cat_btn,
           type = "pointestimate"
         )
       },
@@ -19512,11 +20514,11 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$display_cat, {
+  observeEvent(input$stm_display_cat, {
     output$cat_plot <- plotly::renderPlotly({
       plot_topic_effects_categorical(
         effects_data = effects_categorical_var(),
-        ncol = input$ncol_cat,
+        ncol = input$stm_ncol_cat,
         height = input$height_cat_plot,
         width = input$width_cat_plot
       )
@@ -19524,8 +20526,8 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$cat_plot_uiOutput <- renderUI({
-    req(input$effect_cat_btn)
-    req(input$display_cat)
+    req(input$stm_effect_cat_btn)
+    req(input$stm_display_cat)
     plotly::plotlyOutput(
       "cat_plot",
       height = input$height_cat_plot,
@@ -19533,8 +20535,8 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$display_cat, {
-    req(input$effect_cat_btn)
+  observeEvent(input$stm_display_cat, {
+    req(input$stm_effect_cat_btn)
     output$cat_table <- DT::renderDataTable({
       if (is.null(effects_categorical_var()) || nrow(effects_categorical_var()) == 0) {
         return(DT::datatable(
@@ -19560,8 +20562,8 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$cat_table_uiOutput <- renderUI({
-    req(input$effect_cat_btn)
-    req(input$display_cat)
+    req(input$stm_effect_cat_btn)
+    req(input$stm_display_cat)
     htmltools::tags$div(
       style = "margin-top: 20px;",
       DT::dataTableOutput("cat_table", width = input$width_cat_plot)
@@ -19571,7 +20573,7 @@ server <- shinyServer(function(input, output, session) {
   # Step 7: Plot topic prevalence effects by a continuous variable.
 
   observe({
-    selected_con <- input$continuous_var_2
+    selected_con <- input$stm_continuous_var_2
     updateSelectizeInput(session,
                          "effect_con_btn",
                          choices = selected_con,
@@ -19580,14 +20582,14 @@ server <- shinyServer(function(input, output, session) {
   })
 
   effects_continuous_var <- reactive({
-    if (is.null(effect_stm_K_number()) || is.null(input$effect_con_btn)) {
+    if (is.null(effect_stm_K_number()) || is.null(input$stm_effect_con_btn)) {
       return(NULL)
     }
     tryCatch(
       {
         stminsights::get_effects(
           estimates = effect_stm_K_number(),
-          variable = input$effect_con_btn,
+          variable = input$stm_effect_con_btn,
           type = "continuous"
         )
       },
@@ -19598,13 +20600,13 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$display_con, {
+  observeEvent(input$stm_display_con, {
     output$con_plot <- plotly::renderPlotly({
       req(effects_continuous_var())
 
       plot_topic_effects_continuous(
         effects_data = effects_continuous_var(),
-        ncol = input$ncol_con,
+        ncol = input$stm_ncol_con,
         height = input$height_con_plot,
         width = input$width_con_plot
       )
@@ -19612,8 +20614,8 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$con_plot_uiOutput <- renderUI({
-    req(input$effect_con_btn)
-    req(input$display_con)
+    req(input$stm_effect_con_btn)
+    req(input$stm_display_con)
     plotly::plotlyOutput(
       "con_plot",
       height = input$height_con_plot,
@@ -19621,8 +20623,8 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  observeEvent(input$display_con, {
-    req(input$effect_con_btn)
+  observeEvent(input$stm_display_con, {
+    req(input$stm_effect_con_btn)
     output$con_table <- DT::renderDataTable({
       if (is.null(effects_continuous_var()) || nrow(effects_continuous_var()) == 0) {
         return(DT::datatable(
@@ -19648,8 +20650,8 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$con_table_uiOutput <- renderUI({
-    req(input$effect_con_btn)
-    req(input$display_con)
+    req(input$stm_effect_con_btn)
+    req(input$stm_display_con)
     htmltools::tags$div(
       style = "margin-top: 20px;",
       DT::dataTableOutput("con_table", width = input$width_con_plot)
@@ -19664,7 +20666,7 @@ server <- shinyServer(function(input, output, session) {
   colnames_cat_doc <- reactive({
     req(united_tbl())
     categorical <- united_tbl() %>%
-      dplyr::select(dplyr::where(is.character)) %>%
+      dplyr::select(dplyr::where(~ is.character(.) || is.factor(.))) %>%
       dplyr::select(dplyr::where(~ dplyr::n_distinct(.) <= (0.2 * nrow(united_tbl()))))
     names(categorical)
   })

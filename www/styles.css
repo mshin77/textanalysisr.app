@@ -150,12 +150,231 @@ body {
   font-size: 16px;
 }
 
+/* ============================================
+   STANDARDIZED STATUS/ALERT BOX SYSTEM
+   ============================================
+
+   Use these classes for consistent styling:
+
+   SIDEBAR (compact):
+   - .status-sidebar-success
+   - .status-sidebar-warning
+   - .status-sidebar-info
+
+   MAIN PANEL (standard):
+   - .status-main-success
+   - .status-main-warning
+   - .status-main-info
+   - .status-main-error
+
+   OUTDATED RESULTS (flex with icon):
+   - .status-outdated
+
+   ICONS:
+   - .status-icon (standard)
+   - .status-icon-lg (larger for main panels)
+   ============================================ */
+
+/* --- SIDEBAR STATUS BOXES (compact) --- */
+.status-sidebar-success {
+  background-color: #D1FAE5;
+  border: 1px solid #10B981;
+  color: #065F46;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-sidebar-warning {
+  background-color: #FEF3C7;
+  border: 1px solid #F59E0B;
+  color: #92400E;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-sidebar-info {
+  background-color: #E0F2FE;
+  border: 1px solid #337ab7;
+  color: #0C4A6E;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+/* --- MAIN PANEL STATUS BOXES (standard) --- */
+.status-main-success {
+  background-color: #D1FAE5;
+  border: 1px solid #10B981;
+  color: #065F46;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-main-warning {
+  background-color: #FEF3C7;
+  border: 1px solid #F59E0B;
+  color: #92400E;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-main-info {
+  background-color: #E0F2FE;
+  border: 1px solid #337ab7;
+  color: #0C4A6E;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-main-error {
+  background-color: #FEE2E2;
+  border: 1px solid #DC2626;
+  color: #7F1D1D;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+/* --- OUTDATED RESULTS WARNING (flex layout) --- */
+.status-outdated {
+  background-color: #FEF3C7;
+  border: 1px solid #F59E0B;
+  color: #92400E;
+  padding: 12px 16px;
+  margin: 15px 0;
+  font-size: 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+/* --- STATUS ICONS --- */
+.status-icon {
+  margin-right: 8px;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.status-icon-lg {
+  margin-right: 10px;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.status-icon-success { color: #10B981; }
+.status-icon-warning { color: #F59E0B; }
+.status-icon-info { color: #337ab7; }
+.status-icon-error { color: #DC2626; }
+
+/* --- DARK MODE SUPPORT --- */
+[data-theme="dark"] .status-sidebar-success,
+[data-theme="dark"] .status-main-success {
+  background-color: #064E3B;
+  border-color: #10B981;
+  color: #A7F3D0;
+}
+
+[data-theme="dark"] .status-sidebar-warning,
+[data-theme="dark"] .status-main-warning,
+[data-theme="dark"] .status-outdated {
+  background-color: #78350F;
+  border-color: #F59E0B;
+  color: #FDE68A;
+}
+
+[data-theme="dark"] .status-sidebar-info,
+[data-theme="dark"] .status-main-info {
+  background-color: #1E3A5F;
+  border-color: #60A5FA;
+  color: #BFDBFE;
+}
+
+[data-theme="dark"] .status-main-error {
+  background-color: #7F1D1D;
+  border-color: #DC2626;
+  color: #FECACA;
+}
+
+[data-theme="dark"] .status-icon-success { color: #34D399; }
+[data-theme="dark"] .status-icon-warning { color: #FBBF24; }
+[data-theme="dark"] .status-icon-info { color: #60A5FA; }
+[data-theme="dark"] .status-icon-error { color: #F87171; }
+
+/* --- STEP INDICATOR BOXES (for multi-step instructions) --- */
+.status-step-purple {
+  background-color: #F3E8FF;
+  border: 1px solid #6B46C1;
+  color: #3B0764;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-step-blue {
+  background-color: #E0F2FE;
+  border: 1px solid #337ab7;
+  color: #0C4A6E;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-step-green {
+  background-color: #E8F5E9;
+  border: 1px solid #4CAF50;
+  color: #1B5E20;
+  padding: 10px 12px;
+  margin-bottom: 15px;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.status-icon-purple { color: #6B46C1; }
+.status-icon-green-alt { color: #4CAF50; }
+
+/* Dark mode for step boxes */
+[data-theme="dark"] .status-step-purple {
+  background-color: #4C1D95;
+  border-color: #A78BFA;
+  color: #EDE9FE;
+}
+
+[data-theme="dark"] .status-step-blue {
+  background-color: #1E3A5F;
+  border-color: #60A5FA;
+  color: #BFDBFE;
+}
+
+[data-theme="dark"] .status-step-green {
+  background-color: #14532D;
+  border-color: #4ADE80;
+  color: #BBF7D0;
+}
+
+[data-theme="dark"] .status-icon-purple { color: #A78BFA; }
+[data-theme="dark"] .status-icon-green-alt { color: #4ADE80; }
+
+/* --- LEGACY CLASSES (for backward compatibility) --- */
 .alert-warning-custom {
   background-color: #FEF3C7;
   border: 1px solid #F59E0B;
   color: #92400E;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.25rem;
+  padding: 8px 12px;
+  border-radius: 4px;
   font-size: 16px;
 }
 
@@ -2285,4 +2504,143 @@ a.action-link[title*="Info"]:hover {
 [data-theme="dark"] [data-value="Topic Modeling"] .sidebar-panel label,
 [data-theme="dark"] [data-value="Topic Modeling"] .sidebar-panel .control-label {
   color: var(--text-primary) !important;
+}
+
+/* ============================================
+   NER Table Styles - Improved Visibility
+   ============================================ */
+
+/* NER table container - better contrast and spacing */
+.ner-table-container {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+/* NER badge styling - already handled inline but backup */
+.ner-badge {
+  font-weight: 500 !important;
+  text-shadow: none !important;
+  letter-spacing: 0.3px;
+}
+
+/* Reduce confusing selection highlighting */
+.ner-table-container table.dataTable tbody tr.selected {
+  background-color: #e3f2fd !important;
+}
+
+.ner-table-container table.dataTable tbody tr.selected td {
+  background-color: #e3f2fd !important;
+  color: #1a1a1a !important;
+}
+
+/* Improve hover state - subtle highlight */
+.ner-table-container table.dataTable tbody tr:hover {
+  background-color: #f5f5f5 !important;
+}
+
+.ner-table-container table.dataTable tbody tr:hover td {
+  color: #1a1a1a !important;
+}
+
+/* Keep badges visible on selection/hover */
+.ner-table-container table.dataTable tbody tr.selected .ner-badge,
+.ner-table-container table.dataTable tbody tr:hover .ner-badge {
+  color: white !important;
+}
+
+/* Filter inputs styling */
+.ner-table-container .dataTables_filter input {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+/* Dark mode NER table */
+[data-theme="dark"] .ner-table-container {
+  background-color: #1e293b;
+}
+
+[data-theme="dark"] .ner-table-container table.dataTable tbody tr.selected {
+  background-color: #334155 !important;
+}
+
+[data-theme="dark"] .ner-table-container table.dataTable tbody tr.selected td {
+  background-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .ner-table-container table.dataTable tbody tr:hover {
+  background-color: #2d3748 !important;
+}
+
+[data-theme="dark"] .ner-table-container table.dataTable tbody tr:hover td {
+  color: #e2e8f0 !important;
+}
+
+/* NER cell with dropdown */
+.ner-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* NER type dropdown select - clean dropdown icon only */
+.ner-type-select {
+  width: 22px !important;
+  height: 20px !important;
+  min-width: 22px !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-color: transparent !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 14px !important;
+  color: transparent !important;
+}
+
+.ner-type-select:hover {
+  opacity: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%232196f3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+
+.ner-type-select:focus {
+  opacity: 1;
+  outline: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%232196f3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+
+/* Dropdown options with colors */
+.ner-type-select option {
+  padding: 4px 8px;
+  color: white !important;
+}
+
+/* Dark mode NER dropdown */
+[data-theme="dark"] .ner-type-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+
+[data-theme="dark"] .ner-type-select:hover {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2360a5fa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+
+/* Make editable cells more visible */
+.ner-table-container table.dataTable tbody td.focus {
+  outline: 2px solid #2196f3 !important;
+  outline-offset: -2px;
+}
+
+/* Disable cell edit highlight interference with dropdown */
+.ner-table-container table.dataTable tbody td:has(.ner-cell) {
+  cursor: default !important;
 }

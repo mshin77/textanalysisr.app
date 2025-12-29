@@ -1,19 +1,56 @@
 <div style="font-family: 'Roboto', sans-serif; font-size: 16px; color: #0c1f4a; line-height: 1.6; max-width: 800px;">
   <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Part-of-Speech Tagging</h4>
-  <p>Part-of-speech (POS) tagging identifies the grammatical category of each word. spaCy uses the Universal Dependencies tagset for consistent cross-linguistic analysis.</p>
+  <p>Part-of-speech (POS) tagging identifies the grammatical category of each word. spaCy provides both Universal (coarse) and Detailed (fine-grained) tags.</p>
   <hr>
 
-  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Tags</h4>
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #DC2626; margin-top: 20px;">Universal POS Tags</h4>
+  <p style="font-size: 14px; color: #64748B;">Open Class Words (content words)</p>
   <ul>
-    <li><strong>NOUN, VERB, ADJ, ADV:</strong> Content words</li>
-    <li><strong>PROPN:</strong> Proper nouns (names)</li>
-    <li><strong>DET, ADP, PRON:</strong> Function words</li>
-    <li><strong>NUM, PUNCT:</strong> Numbers, punctuation</li>
+    <li><strong>NOUN</strong> – Noun</li>
+    <li><strong>VERB</strong> – Verb</li>
+    <li><strong>ADJ</strong> – Adjective</li>
+    <li><strong>ADV</strong> – Adverb</li>
+    <li><strong>PROPN</strong> – Proper Noun</li>
+    <li><strong>INTJ</strong> – Interjection (oh, wow, oops)</li>
+  </ul>
+  <p style="font-size: 14px; color: #64748B; margin-top: 15px;">Closed Class Words (function words)</p>
+  <ul>
+    <li><strong>DET</strong> – Determiner (the, a, this)</li>
+    <li><strong>ADP</strong> – Adposition: prepositions and postpositions (in, to, during)</li>
+    <li><strong>PRON</strong> – Pronoun</li>
+    <li><strong>NUM</strong> – Numeral</li>
+    <li><strong>AUX</strong> – Auxiliary</li>
+    <li><strong>CCONJ</strong> – Coordinating Conjunction (and, or, but)</li>
+    <li><strong>SCONJ</strong> – Subordinating Conjunction (if, while, because)</li>
+    <li><strong>PART</strong> – Particle (not, 's, to in infinitives)</li>
+  </ul>
+  <p style="font-size: 14px; color: #64748B; margin-top: 15px;">Other</p>
+  <ul>
+    <li><strong>PUNCT</strong> – Punctuation</li>
+    <li><strong>SYM</strong> – Symbol ($, %, @)</li>
+    <li><strong>X</strong> – Other (foreign words, typos)</li>
   </ul>
   <hr>
 
-  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Usage</h4>
-  <p>Filter by tags to focus on specific word types (e.g., nouns and verbs for content analysis).</p>
+  <h4 style="font-family: 'Montserrat', sans-serif; color: #337ab7; margin-top: 20px;">Detailed Tags (Penn Treebank)</h4>
+  <p style="font-size: 14px; color: #64748B;">Fine-grained English-specific tags</p>
+  <ul>
+    <li><strong>NN</strong> – Noun, Singular; <strong>NNS</strong> – Noun, Plural</li>
+    <li><strong>NNP</strong> – Proper Noun, Singular; <strong>NNPS</strong> – Proper Noun, Plural</li>
+    <li><strong>VB</strong> – Verb, Base Form</li>
+    <li><strong>VBD</strong> – Verb, Past Tense</li>
+    <li><strong>VBG</strong> – Verb, Gerund/Present Participle</li>
+    <li><strong>VBN</strong> – Verb, Past Participle</li>
+    <li><strong>VBP</strong> – Verb, Non-3rd Person Singular Present</li>
+    <li><strong>VBZ</strong> – Verb, 3rd Person Singular Present</li>
+    <li><strong>JJ</strong> – Adjective; <strong>JJR</strong> – Adjective, Comparative; <strong>JJS</strong> – Adjective, Superlative</li>
+    <li><strong>RB</strong> – Adverb; <strong>RBR</strong> – Adverb, Comparative; <strong>RBS</strong> – Adverb, Superlative</li>
+    <li><strong>PRP</strong> – Personal Pronoun; <strong>PRP$</strong> – Possessive Pronoun</li>
+    <li><strong>DT</strong> – Determiner</li>
+    <li><strong>IN</strong> – Preposition or Subordinating Conjunction</li>
+    <li><strong>CC</strong> – Coordinating Conjunction</li>
+    <li><strong>CD</strong> – Cardinal Number</li>
+  </ul>
   <hr style="margin-top: 20px; margin-bottom: 15px;">
 
   <div style="background-color: #F3F4F6; padding: 12px; border-radius: 6px;">
