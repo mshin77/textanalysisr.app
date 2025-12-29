@@ -3798,7 +3798,7 @@ Focus on incorporating the most significant keywords while following the guideli
             ),
             textAreaInput(
               "content_user_prompt",
-              "User prompt (use {terms} placeholder)",
+              "User prompt",
               value = "",
               rows = 5
             ),
