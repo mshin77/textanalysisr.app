@@ -76,7 +76,7 @@ ui <- fluidPage(
       tags$i(class = "fa fa-moon", `aria-hidden` = "true")
     ),
     tags$div(
-      style = "display: flex; align-items: center; gap: 8px;",
+      style = "position: relative; display: flex; align-items: center; gap: 8px;",
       tags$a(
         id = "translate_icon",
         href = "#",
@@ -86,9 +86,39 @@ ui <- fluidPage(
         title = "Select Language",
         tags$i(class = "fa fa-globe", `aria-hidden` = "true", style = "pointer-events: none;")
       ),
+      # Hidden Google Translate element (accessed programmatically)
       tags$div(
         id = "google_translate_element",
-        style = "min-width: 120px; min-height: 30px; display: none;"
+        style = "position: absolute; left: -9999px; top: -9999px;"
+      ),
+      # Custom language menu dropdown
+      tags$div(
+        id = "translate_dropdown",
+        style = "display: none; position: absolute; top: 100%; right: 0; margin-top: 8px; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 10000; min-width: 200px; max-height: 360px; overflow-y: auto;",
+        # Language buttons
+        tags$button(class = "lang-btn active", `data-lang` = "en", tags$i(class = "fa fa-check"), " English"),
+        tags$button(class = "lang-btn", `data-lang` = "de", tags$i(class = "fa fa-check"), " Deutsch"),
+        tags$button(class = "lang-btn", `data-lang` = "es", tags$i(class = "fa fa-check"), " Español"),
+        tags$button(class = "lang-btn", `data-lang` = "fr", tags$i(class = "fa fa-check"), " Français"),
+        tags$button(class = "lang-btn", `data-lang` = "hi", tags$i(class = "fa fa-check"), " हिन्दी"),
+        tags$button(class = "lang-btn", `data-lang` = "id", tags$i(class = "fa fa-check"), " Bahasa Indonesia"),
+        tags$button(class = "lang-btn", `data-lang` = "it", tags$i(class = "fa fa-check"), " Italiano"),
+        tags$button(class = "lang-btn", `data-lang` = "ja", tags$i(class = "fa fa-check"), " 日本語"),
+        tags$button(class = "lang-btn", `data-lang` = "ko", tags$i(class = "fa fa-check"), " 한국어"),
+        tags$button(class = "lang-btn", `data-lang` = "nl", tags$i(class = "fa fa-check"), " Nederlands"),
+        tags$button(class = "lang-btn", `data-lang` = "pl", tags$i(class = "fa fa-check"), " Polski"),
+        tags$button(class = "lang-btn", `data-lang` = "pt", tags$i(class = "fa fa-check"), " Português"),
+        tags$button(class = "lang-btn", `data-lang` = "ru", tags$i(class = "fa fa-check"), " Русский"),
+        tags$button(class = "lang-btn", `data-lang` = "zh-CN", tags$i(class = "fa fa-check"), " 中文 (简体)"),
+        tags$button(class = "lang-btn", `data-lang` = "zh-TW", tags$i(class = "fa fa-check"), " 中文 (繁體)"),
+        # Attribution at bottom
+        tags$div(
+          class = "translate-attribution",
+          style = "display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 10px; color: #9ca3af; padding: 8px 12px; border-top: 1px solid #e5e7eb; background: #f9fafb; border-radius: 0 0 8px 8px;",
+          tags$span("Powered by"),
+          tags$img(src = "https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_42x16dp.png", alt = "Google", height = "12"),
+          tags$span("Translate")
+        )
       )
     )
   ),
@@ -220,7 +250,7 @@ Supports:
           conditionalPanel(
             condition = "input.conditioned == 1",
             tags$h5(
-              HTML("<strong>Select columns</strong> <a href='https://tidyr.tidyverse.org/reference/unite.html' target='_blank' style='font-size: 16px;'>Source</a>"),
+              HTML("<strong>Select columns</strong> <a href='https://tidyr.tidyverse.org/reference/unite.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
               tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
@@ -233,7 +263,7 @@ Supports:
           conditionalPanel(
             condition = "input.conditioned == 2",
             tags$h5(
-              HTML("<strong>Segment corpus into tokens</strong> <a href='https://quanteda.io/reference/tokens.html' target='_blank' style='font-size: 16px;'>Source</a>"),
+              HTML("<strong>Segment corpus into tokens</strong> <a href='https://quanteda.io/reference/tokens.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
               tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
@@ -286,7 +316,7 @@ Supports:
           conditionalPanel(
             condition = "input.conditioned == 4",
             tags$h5(
-              HTML("<strong>Detect multi-words</strong> <a href='https://www.tidytextmining.com/ngrams' target='_blank' style='font-size: 16px;'>Source</a>"),
+              HTML("<strong>Detect multi-words</strong> <a href='https://www.tidytextmining.com/ngrams' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
               tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
@@ -365,7 +395,7 @@ Supports:
             tags$div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
               tags$h5(
-                HTML("<strong>Document-feature matrix</strong> <a href='https://quanteda.io/reference/dfm.html' target='_blank' style='font-size: 16px;'>Source</a>"),
+                HTML("<strong>Document-feature matrix</strong> <a href='https://quanteda.io/reference/dfm.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
                 tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
                 style = "color: #0c1f4a; margin: 0;"
               ),
@@ -407,7 +437,7 @@ Supports:
               style = "max-height: 400px; overflow-y: auto;",
               selectizeInput(
                 "custom_stopwords",
-                label = HTML("<strong>Predefined stopwords</strong> <a href='https://search.r-project.org/CRAN/refmans/stopwords/html/stopwords.html' target='_blank' style='font-size: 16px;'>Source</a>"),
+                label = HTML("<strong>Predefined stopwords</strong> <a href='https://search.r-project.org/CRAN/refmans/stopwords/html/stopwords.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
                 choices = stopwords::stopwords("en", source = "snowball"),
                 selected = stopwords::stopwords("en", source = "snowball"),
                 multiple = TRUE,
@@ -653,7 +683,7 @@ Supports:
           conditionalPanel(
             condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'lemmas'",
             tags$h5(
-              HTML("<strong>Linguistic Analysis</strong> <a href='https://spacy.io/usage/linguistic-features#lemmatization' target='_blank' style='font-size: 16px;'>Source</a>"),
+              HTML("<strong>Linguistic Analysis</strong> <a href='https://spacy.io/usage/linguistic-features#lemmatization' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
               tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
@@ -673,7 +703,7 @@ Supports:
             condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'pos'",
             tags$div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
-              tags$h5(HTML("<strong>Part-of-Speech Configuration</strong> <a href='https://universaldependencies.org/u/pos/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
+              tags$h5(HTML("<strong>Part-of-Speech Configuration</strong> <a href='https://universaldependencies.org/u/pos/' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
               actionLink("showPOSInfo", icon("info-circle"),
                         style = "color: #337ab7; font-size: 16px;",
                         title = "Click for POS tags guide")
@@ -755,7 +785,7 @@ Supports:
             condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'dependencies'",
             div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
-              tags$h5(HTML("<strong>Dependency Parsing</strong> <a href='https://universaldependencies.org/u/dep/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
+              tags$h5(HTML("<strong>Dependency Parsing</strong> <a href='https://universaldependencies.org/u/dep/' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
               actionLink("showDepInfo", icon("info-circle"),
                          style = "color: #337ab7; font-size: 16px;",
                          title = "Click for dependency relations guide")
@@ -806,7 +836,7 @@ Supports:
             condition = "input.conditioned2 == 4",
             tags$div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
-              tags$h5(HTML("<strong>Lexical Diversity Analysis</strong> <a href='https://github.com/quanteda/quanteda.textstats' target='_blank' style='font-size: 16px; color: #337ab7;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
+              tags$h5(HTML("<strong>Lexical Diversity Analysis</strong> <a href='https://github.com/quanteda/quanteda.textstats' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px; color: #337ab7;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
               actionLink("showLexDivMetricsInfo", icon("info-circle"),
                         style = "color: #337ab7; font-size: 16px;",
                         title = "Click for detailed metric descriptions")
@@ -846,7 +876,7 @@ Supports:
             condition = "input.conditioned2 == 5",
             tags$div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
-              tags$h5(HTML("<strong>Readability Analysis</strong> <a href='https://github.com/quanteda/quanteda.textstats' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
+              tags$h5(HTML("<strong>Readability Analysis</strong> <a href='https://github.com/quanteda/quanteda.textstats' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
               actionLink("showReadabilityMetricsInfo", icon("info-circle"),
                         style = "color: #337ab7; font-size: 16px;",
                         title = "Click for detailed metric descriptions")
@@ -913,7 +943,7 @@ Supports:
           ),
           conditionalPanel(
             condition = "input.conditioned2 == 3",
-            tags$h5(HTML("<strong>Keyword Extraction</strong> <a href='https://quanteda.io/reference/dfm_tfidf.html' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Keyword Extraction</strong> <a href='https://quanteda.io/reference/dfm_tfidf.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             conditionalPanel(
               condition = "input.keywords_subtabs == 'tfidf'",
               sliderInput(
@@ -979,7 +1009,7 @@ Supports:
             ),
             selectizeInput(
               "log_odds_group_var",
-              "Grouping variable",
+              "Categorical variable",
               choices = NULL,
               multiple = FALSE,
               options = list(placeholder = "Select category variable")
@@ -1085,116 +1115,153 @@ Supports:
           conditionalPanel(
             condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'ner'",
             tags$div(
-              style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
-              tags$h5(
-                HTML("<strong>Filter by entity type</strong> <a href='https://spacy.io/usage/linguistic-features#named-entities' target='_blank' style='font-size: 16px; color: #337ab7;'>Source</a>"),
-                style = "color: #0c1f4a; margin: 0;"
-              ),
-              actionLink("showNERInfo", icon("info-circle"),
-                        style = "color: #337ab7; font-size: 16px;",
-                        title = "Click for coding guide")
-            ),
-            selectizeInput(
-              "entity_type_filter",
-              NULL,
-              choices = c("All Types" = "", "PERSON", "ORG", "GPE", "DATE", "MONEY", "CARDINAL", "ORDINAL", "PERCENT", "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE", "LOC", "FAC", "NORP", "TIME", "QUANTITY", "CONCEPT", "THEME", "CODE", "CATEGORY", "CUSTOM"),
-              selected = "",
-              multiple = TRUE,
-              options = list(placeholder = "All entity types")
-            ),
-            div(
               style = "margin-bottom: 15px;",
-              actionButton("apply_ner_filter", "Show Entities",
-                         class = "btn-primary btn-block",
-                         icon = icon("eye"))
+              tags$h5(
+                HTML("<strong>spaCy NER Labels</strong>"),
+                actionLink("showNERInfo", icon("info-circle"),
+                          style = "color: #337ab7; font-size: 16px; margin-left: 8px;",
+                          title = "Click for NER guide"),
+                style = "color: #0c1f4a; margin-bottom: 10px;"
+              ),
+              div(
+                style = "max-height: 300px; overflow-y: auto;",
+                tags$details(
+                  style = "margin-bottom: 6px; background: #f8f9fa; padding: 6px; border-radius: 4px;",
+                  tags$summary(style = "cursor: pointer; font-weight: 600; font-size: 16px;", "People & Places"),
+                  div(
+                    style = "padding: 8px 0 0 8px;",
+                    checkboxGroupInput("ner_named", NULL, inline = FALSE,
+                      choiceNames = list(
+                        HTML("<span style='font-weight:500;'>PERSON</span> <span style='color:#64748B;'>- People, including fictional</span>"),
+                        HTML("<span style='font-weight:500;'>NORP</span> <span style='color:#64748B;'>- Nationalities, religious/political groups</span>"),
+                        HTML("<span style='font-weight:500;'>ORG</span> <span style='color:#64748B;'>- Companies, agencies, institutions</span>"),
+                        HTML("<span style='font-weight:500;'>GPE</span> <span style='color:#64748B;'>- Countries, cities, states</span>"),
+                        HTML("<span style='font-weight:500;'>LOC</span> <span style='color:#64748B;'>- Non-GPE locations, mountains, water bodies</span>"),
+                        HTML("<span style='font-weight:500;'>FAC</span> <span style='color:#64748B;'>- Buildings, airports, highways, bridges</span>")
+                      ),
+                      choiceValues = c("PERSON", "NORP", "ORG", "GPE", "LOC", "FAC"),
+                      selected = c("PERSON", "NORP", "ORG", "GPE", "LOC", "FAC")
+                    )
+                  )
+                ),
+                tags$details(
+                  style = "margin-bottom: 6px; background: #f8f9fa; padding: 6px; border-radius: 4px;",
+                  tags$summary(style = "cursor: pointer; font-weight: 600; font-size: 16px;", "Objects & Events"),
+                  div(
+                    style = "padding: 8px 0 0 8px;",
+                    checkboxGroupInput("ner_objects", NULL, inline = FALSE,
+                      choiceNames = list(
+                        HTML("<span style='font-weight:500;'>PRODUCT</span> <span style='color:#64748B;'>- Objects, vehicles, foods, etc.</span>"),
+                        HTML("<span style='font-weight:500;'>EVENT</span> <span style='color:#64748B;'>- Named hurricanes, battles, wars, sports</span>"),
+                        HTML("<span style='font-weight:500;'>WORK_OF_ART</span> <span style='color:#64748B;'>- Titles of books, songs, etc.</span>"),
+                        HTML("<span style='font-weight:500;'>LAW</span> <span style='color:#64748B;'>- Named documents made into laws</span>"),
+                        HTML("<span style='font-weight:500;'>LANGUAGE</span> <span style='color:#64748B;'>- Any named language</span>")
+                      ),
+                      choiceValues = c("PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE"),
+                      selected = c("PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE")
+                    )
+                  )
+                ),
+                tags$details(
+                  style = "margin-bottom: 6px; background: #f8f9fa; padding: 6px; border-radius: 4px;",
+                  tags$summary(style = "cursor: pointer; font-weight: 600; font-size: 16px;", "Numeric & Temporal"),
+                  div(
+                    style = "padding: 8px 0 0 8px;",
+                    checkboxGroupInput("ner_numeric", NULL, inline = FALSE,
+                      choiceNames = list(
+                        HTML("<span style='font-weight:500;'>DATE</span> <span style='color:#64748B;'>- Absolute or relative dates/periods</span>"),
+                        HTML("<span style='font-weight:500;'>TIME</span> <span style='color:#64748B;'>- Times smaller than a day</span>"),
+                        HTML("<span style='font-weight:500;'>MONEY</span> <span style='color:#64748B;'>- Monetary values including unit</span>"),
+                        HTML("<span style='font-weight:500;'>PERCENT</span> <span style='color:#64748B;'>- Percentage including %</span>"),
+                        HTML("<span style='font-weight:500;'>QUANTITY</span> <span style='color:#64748B;'>- Measurements (weight, distance)</span>"),
+                        HTML("<span style='font-weight:500;'>ORDINAL</span> <span style='color:#64748B;'>- first, second, third, etc.</span>"),
+                        HTML("<span style='font-weight:500;'>CARDINAL</span> <span style='color:#64748B;'>- Numerals not in other category</span>")
+                      ),
+                      choiceValues = c("DATE", "TIME", "MONEY", "PERCENT", "QUANTITY", "ORDINAL", "CARDINAL"),
+                      selected = c("DATE", "TIME", "MONEY", "PERCENT", "QUANTITY", "ORDINAL", "CARDINAL")
+                    )
+                  )
+                )
+              ),
+              shinyjs::hidden(
+                selectizeInput("spacy_default_entities", NULL, choices = NULL)
+              )
             ),
             tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
             tags$div(
               style = "margin-bottom: 15px;",
               tags$h5(
-                HTML("<strong>Custom Entity Types</strong>"),
+                HTML("<strong>Domain Entities</strong>"),
                 style = "color: #0c1f4a; margin-bottom: 10px;"
               ),
-              tags$p(
-                "Define custom entity types with colors. Edit cells to use these types.",
-                style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+              selectizeInput(
+                "ner_domain_preset",
+                NULL,
+                choices = c(
+                  "None (Custom)" = "none",
+                  "Special Education" = "special_education"
+                ),
+                selected = "special_education",
+                multiple = FALSE,
+                options = list(
+                  placeholder = "Select a domain"
+                )
+              ),
+              tags$div(
+                style = "display: flex; gap: 8px;",
+                downloadButton("export_domain_preset", "Export",
+                  class = "btn-secondary", style = "flex: 1;"),
+                fileInput("import_domain_preset", NULL, accept = c(".xlsx", ".csv"),
+                  buttonLabel = "Import", placeholder = NULL, width = "50%")
+              ),
+              tags$style(HTML("
+                #import_domain_preset { margin: 0 !important; padding: 0 !important; flex: 1; height: 34px !important; max-height: 34px !important; overflow: hidden; }
+                #import_domain_preset .input-group { width: 100%; height: 34px; }
+                #import_domain_preset .form-control { display: none !important; }
+                #import_domain_preset .input-group-btn,
+                #import_domain_preset .input-group-prepend { width: 100%; height: 34px; }
+                #import_domain_preset .btn-file { width: 100%; height: 34px; border-radius: 4px; padding: 6px 12px; }
+                #import_domain_preset .progress { display: none !important; height: 0 !important; margin: 0 !important; }
+                #import_domain_preset > span { display: none !important; }
+                #import_domain_preset .shiny-input-container { margin-bottom: 0 !important; }
+                #export_domain_preset { height: 34px; }
+              ")),
+              uiOutput("domain_entity_categories")
+            ),
+            uiOutput("custom_entities_ui"),
+            tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
+            tags$div(
+              style = "margin-bottom: 15px;",
+              tags$h5(
+                HTML("<strong>Add Custom Entity</strong>"),
+                style = "color: #0c1f4a; margin-bottom: 10px;"
               ),
               div(
-                style = "display: flex; gap: 8px; align-items: flex-end; margin-bottom: 10px;",
+                style = "display: flex; gap: 8px; align-items: flex-end;",
                 div(
-                  style = "flex: 2;",
-                  textInput("custom_entity_name", NULL, placeholder = "Entity name")
+                  style = "flex: 0 0 36px;",
+                  if (requireNamespace("colourpicker", quietly = TRUE)) {
+                    colourpicker::colourInput("custom_entity_color", NULL,
+                      value = "#607D8B", showColour = "background")
+                  } else {
+                    textInput("custom_entity_color", NULL, value = "#607D8B", placeholder = "#HEX")
+                  }
                 ),
                 div(
                   style = "flex: 1;",
-                  if (requireNamespace("colourpicker", quietly = TRUE)) {
-                    colourpicker::colourInput("custom_entity_color", NULL, value = "#9C27B0", showColour = "background")
-                  } else {
-                    textInput("custom_entity_color", NULL, value = "#9C27B0", placeholder = "#HEX color")
-                  }
+                  textInput("custom_entity_name", NULL, placeholder = "Type a New Entity")
                 ),
-                actionButton("add_custom_entity_type", icon("plus"),
-                           class = "btn-primary btn-sm",
-                           style = "height: 34px;",
-                           title = "Add custom entity type")
+                div(
+                  style = "flex: 0 0 auto; margin-bottom: 15px;",
+                  actionButton("apply_custom_entity", icon("plus"),
+                    class = "btn-primary btn-sm",
+                    style = "height: 34px; width: 34px; padding: 0;",
+                    title = "Add custom entity")
+                )
               ),
-              uiOutput("custom_entity_list")
-            ),
-            tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
-            tags$div(
-              style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
-              tags$h5(
-                HTML("<strong>Custom Entity Coding</strong>"),
-                style = "color: #0c1f4a; margin-bottom: 10px;"
-              )
-            ),
-            div(
-              style = "display: flex; gap: 5px; margin-bottom: 10px;",
-              actionButton("tab_type", "Type",
-                         class = "btn-sm",
-                         style = "flex: 1; font-size: 16px;"),
-              actionButton("tab_upload", "Upload",
-                         class = "btn-sm",
-                         style = "flex: 1; font-size: 16px;")
-            ),
-            conditionalPanel(
-              condition = "input.coding_mode == 'type' || typeof input.coding_mode == 'undefined'",
-              textAreaInput(
-                "batch_entity_text",
-                "Define variables:",
-                placeholder = "gender: female, male, women, men\nexplicit instruction: systematic, direct, guided practice",
-                rows = 8,
-                resize = "vertical"
-              ),
-              checkboxInput(
-                "batch_include_lemmas",
-                "Match word forms (e.g., 'run' finds running, ran, runs)",
-                value = TRUE
-              ),
-              shinyjs::hidden(
-                actionButton("add_batch_entities", "", style = "display: none;")
-              )
-            ),
-            conditionalPanel(
-              condition = "input.coding_mode == 'upload'",
-                fileInput(
-                  "codebook_upload",
-                  "Upload codebook (CSV/Excel):",
-                  accept = c(".csv", ".xlsx", ".xls"),
-                  buttonLabel = "Browse",
-                  placeholder = "No file selected"
-                ),
-                tags$p("Expected columns: construct_label, operational_definition",
-                       style = "font-size: 16px; color: #6c757d; margin-top: -10px;"),
-                tags$details(
-                  tags$summary("View example format", style = "cursor: pointer; color: #337ab7; font-size: 16px;"),
-                  tags$pre(
-                    style = "background-color: #f8f9fa; padding: 8px; font-size: 16px; margin-top: 5px; line-height: 1.5;",
-                    "construct_label,operational_definition\ngender,\"female, male, women, men\"\nexplicit instruction,\"systematic, direct, guided practice\"\nreading comprehension,\"comprehension, understanding, strategies\""
-                  )
-                ),
-              shinyjs::hidden(
-                actionButton("process_codebook", "", style = "display: none;")
+              selectizeInput("uncategorized_tokens", NULL,
+                choices = NULL, selected = NULL, multiple = TRUE,
+                options = list(create = TRUE, placeholder = "Select terms for this entity")
               )
             ),
             tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
@@ -1202,25 +1269,29 @@ Supports:
               style = "display: flex; gap: 10px; margin-bottom: 15px;",
               div(
                 style = "flex: 1;",
-                conditionalPanel(
-                  condition = "input.coding_mode == 'type' || typeof input.coding_mode == 'undefined'",
-                  actionButton("add_batch_entities_bottom", "Code",
-                             class = "btn-info btn-block",
-                             icon = icon("search-plus"))
-                ),
-                conditionalPanel(
-                  condition = "input.coding_mode == 'upload'",
-                  actionButton("process_codebook_bottom", "Process",
-                             class = "btn-info btn-block",
-                             icon = icon("play"))
-                )
+                actionButton("apply_ner_filter", "Apply",
+                           class = "btn-primary btn-block",
+                           icon = icon("play"))
               ),
               div(
                 style = "flex: 1;",
                 downloadButton("export_entities", "Export",
-                           class = "btn-primary btn-block",
+                           class = "btn-secondary btn-block",
                            icon = icon("download"))
               )
+            ),
+            shinyjs::hidden(
+              selectizeInput("entity_type_filter", NULL, choices = NULL),
+              textAreaInput("batch_entity_text", NULL),
+              checkboxInput("batch_include_lemmas", NULL, value = TRUE),
+              actionButton("add_custom_entity_type", ""),
+              actionButton("tab_type", ""),
+              actionButton("tab_upload", ""),
+              actionButton("add_batch_entities", ""),
+              actionButton("add_batch_entities_bottom", ""),
+              actionButton("process_codebook", ""),
+              actionButton("process_codebook_bottom", ""),
+              fileInput("codebook_upload", NULL)
             )
           )
         ),
@@ -1625,18 +1696,21 @@ Supports:
         sidebarPanel(
           width = 3,
           class = "sidebar-panel",
-          # Category variable - always visible
-          div(
-            style = "margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;",
-            selectizeInput(
-              "doc_category_var",
-              "Category variable",
-              choices = NULL,
-              selected = "",
-              options = list(
-                allowEmptyOption = TRUE,
-                persist = TRUE,
-                placeholder = "Optional - enables category-based analysis"
+          # Category variable - only for tabs that use it (Similarity and Comparative)
+          conditionalPanel(
+            condition = "input.semantic_analysis_tabs == 'similarity' || input.semantic_analysis_tabs == 'comparative'",
+            div(
+              style = "margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;",
+              selectizeInput(
+                "doc_category_var",
+                "Category variable",
+                choices = NULL,
+                selected = "",
+                options = list(
+                  allowEmptyOption = TRUE,
+                  persist = TRUE,
+                  placeholder = "Optional - enables category-based analysis"
+                )
               )
             )
           ),
@@ -1672,7 +1746,41 @@ Supports:
 
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'similarity'",
-            tags$h5(HTML("<strong>Document Similarity</strong> <a href='https://www.sbert.net/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Document Similarity</strong> <a href='https://www.sbert.net/' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+
+            # Embedding Configuration
+            tags$label("Embedding Configuration", style = "font-weight: 600; margin-bottom: 8px; display: block; color: #0c1f4a;"),
+            uiOutput("embedding_status_ui"),
+            selectInput(
+              "embedding_provider_setup",
+              "Provider:",
+              choices = c(
+                "Auto-detect (Recommended)" = "auto",
+                "Ollama (Local)" = "ollama",
+                "OpenAI" = "openai",
+                "Gemini" = "gemini",
+                "Sentence Transformers" = "sentence_transformers"
+              ),
+              selected = "auto"
+            ),
+            selectInput(
+              "embedding_model_setup",
+              "Model:",
+              choices = c(
+                "Default (Auto)" = "",
+                "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
+                "all-mpnet-base-v2" = "all-mpnet-base-v2",
+                "nomic-embed-text" = "nomic-embed-text",
+                "mxbai-embed-large" = "mxbai-embed-large"
+              ),
+              selected = ""
+            ),
+            div(
+              style = "margin-bottom: 15px;",
+              actionButton("generate_embeddings", "Generate Embeddings", class = "btn-primary btn-block", icon = icon("brain"))
+            ),
+            tags$hr(style = "margin: 10px 0; border-color: #dee2e6;"),
+
             conditionalPanel(
               condition = "input.semantic_feature_space == 'embeddings'",
               div(
@@ -1839,7 +1947,7 @@ Supports:
                 passwordInput(
                   "rag_gemini_api_key",
                   "API Key:",
-                  placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+                  placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
                 )
               )
             ),
@@ -1861,153 +1969,10 @@ Supports:
             )
           ),
           conditionalPanel(
-            condition = "input.semantic_analysis_tabs == 'document_clustering'",
-            tags$h5(HTML("<strong>Document Clustering</strong> <a href='https://scikit-learn.org/stable/modules/clustering.html' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
-            uiOutput("document_clustering_status"),
-
-            wellPanel(
-              style = "padding: 12px; margin-bottom: 15px;",
-              selectInput(
-                "semantic_dimred_method",
-                "Step 1: Dimensionality reduction",
-                choices = c(
-                  "PCA" = "PCA",
-                  "t-SNE" = "t-SNE",
-                  "UMAP" = "UMAP"
-                ),
-                selected = "UMAP"
-              ),
-              conditionalPanel(
-                condition = "input.semantic_dimred_method == 'PCA'",
-                sliderInput(
-                  "semantic_pca_dims",
-                  "Components",
-                  value = 50,
-                  min = 10,
-                  max = 200,
-                  step = 10
-                )
-              ),
-              conditionalPanel(
-                condition = "input.semantic_dimred_method == 't-SNE'",
-                sliderInput(
-                  "semantic_tsne_perplexity",
-                  "Perplexity",
-                  value = 30,
-                  min = 5,
-                  max = 100,
-                  step = 5
-                ),
-                sliderInput(
-                  "semantic_tsne_max_iter",
-                  "Max iterations",
-                  value = 1000,
-                  min = 250,
-                  max = 5000,
-                  step = 250
-                )
-              ),
-              conditionalPanel(
-                condition = "input.semantic_dimred_method == 'UMAP'",
-                sliderInput(
-                  "semantic_umap_neighbors",
-                  "Neighbors",
-                  value = 15,
-                  min = 5,
-                  max = 50,
-                  step = 1
-                ),
-                sliderInput(
-                  "semantic_umap_min_dist",
-                  "Min distance",
-                  value = 0.1,
-                  min = 0.01,
-                  max = 0.5,
-                  step = 0.01
-                )
-              ),
-              div(
-                style = "margin-top: 15px;",
-                actionButton("run_dimensionality_reduction", "Reduce Dimensionality", class = "btn-primary btn-block", icon = icon("compress-arrows-alt"))
-              )
-            ),
-
-            wellPanel(
-              style = "padding: 12px; margin-bottom: 15px;",
-              selectInput(
-                "document_clustering_method",
-                "Step 2: Clustering (optional)",
-                choices = c(
-                  "None" = "none",
-                  "K-means" = "kmeans",
-                  "Hierarchical" = "hierarchical",
-                  "DBSCAN" = "dbscan",
-                  "HDBSCAN" = "hdbscan"
-                ),
-                selected = "none"
-              ),
-              conditionalPanel(
-                condition = "input.document_clustering_method == 'kmeans'",
-                numericInput(
-                  "kmeans_k",
-                  "Number of clusters",
-                  value = 5,
-                  min = 2,
-                  max = 20
-                )
-              ),
-              conditionalPanel(
-                condition = "input.document_clustering_method == 'hierarchical'",
-                numericInput(
-                  "hclust_k",
-                  "Number of clusters",
-                  value = 5,
-                  min = 2,
-                  max = 20
-                )
-              ),
-              conditionalPanel(
-                condition = "input.document_clustering_method == 'dbscan'",
-                numericInput(
-                  "dbscan_eps",
-                  "Epsilon (neighborhood size)",
-                  value = 0.5,
-                  min = 0.1,
-                  max = 2,
-                  step = 0.1
-                ),
-                numericInput(
-                  "dbscan_minPts",
-                  "Min points",
-                  value = 5,
-                  min = 2,
-                  max = 20
-                )
-              ),
-              conditionalPanel(
-                condition = "input.document_clustering_method == 'hdbscan'",
-                numericInput(
-                  "hdbscan_min_cluster_size",
-                  "Min cluster size",
-                  value = 5,
-                  min = 2,
-                  max = 50
-                )
-              ),
-              conditionalPanel(
-                condition = "input.document_clustering_method != 'none'",
-                div(
-                  style = "margin-top: 15px;",
-                  actionButton("apply_clustering", "Apply Clustering", class = "btn-primary btn-block", icon = icon("project-diagram"))
-                )
-              )
-            )
-          ),
-          conditionalPanel(
             condition = "false",
             tags$div(
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;",
-              tags$h5(HTML("<strong>Find Document Groups</strong> <a href='https://scikit-learn.org/stable/modules/clustering.html' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
+              tags$h5(HTML("<strong>Find Document Groups</strong> <a href='https://scikit-learn.org/stable/modules/clustering.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin: 0;"),
               actionLink("showClusteringInfo", icon("info-circle"),
                         style = "color: #337ab7; font-size: 16px;",
                         title = "Learn about document grouping")
@@ -2221,7 +2186,7 @@ Supports:
               passwordInput(
                 "cluster_gemini_api_key",
                 "API Key:",
-                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
               )
             ),
 
@@ -2244,7 +2209,7 @@ Supports:
           ),
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'sentiment'",
-            tags$h5(HTML("<strong>Sentiment & Emotion Analysis</strong> <a href='https://github.com/juliasilge/tidytext' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Sentiment & Emotion Analysis</strong> <a href='https://github.com/juliasilge/tidytext' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
 
             uiOutput("sentiment_status_message"),
             conditionalPanel(
@@ -2259,7 +2224,7 @@ Supports:
                   "LLM-based (Explanations)" = "llm"
                 ),
                 selected = "lexicon",
-                inline = TRUE
+                inline = FALSE
               ),
               # Lexicon-based options
               conditionalPanel(
@@ -2382,7 +2347,7 @@ Supports:
           ),
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'cooccurrence'",
-            tags$h5(HTML("<strong>Word Co-occurrence Networks</strong> <a href='https://igraph.org/r/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Word Co-occurrence Networks</strong> <a href='https://igraph.org/r/' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             selectizeInput(
               "doc_var_co_occurrence",
               "Categorical variable",
@@ -2472,7 +2437,7 @@ Supports:
           ),
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'correlation'",
-            tags$h5(HTML("<strong>Word Correlation Networks</strong> <a href='https://igraph.org/r/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Word Correlation Networks</strong> <a href='https://igraph.org/r/' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             selectizeInput(
               "doc_var_correlation",
               "Categorical variable",
@@ -2580,47 +2545,7 @@ Supports:
               br(),
               conditionalPanel(
                 condition = "output.has_documents == true",
-                DT::dataTableOutput("document_summary_table"),
-                hr(),
-                h4("Embedding Configuration", style = "margin-top: 20px;"),
-                uiOutput("embedding_status_ui"),
-                br(),
-                fluidRow(
-                  column(6,
-                    selectInput(
-                      "embedding_provider_setup",
-                      "Embedding Provider:",
-                      choices = c(
-                        "Auto-detect (Recommended)" = "auto",
-                        "Ollama (Local)" = "ollama",
-                        "OpenAI" = "openai",
-                        "Gemini" = "gemini",
-                        "Sentence Transformers" = "sentence_transformers"
-                      ),
-                      selected = "auto"
-                    )
-                  ),
-                  column(6,
-                    selectInput(
-                      "embedding_model_setup",
-                      "Embedding Model:",
-                      choices = c(
-                        "Default (Auto)" = "",
-                        "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                        "all-mpnet-base-v2" = "all-mpnet-base-v2",
-                        "nomic-embed-text" = "nomic-embed-text",
-                        "mxbai-embed-large" = "mxbai-embed-large"
-                      ),
-                      selected = ""
-                    )
-                  )
-                ),
-                actionButton(
-                  "generate_embeddings",
-                  "Generate Embeddings",
-                  class = "btn-primary",
-                  icon = icon("brain")
-                )
+                DT::dataTableOutput("document_summary_table")
               ),
               conditionalPanel(
                 condition = "output.has_documents == false",
@@ -2993,171 +2918,6 @@ Supports:
                   uiOutput("sentiment_emotion_uiOutput")
                 )
               )
-            ),
-            tabPanel(
-              "8. Document Clustering",
-              value = "document_clustering",
-              br(),
-              tabsetPanel(
-                id = "document_clustering_tabs",
-                tabPanel(
-                  "Visualization",
-                  value = "viz",
-                  conditionalPanel(
-                    condition = "output.analysis_run == true",
-                    plotly::plotlyOutput("semantic_space_plot", height = "600px", width = "100%"),
-                    br(),
-                    div(
-                      style = "border: 1px solid #dee2e6; padding: 12px; margin-bottom: 15px; border-radius: 4px; background: white;",
-                      fluidRow(
-                        column(6,
-                          uiOutput("space_feature_info")
-                        ),
-                        column(6,
-                          uiOutput("space_quality_metrics")
-                        )
-                      )
-                    )
-                  ),
-                  conditionalPanel(
-                    condition = "output.analysis_run == false",
-                    div(
-                      style = "padding: 60px 40px; text-align: center;",
-                      div(
-                        style = "max-width: 400px; margin: 0 auto;",
-                        tags$i(class = "fa fa-project-diagram", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                        tags$p(
-                          "Click ",
-                          tags$strong("'Reduce Dimensionality'", style = "color: #0c1f4a;"),
-                          " to generate visualization",
-                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                        )
-                      )
-                    )
-                  )
-                ),
-                tabPanel(
-                  "Group Analysis",
-                  value = "groups",
-                  br(),
-                  conditionalPanel(
-                    condition = "output.has_clusters == true",
-                    DT::dataTableOutput("document_groups_table"),
-                    tags$h5("Explore Groups", style = "color: #0c1f4a; margin-top: 15px;"),
-                    fluidRow(
-                      column(4,
-                        selectInput(
-                          "selected_document_group",
-                          "Group",
-                          choices = NULL,
-                          width = "100%"
-                        )
-                      ),
-                      column(8,
-                        uiOutput("document_group_summary")
-                      )
-                    ),
-                    br(),
-                    fluidRow(
-                      column(6,
-                        tags$h5("Top Terms", style = "color: #0c1f4a; margin-bottom: 10px;"),
-                        plotly::plotlyOutput("group_terms_plot", height = "300px")
-                      ),
-                      column(6,
-                        tags$h5("Sample Documents", style = "color: #0c1f4a; margin-bottom: 10px;"),
-                        DT::dataTableOutput("group_sample_docs")
-                      )
-                    )
-                  ),
-                  conditionalPanel(
-                    condition = "output.has_clusters == false",
-                    div(
-                      style = "padding: 60px 40px; text-align: center;",
-                      div(
-                        style = "max-width: 400px; margin: 0 auto;",
-                        tags$i(class = "fa fa-layer-group", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                        tags$p(
-                          "Click ",
-                          tags$strong("'Reduce Dimensionality'", style = "color: #0c1f4a;"),
-                          " then optionally ",
-                          tags$strong("'Apply Clustering'", style = "color: #0c1f4a;"),
-                          " to create document groups",
-                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                        )
-                      )
-                    )
-                  )
-                ),
-                tabPanel(
-                  "Labels",
-                  value = "labels",
-                  br(),
-                  conditionalPanel(
-                    condition = "output.has_clusters == true",
-                    fluidRow(
-                      column(12,
-                        wellPanel(
-                          style = "padding: 15px; margin-bottom: 20px;",
-                          tags$h5(strong("Label Generation"), style = "color: #0c1f4a; margin-bottom: 15px;"),
-                          fluidRow(
-                            column(4,
-                              selectInput(
-                                "label_method",
-                                "Method:",
-                                choices = c(
-                                  "Top Terms (TF-IDF)" = "tfidf",
-                                  "Representative Terms" = "representative",
-                                  "Most Frequent Terms" = "frequent"
-                                ),
-                                selected = "tfidf"
-                              )
-                            ),
-                            column(4,
-                              numericInput(
-                                "n_label_terms",
-                                "Terms per label:",
-                                value = 3,
-                                min = 1,
-                                max = 5
-                              )
-                            ),
-                            column(4,
-                              actionButton(
-                                "generate_labels",
-                                "Generate Labels",
-                                class = "btn-primary",
-                                icon = icon("tag"),
-                                style = "margin-top: 25px;"
-                              )
-                            )
-                          )
-                        )
-                      )
-                    ),
-                    plotly::plotlyOutput("labeled_space_plot", height = "500px"),
-                    br(),
-                    DT::dataTableOutput("labeled_groups_table")
-                  ),
-                  conditionalPanel(
-                    condition = "output.has_clusters == false",
-                    div(
-                      style = "padding: 60px 40px; text-align: center;",
-                      div(
-                        style = "max-width: 400px; margin: 0 auto;",
-                        tags$i(class = "fa fa-tags", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
-                        tags$p(
-                          "Click ",
-                          tags$strong("'Reduce Dimensionality'", style = "color: #0c1f4a;"),
-                          " then ",
-                          tags$strong("'Apply Clustering'", style = "color: #0c1f4a;"),
-                          " to create groups for labeling",
-                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
-                        )
-                      )
-                    )
-                  )
-                )
-              )
             )
           )
         )
@@ -3230,7 +2990,7 @@ Supports:
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 4 && input.searchKSubtabs != 'ai_rec'",
             tags$h5(
-              HTML("<strong>Evaluate optimal topic number (K)</strong> <a href='https://github.com/bstewart/stm' target='_blank' style='font-size: 16px;'>Source</a>"),
+              HTML("<strong>Evaluate optimal topic number (K)</strong> <a href='https://github.com/bstewart/stm' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             sliderInput(
@@ -3432,7 +3192,7 @@ Supports:
               passwordInput(
                 "stm_label_gemini_api_key",
                 "API Key:",
-                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
               )
             ),
             textAreaInput(
@@ -3633,7 +3393,7 @@ Focus on incorporating the most significant keywords while following the guideli
               passwordInput(
                 "k_rec_gemini_api_key",
                 "API Key:",
-                placeholder = "Set GEMINI_API_KEY in .Renviron"
+                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
               )
             ),
 
@@ -3799,7 +3559,7 @@ Focus on incorporating the most significant keywords while following the guideli
               passwordInput(
                 "content_gemini_api_key",
                 "API Key:",
-                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
               )
             ),
             textAreaInput(
@@ -3828,77 +3588,208 @@ Focus on incorporating the most significant keywords while following the guideli
           ),
           conditionalPanel(
             condition = "input.topic_modeling_path == 'embedding' && input.conditioned3 == 4",
-            tags$h5(HTML("<strong>Configure Embedding-based Topic Modeling</strong> <a href='https://maartengr.github.io/BERTopic/' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Configure Embedding-based Topic Modeling</strong>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+
+            selectInput(
+              "embedding_backend",
+              "Backend:",
+              choices = c(
+                "Python (BERTopic, recommended)" = "python",
+                "R (no Python required)" = "r"
+              ),
+              selected = "python"
+            ),
+
             uiOutput("embedding_topic_python_status"),
+
             selectInput(
               "embedding_model_name",
               "Embedding model:",
               choices = c(
                 "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2" = "all-mpnet-base-v2"
+                "all-mpnet-base-v2" = "all-mpnet-base-v2",
+                "nomic-embed-text" = "nomic-embed-text",
+                "mxbai-embed-large" = "mxbai-embed-large"
               ),
               selected = "all-MiniLM-L6-v2"
             ),
 
-            selectInput(
-              "embedding_method",
-              "Topic discovery method:",
-              choices = c(
-                "UMAP + HDBSCAN" = "umap_hdbscan",
-                "Embedding Clustering" = "embedding_clustering",
-                "Hierarchical Semantic" = "hierarchical_semantic"
-              ),
-              selected = "umap_hdbscan"
-            ),
-
             conditionalPanel(
-              condition = "input.embedding_method == 'umap_hdbscan'",
-              sliderInput(
-                "embedding_umap_neighbors",
-                "Neighbors:",
-                value = 15,
-                min = 5,
-                max = 50
-              ),
-              sliderInput(
-                "embedding_umap_min_dist",
-                "Min distance (0.0 = tight clusters for topic modeling):",
-                value = 0.0,
-                min = 0.0,
-                max = 0.99,
-                step = 0.01
-              ),
-              sliderInput(
-                "embedding_min_topic_size",
-                "Min cluster size:",
-                value = 10,
-                min = 2,
-                max = 50
-              ),
+              condition = "input.embedding_backend == 'python'",
               selectInput(
-                "embedding_cluster_selection",
-                "Cluster selection method:",
+                "embedding_method",
+                "Topic discovery method:",
                 choices = c(
-                  "EOM (default, broader topics)" = "eom",
-                  "Leaf (finer-grained topics)" = "leaf"
+                  "UMAP + HDBSCAN" = "umap_hdbscan",
+                  "Embedding Clustering" = "embedding_clustering",
+                  "Hierarchical Semantic" = "hierarchical_semantic"
                 ),
-                selected = "eom"
+                selected = "umap_hdbscan"
               ),
-              checkboxInput(
-                "embedding_reduce_outliers",
-                "Reduce outliers",
-                value = FALSE
+
+              conditionalPanel(
+                condition = "input.embedding_method == 'umap_hdbscan'",
+                sliderInput(
+                  "embedding_umap_neighbors",
+                  "Neighbors:",
+                  value = 15,
+                  min = 5,
+                  max = 50
+                ),
+                sliderInput(
+                  "embedding_umap_min_dist",
+                  "Min distance (0.0 = tight clusters for topic modeling):",
+                  value = 0.0,
+                  min = 0.0,
+                  max = 0.99,
+                  step = 0.01
+                ),
+                sliderInput(
+                  "embedding_min_topic_size",
+                  "Min cluster size:",
+                  value = 10,
+                  min = 2,
+                  max = 50
+                ),
+                selectInput(
+                  "embedding_cluster_selection",
+                  "Cluster selection method:",
+                  choices = c(
+                    "EOM (default, broader topics)" = "eom",
+                    "Leaf (finer-grained topics)" = "leaf"
+                  ),
+                  selected = "eom"
+                ),
+                checkboxInput(
+                  "embedding_reduce_outliers",
+                  "Reduce outliers",
+                  value = FALSE
+                )
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_method != 'umap_hdbscan'",
+                numericInput(
+                  "embedding_n_topics",
+                  "Number of topics",
+                  value = 10,
+                  min = 2,
+                  max = 50
+                )
               )
             ),
 
             conditionalPanel(
-              condition = "input.embedding_method != 'umap_hdbscan'",
-              numericInput(
-                "embedding_n_topics",
-                "Number of topics",
-                value = 10,
-                min = 2,
-                max = 50
+              condition = "input.embedding_backend == 'r'",
+              selectInput(
+                "embedding_dimred_method",
+                "Dimensionality reduction:",
+                choices = c(
+                  "UMAP" = "umap",
+                  "t-SNE" = "tsne",
+                  "PCA" = "pca"
+                ),
+                selected = "umap"
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_dimred_method == 'umap'",
+                sliderInput(
+                  "embedding_r_umap_neighbors",
+                  "Neighbors:",
+                  value = 15,
+                  min = 5,
+                  max = 50
+                ),
+                sliderInput(
+                  "embedding_r_umap_min_dist",
+                  "Min distance:",
+                  value = 0.1,
+                  min = 0.0,
+                  max = 0.5,
+                  step = 0.01
+                )
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_dimred_method == 'tsne'",
+                sliderInput(
+                  "embedding_tsne_perplexity",
+                  "Perplexity:",
+                  value = 30,
+                  min = 5,
+                  max = 100
+                )
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_dimred_method == 'pca'",
+                sliderInput(
+                  "embedding_pca_dims",
+                  "Components:",
+                  value = 50,
+                  min = 10,
+                  max = 200
+                )
+              ),
+
+              selectInput(
+                "embedding_method_r",
+                "Clustering method:",
+                choices = c(
+                  "DBSCAN (density-based)" = "dbscan",
+                  "K-means" = "kmeans",
+                  "Hierarchical" = "hierarchical",
+                  "HDBSCAN" = "hdbscan"
+                ),
+                selected = "dbscan"
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_method_r == 'kmeans' || input.embedding_method_r == 'hierarchical'",
+                numericInput(
+                  "embedding_r_n_topics",
+                  "Number of clusters:",
+                  value = 5,
+                  min = 2,
+                  max = 50
+                )
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_method_r == 'dbscan'",
+                sliderInput(
+                  "embedding_dbscan_eps",
+                  "Epsilon:",
+                  value = 0.5,
+                  min = 0.1,
+                  max = 2.0,
+                  step = 0.1
+                ),
+                sliderInput(
+                  "embedding_dbscan_minpts",
+                  "Min points:",
+                  value = 5,
+                  min = 2,
+                  max = 20
+                )
+              ),
+
+              conditionalPanel(
+                condition = "input.embedding_method_r == 'hdbscan'",
+                sliderInput(
+                  "embedding_r_min_cluster_size",
+                  "Min cluster size:",
+                  value = 5,
+                  min = 2,
+                  max = 50
+                )
+              ),
+
+              checkboxInput(
+                "embedding_r_reduce_outliers",
+                "Reduce outliers (for DBSCAN/HDBSCAN)",
+                value = TRUE
               )
             ),
 
@@ -3914,13 +3805,16 @@ Focus on incorporating the most significant keywords while following the guideli
               selected = "c-tfidf"
             ),
 
-            sliderInput(
-              "embedding_topic_diversity",
-              "Topic diversity",
-              value = 0.5,
-              min = 0,
-              max = 1,
-              step = 0.1
+            conditionalPanel(
+              condition = "input.embedding_backend == 'python'",
+              sliderInput(
+                "embedding_topic_diversity",
+                "Topic diversity",
+                value = 0.5,
+                min = 0,
+                max = 1,
+                step = 0.1
+              )
             ),
 
             actionButton("embedding_run", "Run Model", class = "btn-primary btn-block")
@@ -3966,7 +3860,7 @@ Focus on incorporating the most significant keywords while following the guideli
 
           conditionalPanel(
             condition = "input.topic_modeling_path == 'hybrid' && input.conditioned3 == 4",
-            tags$h5(HTML("<strong>Evaluate optimal topic number (K) for hybrid model</strong> <a href='https://github.com/bstewart/stm' target='_blank' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
+            tags$h5(HTML("<strong>Evaluate optimal topic number (K) for hybrid model</strong> <a href='https://github.com/bstewart/stm' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             sliderInput(
               "hybrid_K_range",
               "Range of topic numbers",
@@ -4007,7 +3901,9 @@ Focus on incorporating the most significant keywords while following the guideli
               "Embedding model",
               choices = c(
                 "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2" = "all-mpnet-base-v2"
+                "all-mpnet-base-v2" = "all-mpnet-base-v2",
+                "nomic-embed-text" = "nomic-embed-text",
+                "mxbai-embed-large" = "mxbai-embed-large"
               ),
               selected = "all-MiniLM-L6-v2"
             ),
@@ -4182,7 +4078,7 @@ Focus on incorporating the most significant keywords while following the guideli
               passwordInput(
                 "hybrid_label_gemini_api_key",
                 "API Key:",
-                placeholder = "Enter key (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
               )
             ),
             textAreaInput(

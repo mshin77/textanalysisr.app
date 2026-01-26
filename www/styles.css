@@ -517,6 +517,23 @@ button.btn-default {
   border-color: #0c1f4a !important;
 }
 
+/* Action links (not buttons) should keep their link color */
+a.action-button,
+a.shiny-bound-input.action-button {
+  color: #337ab7 !important;
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  text-decoration: none;
+}
+
+a.action-button:hover,
+a.shiny-bound-input.action-button:hover {
+  color: #23527c !important;
+  text-decoration: underline;
+  background-color: transparent !important;
+}
+
 .btn:hover,
 .btn:focus,
 .btn:active {
@@ -1259,11 +1276,24 @@ div {
 
 [data-theme="dark"] .btn,
 [data-theme="dark"] button.btn,
-[data-theme="dark"] button.btn.action-button,
-[data-theme="dark"] .shiny-bound-input.action-button {
+[data-theme="dark"] button.btn.action-button {
   background-color: var(--bg-tertiary);
   color: var(--text-primary) !important;
   border-color: var(--border-color);
+}
+
+/* Dark mode action links (not buttons) should keep visible link color */
+[data-theme="dark"] a.action-button,
+[data-theme="dark"] a.shiny-bound-input.action-button {
+  color: #38bdf8 !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+[data-theme="dark"] a.action-button:hover,
+[data-theme="dark"] a.shiny-bound-input.action-button:hover {
+  color: #7dd3fc !important;
+  text-decoration: underline;
 }
 
 [data-theme="dark"] .btn-primary,
@@ -2643,4 +2673,91 @@ a.action-link[title*="Info"]:hover {
 /* Disable cell edit highlight interference with dropdown */
 .ner-table-container table.dataTable tbody td:has(.ner-cell) {
   cursor: default !important;
+}
+
+/* ============================================
+   Language Menu Dropdown
+   ============================================ */
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 14px;
+  margin: 0;
+  background: none;
+  border: none;
+  font-size: var(--font-size-sm);  /* 14px - matches small buttons */
+  font-family: var(--font-family-body);
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.lang-btn:hover {
+  background: #f3f4f6;
+}
+
+.lang-btn i {
+  font-size: 11px;
+  color: transparent;
+  width: 14px;
+}
+
+.lang-btn.active {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.lang-btn.active i {
+  color: #374151;
+}
+
+/* Dark mode language menu */
+[data-theme="dark"] #translate_dropdown {
+  background: #1f1f1f;
+  border-color: #333;
+}
+
+[data-theme="dark"] .lang-btn {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .lang-btn:hover {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .lang-btn.active {
+  background: #2a2a2a;
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .lang-btn.active i {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .translate-attribution {
+  background: #1a1a1a;
+  border-color: #333;
+  color: #6b7280;
+}
+
+/* ============================================
+   Domain Entity Selectize - Multi-line Display
+   ============================================ */
+
+/* Domain entity selectize inputs - standard height with scroll when needed */
+/* Uses attribute selector to match any domain category input (dynamic) */
+[id^="domain_"] + .selectize-control .selectize-input,
+#uncategorized_tokens + .selectize-control .selectize-input {
+  max-height: 100px !important;
+  overflow-y: auto !important;
+}
+
+/* Dark mode domain selectize */
+[data-theme="dark"] [id^="domain_"] + .selectize-control .selectize-input,
+[data-theme="dark"] #uncategorized_tokens + .selectize-control .selectize-input {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
 }

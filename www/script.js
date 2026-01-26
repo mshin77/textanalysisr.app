@@ -14,42 +14,24 @@ function googleTranslateElementInit() {
 }
 
 window.toggleTranslate = function() {
-    var translateElement = document.getElementById('google_translate_element');
+    var dropdown = document.getElementById('translate_dropdown');
+    if (!dropdown) return;
 
-    if (!translateElement) {
-        return;
-    }
-
-    var gadget = translateElement.querySelector('.goog-te-gadget');
-    var combo = translateElement.querySelector('.goog-te-combo');
-    var select = translateElement.querySelector('select');
-
-    if (!gadget && !combo && !select) {
-        alert('Language selector is loading. Please try again in a moment.');
-        return;
-    }
-
-    if (translateElement.classList.contains('show')) {
-        translateElement.classList.remove('show');
-        translateElement.style.display = 'none';
-        translateElement.style.visibility = 'hidden';
+    if (dropdown.classList.contains('show')) {
+        dropdown.classList.remove('show');
+        dropdown.style.display = 'none';
     } else {
-        translateElement.classList.add('show');
-        translateElement.style.display = 'inline-block';
-        translateElement.style.visibility = 'visible';
+        dropdown.classList.add('show');
+        dropdown.style.display = 'block';
+    }
+}
 
-        if (gadget) {
-            gadget.style.display = 'inline-block';
-            gadget.style.visibility = 'visible';
-        }
-        if (combo) {
-            combo.style.display = 'inline-block';
-            combo.style.visibility = 'visible';
-        }
-        if (select) {
-            select.style.display = 'inline-block';
-            select.style.visibility = 'visible';
-        }
+// Trigger Google Translate by selecting language in native dropdown
+window.selectGoogleTranslateLanguage = function(langCode) {
+    var combo = document.querySelector('.goog-te-combo');
+    if (combo) {
+        combo.value = langCode;
+        combo.dispatchEvent(new Event('change'));
     }
 }
 
@@ -353,6 +335,41 @@ $(document).ready(function() {
             return false;
         });
     }
+
+    // Close translate dropdown when clicking outside
+    $(document).on('click', function(e) {
+        var dropdown = document.getElementById('translate_dropdown');
+        var icon = document.getElementById('translate_icon');
+        if (dropdown && dropdown.classList.contains('show')) {
+            if (!dropdown.contains(e.target) && (!icon || !icon.contains(e.target))) {
+                dropdown.classList.remove('show');
+                dropdown.style.display = 'none';
+            }
+        }
+    });
+
+    // Language button click handlers
+    $(document).on('click', '.lang-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var lang = $(this).data('lang');
+        var dropdown = document.getElementById('translate_dropdown');
+
+        // Trigger Google Translate
+        if (typeof selectGoogleTranslateLanguage === 'function') {
+            selectGoogleTranslateLanguage(lang);
+        }
+
+        // Update active state
+        $('.lang-btn').removeClass('active');
+        $(this).addClass('active');
+
+        // Hide dropdown
+        if (dropdown) {
+            dropdown.classList.remove('show');
+            dropdown.style.display = 'none';
+        }
+    });
 
     var ttsToggle = $('#tts_toggle');
     if (ttsToggle.length > 0) {
