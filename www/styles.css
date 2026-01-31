@@ -19,8 +19,8 @@
    ============================================ */
 :root {
   /* Font Sizes - px values for consistent rendering in Shiny */
-  --font-size-xs: 12px;     /* timestamps, hints */
-  --font-size-sm: 14px;     /* small buttons, secondary text */
+  --font-size-xs: 16px;     /* timestamps, hints */
+  --font-size-sm: 16px;     /* small buttons, secondary text */
   --font-size-base: 16px;   /* body text, descriptions */
   --font-size-lg: 18px;     /* section titles, emphasis */
   --font-size-xl: 20px;     /* large headings */
@@ -805,6 +805,19 @@ input[type="file"] {
   font-size: 16px;
 }
 
+/* Slider (ion-rangeslider) text sizing */
+.irs-min,
+.irs-max,
+.irs-from,
+.irs-to,
+.irs-single {
+  font-size: 16px !important;
+}
+
+.irs-grid-text {
+  font-size: 16px !important;
+}
+
 
 /* ========================================================================
    ACCESSIBILITY & DARK MODE STYLES
@@ -979,7 +992,7 @@ div[role="main"]:focus,
 
 #voice_toggle {
   color: #475569;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -2202,7 +2215,7 @@ body>.skiptranslate {
 
 .progress {
   height: 24px;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 24px;
 }
 
@@ -2313,7 +2326,7 @@ textarea::placeholder {
 }
 
 .lang-switcher {
-  font-size: 14px !important;
+  font-size: 16px !important;
   padding: 6px 12px;
 }
 
@@ -2338,7 +2351,7 @@ textarea::placeholder {
 
 .error-message {
   color: #DC2626;
-  font-size: 14px;
+  font-size: 16px;
   margin-top: 4px;
   display: block;
 }
@@ -2687,7 +2700,7 @@ a.action-link[title*="Info"]:hover {
   margin: 0;
   background: none;
   border: none;
-  font-size: var(--font-size-sm);  /* 14px - matches small buttons */
+  font-size: var(--font-size-sm);  /* 16px - matches small buttons */
   font-family: var(--font-family-body);
   color: #374151;
   cursor: pointer;
@@ -2700,9 +2713,9 @@ a.action-link[title*="Info"]:hover {
 }
 
 .lang-btn i {
-  font-size: 11px;
+  font-size: 16px;
   color: transparent;
-  width: 14px;
+  width: 18px;
 }
 
 .lang-btn.active {

@@ -1,3 +1,16 @@
+// Show loading overlay immediately on page load
+(function() {
+  if (document.getElementById('loading-overlay')) return;
+  var overlay = document.createElement('div');
+  overlay.id = 'loading-overlay';
+  overlay.innerHTML = '<div style="text-align:center;"><div class="loading-spinner"></div><p style="margin-top:20px;color:#64748b;font-size:16px;">Loading TextAnalysisR...</p></div>';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#f8fafc;z-index:99999;display:flex;align-items:center;justify-content:center;transition:opacity 0.5s;';
+  var style = document.createElement('style');
+  style.textContent = '.loading-spinner{width:60px;height:60px;border:4px solid #e2e8f0;border-top-color:#337ab7;border-radius:50%;animation:spin 1s linear infinite;}@keyframes spin{to{transform:rotate(360deg);}}';
+  document.head.appendChild(style);
+  document.body.insertBefore(overlay, document.body.firstChild);
+})();
+
 function googleTranslateElementInit() {
     try {
         if (typeof google !== 'undefined' &&
@@ -255,6 +268,47 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+$(document).on('keydown', '#entity_table input[type="text"]', function(e) {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+        e.preventDefault();
+        $(this).blur();
+    }
+});
+
+$(document).on('dblclick', '#entity_table td:last-child span', function(e) {
+    e.stopPropagation();
+    var $td = $(this).closest('td');
+    $td.trigger('dblclick');
+});
+
+// Entity color editing - click on entity badge to edit color
+$(document).on('click', '#entity_table .entity-badge', function(e) {
+    e.stopPropagation();
+    var entityName = $(this).data('entity');
+    var lemmaName = $(this).data('lemma');
+    if (entityName) {
+        var bgColor = $(this).css('background-color');
+        var hex = '#757575';
+        if (bgColor && bgColor.indexOf('rgb') === 0) {
+            var parts = bgColor.match(/\d+/g);
+            if (parts && parts.length >= 3) {
+                hex = '#' +
+                    ('0' + parseInt(parts[0]).toString(16)).slice(-2) +
+                    ('0' + parseInt(parts[1]).toString(16)).slice(-2) +
+                    ('0' + parseInt(parts[2]).toString(16)).slice(-2);
+            }
+        } else if (bgColor && bgColor.charAt(0) === '#') {
+            hex = bgColor;
+        }
+        Shiny.setInputValue('edit_entity_color', {
+            entity: entityName,
+            lemma: lemmaName || '',
+            color: hex,
+            time: new Date().getTime()
+        }, {priority: 'event'});
+    }
+});
+
 $(document).ready(function() {
     function fixTooltipWrapping() {
         $('.hoverlayer .hovertext').each(function() {
@@ -458,6 +512,13 @@ $(document).on('mouseover', '.shiny-notification', function(e) {
 
 // Coding mode custom message handler - wait for Shiny to be available
 $(document).on('shiny:connected', function() {
+  // Dismiss loading overlay
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(function() { overlay.remove(); }, 500);
+  }
+
   if (typeof Shiny !== 'undefined') {
     Shiny.addCustomMessageHandler('setCodingMode', function(mode) {
       Shiny.setInputValue('coding_mode', mode);

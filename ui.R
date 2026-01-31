@@ -114,7 +114,7 @@ ui <- fluidPage(
         # Attribution at bottom
         tags$div(
           class = "translate-attribution",
-          style = "display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 10px; color: #9ca3af; padding: 8px 12px; border-top: 1px solid #e5e7eb; background: #f9fafb; border-radius: 0 0 8px 8px;",
+          style = "display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 16px; color: #9ca3af; padding: 8px 12px; border-top: 1px solid #e5e7eb; background: #f9fafb; border-radius: 0 0 8px 8px;",
           tags$span("Powered by"),
           tags$img(src = "https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_color_42x16dp.png", alt = "Google", height = "12"),
           tags$span("Translate")
@@ -186,6 +186,57 @@ ui <- fluidPage(
         )
       ),
     tabPanel(
+      "AI Setup",
+      sidebarLayout(
+        sidebarPanel(
+          width = 3,
+          class = "sidebar-panel",
+          tags$h5(
+            HTML("<strong>AI Configuration</strong>"),
+            tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
+            style = "color: #0c1f4a; margin-bottom: 10px;"
+          ),
+          tags$p(style = "font-size: 16px; color: #666;", "API keys entered here apply to all AI features. You can also enter keys per-feature."),
+          passwordInput("global_openai_api_key", "OpenAI API Key:", placeholder = "sk-..."),
+          passwordInput("global_gemini_api_key", "Gemini API Key:", placeholder = "AIza..."),
+          tags$hr(),
+          tags$h5(
+            HTML("<strong>Ollama Status</strong>"),
+            style = "color: #0c1f4a; margin-bottom: 10px;"
+          ),
+          uiOutput("global_ollama_status"),
+          tags$hr(),
+          tags$h5(
+            HTML("<strong>Usage Log</strong>"),
+            style = "color: #0c1f4a; margin-bottom: 10px;"
+          ),
+          tags$p(style = "font-size: 16px; color: #666;", "Track which AI models were used (for reproducibility reporting)."),
+          downloadButton("download_ai_log", "Download Log as CSV", class = "btn-secondary btn-block")
+        ),
+        mainPanel(
+          width = 9,
+          conditionalPanel(
+            condition = "output.has_ai_usage_log",
+            DT::DTOutput("ai_usage_log_table")
+          ),
+          conditionalPanel(
+            condition = "!output.has_ai_usage_log",
+            div(
+              style = "padding: 60px 40px; text-align: center;",
+              div(
+                style = "max-width: 400px; margin: 0 auto;",
+                tags$i(class = "fa fa-robot", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;", "aria-hidden" = "true"),
+                tags$p(
+                  "Use any AI feature to start logging model usage",
+                  style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                )
+              )
+            )
+          )
+        )
+      )
+    ),
+    tabPanel(
       "Upload",
       sidebarLayout(
         sidebarPanel(
@@ -251,7 +302,7 @@ Supports:
             condition = "input.conditioned == 1",
             tags$h5(
               HTML("<strong>Select columns</strong> <a href='https://tidyr.tidyverse.org/reference/unite.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
-              tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
+              tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             div(class = "checkbox-margin", checkboxGroupInput("show_vars",
@@ -264,7 +315,7 @@ Supports:
             condition = "input.conditioned == 2",
             tags$h5(
               HTML("<strong>Segment corpus into tokens</strong> <a href='https://quanteda.io/reference/tokens.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
-              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
+              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             tags$div(
@@ -317,7 +368,7 @@ Supports:
             condition = "input.conditioned == 4",
             tags$h5(
               HTML("<strong>Detect multi-words</strong> <a href='https://www.tidytextmining.com/ngrams' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
-              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
+              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             checkboxGroupInput(
@@ -396,7 +447,7 @@ Supports:
               style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;",
               tags$h5(
                 HTML("<strong>Document-feature matrix</strong> <a href='https://quanteda.io/reference/dfm.html' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
-                tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
+                tags$span("REQUIRED", style = "background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
                 style = "color: #0c1f4a; margin: 0;"
               ),
               actionLink("showDFMInfo", tags$i(class = "fas fa-info-circle"),
@@ -419,7 +470,7 @@ Supports:
             condition = "input.conditioned == 3",
             tags$h5(
               strong("Remove stopwords"),
-              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
+              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             selectizeInput(
@@ -684,7 +735,7 @@ Supports:
             condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'lemmas'",
             tags$h5(
               HTML("<strong>Linguistic Analysis</strong> <a href='https://spacy.io/usage/linguistic-features#lemmatization' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"),
-              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 13px; margin-left: 8px;"),
+              tags$span("OPTIONAL", style = "background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 3px; font-size: 16px; margin-left: 8px;"),
               style = "color: #0c1f4a; margin-bottom: 10px;"
             ),
             div(
@@ -756,7 +807,7 @@ Supports:
             ),
             tags$p(
               "Run POS tagging first, then select features to analyze.",
-              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+              style = "font-size: 16px; color: #64748B; margin-bottom: 10px;"
             ),
             uiOutput("morph_status_ui"),
             checkboxGroupInput(
@@ -789,10 +840,6 @@ Supports:
               actionLink("showDepInfo", icon("info-circle"),
                          style = "color: #337ab7; font-size: 16px;",
                          title = "Click for dependency relations guide")
-            ),
-            tags$p(
-              "Dependency parsing shows grammatical relationships between words in a sentence.",
-              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
             )
           ),
           conditionalPanel(
@@ -809,10 +856,6 @@ Supports:
               "Terms",
               choices = NULL,
               options = list(maxItems = 20, multiple = TRUE, placeholder = "Select or type terms")
-            ),
-            tags$p(
-              "Track term frequencies over the continuous variable.",
-              style = "font-size: 13px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
             ),
             sliderInput(
               "height_line_con_var_plot",
@@ -961,7 +1004,7 @@ Supports:
               ),
               tags$p(
                 "Scales scores to 0-1 range.",
-                style = "font-size: 11px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
+                style = "font-size: 16px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
               )
             ),
             conditionalPanel(
@@ -983,7 +1026,7 @@ Supports:
               ),
               tags$p(
                 "Finds words used significantly more in one group vs others.",
-                style = "font-size: 11px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
+                style = "font-size: 16px; color: #64748B; margin-top: -5px; margin-bottom: 10px;"
               )
             ),
             conditionalPanel(
@@ -1005,7 +1048,7 @@ Supports:
             tags$h5(HTML("<strong>Log Odds Ratio Analysis</strong>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             tags$p(
               "Compare word frequencies between categories to identify distinctive terms.",
-              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+              style = "font-size: 16px; color: #64748B; margin-bottom: 10px;"
             ),
             selectizeInput(
               "log_odds_group_var",
@@ -1069,7 +1112,7 @@ Supports:
             tags$h5(HTML("<strong>Lexical Dispersion</strong>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
             tags$p(
               "Visualize where selected terms appear across documents in your corpus.",
-              style = "font-size: 13px; color: #64748B; margin-bottom: 10px;"
+              style = "font-size: 16px; color: #64748B; margin-bottom: 10px;"
             ),
             selectizeInput(
               "dispersion_terms",
@@ -1099,9 +1142,23 @@ Supports:
             actionButton("run_dispersion", "Analyze", class = "btn-primary btn-block", icon = icon("chart-line"))
           ),
           conditionalPanel(
-            condition = "input.conditioned2 == 1 && (input.linguistic_subtabs == 'ner' || input.linguistic_subtabs == 'dependencies')",
+            condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'dependencies'",
             selectizeInput(
-              "lemma_doc_id_var",
+              "dep_doc_id_var",
+              "Document ID variable",
+              choices = NULL,
+              selected = "",
+              options = list(
+                allowEmptyOption = TRUE,
+                persist = TRUE,
+                placeholder = "Optional"
+              )
+            )
+          ),
+          conditionalPanel(
+            condition = "input.conditioned2 == 1 && input.linguistic_subtabs == 'ner'",
+            selectizeInput(
+              "ner_doc_id_var",
               "Document ID variable",
               choices = NULL,
               selected = "",
@@ -1132,12 +1189,12 @@ Supports:
                     style = "padding: 8px 0 0 8px;",
                     checkboxGroupInput("ner_named", NULL, inline = FALSE,
                       choiceNames = list(
-                        HTML("<span style='font-weight:500;'>PERSON</span> <span style='color:#64748B;'>- People, including fictional</span>"),
-                        HTML("<span style='font-weight:500;'>NORP</span> <span style='color:#64748B;'>- Nationalities, religious/political groups</span>"),
-                        HTML("<span style='font-weight:500;'>ORG</span> <span style='color:#64748B;'>- Companies, agencies, institutions</span>"),
-                        HTML("<span style='font-weight:500;'>GPE</span> <span style='color:#64748B;'>- Countries, cities, states</span>"),
-                        HTML("<span style='font-weight:500;'>LOC</span> <span style='color:#64748B;'>- Non-GPE locations, mountains, water bodies</span>"),
-                        HTML("<span style='font-weight:500;'>FAC</span> <span style='color:#64748B;'>- Buildings, airports, highways, bridges</span>")
+                        HTML("<span class='sidebar-color-picker' data-entity='PERSON' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#e91e63;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>PERSON</span> <span style='color:#64748B;'>- People, including fictional</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='NORP' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#ff8f00;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>NORP</span> <span style='color:#64748B;'>- Nationalities, religious/political groups</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='ORG' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#1565c0;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>ORG</span> <span style='color:#64748B;'>- Companies, agencies, institutions</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='GPE' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#2e7d32;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>GPE</span> <span style='color:#64748B;'>- Countries, cities, states</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='LOC' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#0277bd;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>LOC</span> <span style='color:#64748B;'>- Non-GPE locations, mountains, water bodies</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='FAC' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#9e9d24;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>FAC</span> <span style='color:#64748B;'>- Buildings, airports, highways, bridges</span>")
                       ),
                       choiceValues = c("PERSON", "NORP", "ORG", "GPE", "LOC", "FAC"),
                       selected = c("PERSON", "NORP", "ORG", "GPE", "LOC", "FAC")
@@ -1151,11 +1208,11 @@ Supports:
                     style = "padding: 8px 0 0 8px;",
                     checkboxGroupInput("ner_objects", NULL, inline = FALSE,
                       choiceNames = list(
-                        HTML("<span style='font-weight:500;'>PRODUCT</span> <span style='color:#64748B;'>- Objects, vehicles, foods, etc.</span>"),
-                        HTML("<span style='font-weight:500;'>EVENT</span> <span style='color:#64748B;'>- Named hurricanes, battles, wars, sports</span>"),
-                        HTML("<span style='font-weight:500;'>WORK_OF_ART</span> <span style='color:#64748B;'>- Titles of books, songs, etc.</span>"),
-                        HTML("<span style='font-weight:500;'>LAW</span> <span style='color:#64748B;'>- Named documents made into laws</span>"),
-                        HTML("<span style='font-weight:500;'>LANGUAGE</span> <span style='color:#64748B;'>- Any named language</span>")
+                        HTML("<span class='sidebar-color-picker' data-entity='PRODUCT' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#283593;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>PRODUCT</span> <span style='color:#64748B;'>- Objects, vehicles, foods, etc.</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='EVENT' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#c62828;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>EVENT</span> <span style='color:#64748B;'>- Named hurricanes, battles, wars, sports</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='WORK_OF_ART' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#4527a0;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>WORK_OF_ART</span> <span style='color:#64748B;'>- Titles of books, songs, etc.</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='LAW' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#00695c;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>LAW</span> <span style='color:#64748B;'>- Named documents made into laws</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='LANGUAGE' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#558b2f;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>LANGUAGE</span> <span style='color:#64748B;'>- Any named language</span>")
                       ),
                       choiceValues = c("PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE"),
                       selected = c("PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE")
@@ -1169,13 +1226,13 @@ Supports:
                     style = "padding: 8px 0 0 8px;",
                     checkboxGroupInput("ner_numeric", NULL, inline = FALSE,
                       choiceNames = list(
-                        HTML("<span style='font-weight:500;'>DATE</span> <span style='color:#64748B;'>- Absolute or relative dates/periods</span>"),
-                        HTML("<span style='font-weight:500;'>TIME</span> <span style='color:#64748B;'>- Times smaller than a day</span>"),
-                        HTML("<span style='font-weight:500;'>MONEY</span> <span style='color:#64748B;'>- Monetary values including unit</span>"),
-                        HTML("<span style='font-weight:500;'>PERCENT</span> <span style='color:#64748B;'>- Percentage including %</span>"),
-                        HTML("<span style='font-weight:500;'>QUANTITY</span> <span style='color:#64748B;'>- Measurements (weight, distance)</span>"),
-                        HTML("<span style='font-weight:500;'>ORDINAL</span> <span style='color:#64748B;'>- first, second, third, etc.</span>"),
-                        HTML("<span style='font-weight:500;'>CARDINAL</span> <span style='color:#64748B;'>- Numerals not in other category</span>")
+                        HTML("<span class='sidebar-color-picker' data-entity='DATE' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#ef6c00;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>DATE</span> <span style='color:#64748B;'>- Absolute or relative dates/periods</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='TIME' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#d84315;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>TIME</span> <span style='color:#64748B;'>- Times smaller than a day</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='MONEY' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#6a1b9a;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>MONEY</span> <span style='color:#64748B;'>- Monetary values including unit</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='PERCENT' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#00838f;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>PERCENT</span> <span style='color:#64748B;'>- Percentage including %</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='QUANTITY' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#78909c;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>QUANTITY</span> <span style='color:#64748B;'>- Measurements (weight, distance)</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='ORDINAL' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#5d4037;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>ORDINAL</span> <span style='color:#64748B;'>- first, second, third, etc.</span>"),
+                        HTML("<span class='sidebar-color-picker' data-entity='CARDINAL' data-source='spacy' style='display:inline-block;width:12px;height:12px;background:#546e7a;border-radius:2px;margin-right:6px;cursor:pointer;'></span><span style='font-weight:500;'>CARDINAL</span> <span style='color:#64748B;'>- Numerals not in other category</span>")
                       ),
                       choiceValues = c("DATE", "TIME", "MONEY", "PERCENT", "QUANTITY", "ORDINAL", "CARDINAL"),
                       selected = c("DATE", "TIME", "MONEY", "PERCENT", "QUANTITY", "ORDINAL", "CARDINAL")
@@ -1207,28 +1264,46 @@ Supports:
                   placeholder = "Select a domain"
                 )
               ),
-              tags$div(
-                style = "display: flex; gap: 8px;",
-                downloadButton("export_domain_preset", "Export",
-                  class = "btn-secondary", style = "flex: 1;"),
-                fileInput("import_domain_preset", NULL, accept = c(".xlsx", ".csv"),
-                  buttonLabel = "Import", placeholder = NULL, width = "50%")
+              div(
+                style = "display: flex; gap: 10px; margin-bottom: 8px;",
+                div(
+                  style = "flex: 1;",
+                  downloadButton("export_domain_preset", "Export",
+                    class = "btn-secondary btn-block", icon = icon("download"))
+                ),
+                div(
+                  style = "flex: 1;",
+                  actionButton("import_domain_trigger", "Import",
+                    class = "btn-secondary btn-block", icon = icon("upload"))
+                ),
+                tags$input(type = "file", id = "import_domain_preset_file",
+                  accept = ".xlsx,.csv", style = "display: none;"),
+                tags$script(HTML("
+                  $('#import_domain_trigger').on('click', function() {
+                    $('#import_domain_preset_file').click();
+                  });
+                  $('#import_domain_preset_file').on('change', function() {
+                    var file = this.files[0];
+                    if (file) {
+                      var reader = new FileReader();
+                      reader.onload = function(e) {
+                        Shiny.setInputValue('import_domain_preset_data', {
+                          name: file.name,
+                          dataurl: e.target.result
+                        });
+                      };
+                      reader.readAsDataURL(file);
+                      this.value = '';
+                    }
+                  });
+                "))
               ),
-              tags$style(HTML("
-                #import_domain_preset { margin: 0 !important; padding: 0 !important; flex: 1; height: 34px !important; max-height: 34px !important; overflow: hidden; }
-                #import_domain_preset .input-group { width: 100%; height: 34px; }
-                #import_domain_preset .form-control { display: none !important; }
-                #import_domain_preset .input-group-btn,
-                #import_domain_preset .input-group-prepend { width: 100%; height: 34px; }
-                #import_domain_preset .btn-file { width: 100%; height: 34px; border-radius: 4px; padding: 6px 12px; }
-                #import_domain_preset .progress { display: none !important; height: 0 !important; margin: 0 !important; }
-                #import_domain_preset > span { display: none !important; }
-                #import_domain_preset .shiny-input-container { margin-bottom: 0 !important; }
-                #export_domain_preset { height: 34px; }
-              ")),
-              uiOutput("domain_entity_categories")
+              div(
+                style = "max-height: 300px; overflow-y: auto;",
+                uiOutput("domain_entity_categories"),
+                uiOutput("custom_entities_ui")
+              )
             ),
-            uiOutput("custom_entities_ui"),
             tags$hr(style = "margin: 15px 0; border-color: #dee2e6;"),
             tags$div(
               style = "margin-bottom: 15px;",
@@ -1240,6 +1315,7 @@ Supports:
                 style = "display: flex; gap: 8px; align-items: flex-end;",
                 div(
                   style = "flex: 0 0 36px;",
+                  title = "Select the entity color",
                   if (requireNamespace("colourpicker", quietly = TRUE)) {
                     colourpicker::colourInput("custom_entity_color", NULL,
                       value = "#607D8B", showColour = "background")
@@ -1292,7 +1368,54 @@ Supports:
               actionButton("process_codebook", ""),
               actionButton("process_codebook_bottom", ""),
               fileInput("codebook_upload", NULL)
-            )
+            ),
+            tags$script(HTML("
+              $(document).on('click', '.sidebar-color-picker', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                var $el = $(this);
+                var entity = $el.data('entity');
+                var source = $el.data('source') || '';
+                var category = $el.data('category') || '';
+                var bgColor = $el.css('background-color');
+                var hex = bgColor;
+                if (bgColor.indexOf('rgb') === 0) {
+                  var parts = bgColor.match(/\\d+/g);
+                  if (parts && parts.length >= 3) {
+                    hex = '#' +
+                      ('0' + parseInt(parts[0]).toString(16)).slice(-2) +
+                      ('0' + parseInt(parts[1]).toString(16)).slice(-2) +
+                      ('0' + parseInt(parts[2]).toString(16)).slice(-2);
+                  }
+                }
+                Shiny.setInputValue('sidebar_color_edit', {
+                  entity: entity,
+                  source: source,
+                  category: category,
+                  color: hex
+                }, {priority: 'event'});
+              });
+            ")),
+          tags$script(HTML("
+            $(document).on('click', '.entity-visibility-chk', function(e) {
+              e.stopPropagation();
+              Shiny.setInputValue('entity_visibility_toggle', {
+                category: $(this).data('category'),
+                source: $(this).data('source'),
+                checked: this.checked,
+                time: new Date().getTime()
+              }, {priority: 'event'});
+            });
+            $(document).on('click', '.entity-delete-btn', function(e) {
+              e.stopPropagation();
+              e.preventDefault();
+              Shiny.setInputValue('delete_entity_category', {
+                category: $(this).data('category'),
+                source: $(this).data('source'),
+                time: new Date().getTime()
+              }, {priority: 'event'});
+            });
+            "))
           )
         ),
         mainPanel(
@@ -1475,22 +1598,8 @@ Supports:
                       )
                     ),
                     # Download button for Dependency Parsing
-                    div(
-                      style = "margin-bottom: 15px; text-align: right;",
-                      downloadButton("download_dep_plot", "Download Plot", class = "btn-secondary btn-sm")
-                    ),
-                    # displaCy dependency tree visualization
-                    div(
-                      style = "background: white; padding: 15px; border: 1px solid #dee2e6;
-                               border-radius: 4px; margin-bottom: 20px; overflow-x: auto; overflow-y: hidden;",
-                      # Wrapper to remove whitespace above the tree
-                      div(
-                        style = "margin-top: -100px; padding-top: 0;",
-                        uiOutput("dep_displacy_html")
-                      )
-                    ),
-                    # Existing full parse table
-                    DT::dataTableOutput("spacy_full_table")
+                    uiOutput("dep_download_button"),
+                    uiOutput("dep_displacy_container")
                   )
                 ),
                 tabPanel(
@@ -1498,7 +1607,7 @@ Supports:
                   value = "ner",
                   br(),
                   conditionalPanel(
-                    condition = "output.ner_ready == false",
+                    condition = "output.spacy_ready == false",
                     div(
                       style = "padding: 60px 40px; text-align: center;",
                       div(
@@ -1507,7 +1616,23 @@ Supports:
                         tags$p(
                           "Click ",
                           tags$strong("'Apply'", style = "color: #0c1f4a;"),
-                          " on the Word Forms tab to run spaCy analysis and extract named entities.",
+                          " on the Word Forms tab to run spaCy analysis.",
+                          style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+                        )
+                      )
+                    )
+                  ),
+                  conditionalPanel(
+                    condition = "output.ner_pending == true",
+                    div(
+                      style = "padding: 60px 40px; text-align: center;",
+                      div(
+                        style = "max-width: 500px; margin: 0 auto;",
+                        tags$i(class = "fa fa-info-circle", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;"),
+                        tags$p(
+                          "Click ",
+                          tags$strong("'Apply'", style = "color: #0c1f4a;"),
+                          " to extract named entities.",
                           style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
                         )
                       )
@@ -1515,27 +1640,10 @@ Supports:
                   ),
                   conditionalPanel(
                     condition = "output.ner_ready == true",
-                    # Document selector for displaCy visualization
-                    div(
-                      style = "margin-bottom: 15px;",
-                      selectInput(
-                        "ner_viz_doc",
-                        "Select document to visualize entities:",
-                        choices = NULL,
-                        width = "100%"
-                      )
-                    ),
-                    # displaCy entity visualization
-                    div(
-                      style = "background: white; padding: 15px; border: 1px solid #dee2e6;
-                               border-radius: 4px; margin-bottom: 20px; overflow-x: auto;",
-                      uiOutput("ner_displacy_html")
-                    ),
-                    # Download button for NER
-                    div(
-                      style = "margin-bottom: 15px; text-align: right;",
-                      downloadButton("download_ner_plot", "Download Plot", class = "btn-secondary btn-sm")
-                    ),
+                    # Document selector, displaCy visualization, and download button (conditional)
+                    uiOutput("ner_doc_selector"),
+                    uiOutput("ner_displacy_container"),
+                    uiOutput("ner_download_button"),
                     # Existing frequency plot
                     uiOutput("entity_plot_uiOutput"),
                     br(),
@@ -1709,7 +1817,7 @@ Supports:
                 options = list(
                   allowEmptyOption = TRUE,
                   persist = TRUE,
-                  placeholder = "Optional - enables category-based analysis"
+                  placeholder = "Optional"
                 )
               )
             )
@@ -1737,7 +1845,7 @@ Supports:
             )
           ),
           conditionalPanel(
-            condition = "input.semantic_analysis_tabs != 'summary'",
+            condition = "input.semantic_analysis_tabs != 'summary' && input.semantic_analysis_tabs != 'sentiment'",
             div(
               style = "margin-bottom: 8px;",
               uiOutput("semantic_feature_space_selector")
@@ -1748,52 +1856,69 @@ Supports:
             condition = "input.semantic_analysis_tabs == 'similarity'",
             tags$h5(HTML("<strong>Document Similarity</strong> <a href='https://www.sbert.net/' target='_blank' rel='noopener noreferrer' onclick='window.open(this.href); return false;' style='font-size: 16px;'>Source</a>"), style = "color: #0c1f4a; margin-bottom: 10px;"),
 
-            # Embedding Configuration
-            tags$label("Embedding Configuration", style = "font-weight: 600; margin-bottom: 8px; display: block; color: #0c1f4a;"),
-            uiOutput("embedding_status_ui"),
-            selectInput(
-              "embedding_provider_setup",
-              "Provider:",
-              choices = c(
-                "Auto-detect (Recommended)" = "auto",
-                "Ollama (Local)" = "ollama",
-                "OpenAI" = "openai",
-                "Gemini" = "gemini",
-                "Sentence Transformers" = "sentence_transformers"
-              ),
-              selected = "auto"
-            ),
-            selectInput(
-              "embedding_model_setup",
-              "Model:",
-              choices = c(
-                "Default (Auto)" = "",
-                "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2" = "all-mpnet-base-v2",
-                "nomic-embed-text" = "nomic-embed-text",
-                "mxbai-embed-large" = "mxbai-embed-large"
-              ),
-              selected = ""
-            ),
-            div(
-              style = "margin-bottom: 15px;",
-              actionButton("generate_embeddings", "Generate Embeddings", class = "btn-primary btn-block", icon = icon("brain"))
-            ),
-            tags$hr(style = "margin: 10px 0; border-color: #dee2e6;"),
-
             conditionalPanel(
               condition = "input.semantic_feature_space == 'embeddings'",
-              div(
+              tags$label("Embedding Configuration", style = "font-weight: 600; margin-bottom: 8px; display: block; color: #0c1f4a;"),
+              tags$p(style = "font-size: 16px; color: #666; margin-bottom: 10px;", "Document-to-document similarity using vector embeddings."),
+              uiOutput("embedding_status_ui"),
+              radioButtons(
+                "embedding_provider_setup",
+                "AI Provider:",
+                choices = c(
+                  "Local (Ollama - Free, Private)" = "ollama",
+                  "OpenAI (API Key Required)" = "openai",
+                  "Gemini (API Key Required)" = "gemini"
+                ),
+                selected = "ollama",
+                inline = FALSE
+              ),
+              conditionalPanel(
+                condition = "input.embedding_provider_setup == 'ollama'",
                 selectInput(
-                  "embedding_model",
-                  "Embedding model",
-                  choices = c(
-                    "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                    "all-mpnet-base-v2" = "all-mpnet-base-v2"
-                  ),
-                  selected = "all-MiniLM-L6-v2"
+                  "embedding_ollama_model",
+                  "Ollama Model:",
+                  choices = c("Nomic Embed Text (Default)" = "nomic-embed-text", "MxBai Embed Large (Higher Quality)" = "mxbai-embed-large", "All-MiniLM (Lightweight)" = "all-minilm"),
+                  selected = "nomic-embed-text"
+                ),
+                tags$p(
+                  style = "font-size: 16px; color: #666;",
+                  "Requires Ollama. Get it from ",
+                  tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
                 )
-              )
+              ),
+              conditionalPanel(
+                condition = "input.embedding_provider_setup == 'openai'",
+                selectInput(
+                  "embedding_openai_model",
+                  "OpenAI Model:",
+                  choices = c("Text Embedding 3 Small (Default)" = "text-embedding-3-small", "Text Embedding 3 Large (Higher Quality)" = "text-embedding-3-large"),
+                  selected = "text-embedding-3-small"
+                ),
+                passwordInput(
+                  "embedding_openai_api_key",
+                  "API Key:",
+                  placeholder = "sk-..."
+                )
+              ),
+              conditionalPanel(
+                condition = "input.embedding_provider_setup == 'gemini'",
+                selectInput(
+                  "embedding_gemini_model",
+                  "Gemini Model:",
+                  choices = c("Gemini Embedding 001" = "gemini-embedding-001"),
+                  selected = "gemini-embedding-001"
+                ),
+                passwordInput(
+                  "embedding_gemini_api_key",
+                  "API Key:",
+                  placeholder = "AIza..."
+                )
+              ),
+              div(
+                style = "margin-bottom: 15px;",
+                actionButton("generate_embeddings", "Generate Embeddings", class = "btn-primary btn-block", icon = icon("brain"))
+              ),
+              tags$hr(style = "margin: 10px 0; border-color: #dee2e6;")
             ),
             conditionalPanel(
               condition = "input.semantic_feature_space == 'words'"
@@ -1876,6 +2001,7 @@ Supports:
 
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'search'",
+            tags$p(style = "font-size: 16px; color: #666; margin-bottom: 10px;", "Query-to-document retrieval across your corpus."),
             selectInput(
               "search_method",
               "Search method:",
@@ -1894,10 +2020,9 @@ Supports:
             ),
             conditionalPanel(
               condition = "input.search_method == 'rag'",
-              # Provider selection
               radioButtons(
                 "rag_provider",
-                "Provider:",
+                "AI Provider:",
                 choices = c(
                   "Local (Ollama - Free, Private)" = "ollama",
                   "OpenAI (API Key Required)" = "openai",
@@ -1911,11 +2036,11 @@ Supports:
                 selectInput(
                   "rag_ollama_model",
                   "Ollama Model:",
-                  choices = c("phi3:mini", "llama3", "mistral", "nomic-embed-text"),
-                  selected = "phi3:mini"
+                  choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                  selected = "llama3.2"
                 ),
                 tags$p(
-                  style = "font-size: 12px; color: #666; margin-top: 5px;",
+                  style = "font-size: 16px; color: #666; margin-top: 5px;",
                   "Requires Ollama. Get it from ",
                   tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
                 )
@@ -1926,13 +2051,13 @@ Supports:
                 selectInput(
                   "rag_openai_model",
                   "OpenAI Model:",
-                  choices = c("gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"),
-                  selected = "gpt-4o-mini"
+                  choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
+                  selected = "gpt-4.1-mini"
                 ),
                 passwordInput(
                   "rag_openai_api_key",
                   "API Key:",
-                  placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                  placeholder = "sk-..."
                 )
               ),
               # Gemini settings
@@ -1941,13 +2066,13 @@ Supports:
                 selectInput(
                   "rag_gemini_model",
                   "Gemini Model:",
-                  choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
-                  selected = "gemini-2.0-flash"
+                  choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
+                  selected = "gemini-2.5-flash"
                 ),
                 passwordInput(
                   "rag_gemini_api_key",
                   "API Key:",
-                  placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
+                  placeholder = "AIza..."
                 )
               )
             ),
@@ -2142,7 +2267,7 @@ Supports:
                 "Gemini (API Key Required)" = "gemini"
               ),
               selected = "ollama",
-              inline = TRUE
+              inline = FALSE
             ),
 
             conditionalPanel(
@@ -2150,11 +2275,11 @@ Supports:
               selectInput(
                 "cluster_ollama_model",
                 "Ollama Model:",
-                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
-                selected = "phi3:mini"
+                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "llama3.2"
               ),
               tags$p(
-                style = "font-size: 12px; color: #666;",
+                style = "font-size: 16px; color: #666;",
                 "Requires Ollama. Get it from ",
                 tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
               )
@@ -2165,13 +2290,13 @@ Supports:
               selectInput(
                 "cluster_openai_model",
                 "OpenAI Model:",
-                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
-                selected = "gpt-4o-mini"
+                choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
+                selected = "gpt-4.1-mini"
               ),
               passwordInput(
                 "cluster_openai_api_key",
                 "API Key:",
-                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                placeholder = "sk-..."
               )
             ),
 
@@ -2180,13 +2305,13 @@ Supports:
               selectInput(
                 "cluster_gemini_model",
                 "Gemini Model:",
-                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
-                selected = "gemini-2.0-flash"
+                choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
+                selected = "gemini-2.5-flash"
               ),
               passwordInput(
                 "cluster_gemini_api_key",
                 "API Key:",
-                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza..."
               )
             ),
 
@@ -2214,19 +2339,17 @@ Supports:
             uiOutput("sentiment_status_message"),
             conditionalPanel(
               condition = "input.sentiment_subtabs == 'overall'",
-              # Method selector
               radioButtons(
                 "sentiment_method",
                 "Analysis method",
                 choices = c(
                   "Lexicon-based (Fast)" = "lexicon",
-                  "Neural Network (Accurate)" = "neural",
-                  "LLM-based (Explanations)" = "llm"
+                  "Pre-trained Classifier (Accurate)" = "neural",
+                  "LLM (with Explanations)" = "llm"
                 ),
                 selected = "lexicon",
                 inline = FALSE
               ),
-              # Lexicon-based options
               conditionalPanel(
                 condition = "input.sentiment_method == 'lexicon'",
                 selectInput(
@@ -2241,7 +2364,6 @@ Supports:
                 ),
                 actionButton("run_sentiment_analysis", "Analyze Sentiment", class = "btn-primary btn-block")
               ),
-              # Neural/Embedding-based options
               conditionalPanel(
                 condition = "input.sentiment_method == 'neural'",
                 selectInput(
@@ -2249,25 +2371,25 @@ Supports:
                   "Sentiment model",
                   choices = c(
                     "DistilBERT SST-2 (Fast)" = "distilbert-base-uncased-finetuned-sst-2-english",
-                    "RoBERTa Sentiment (Accurate)" = "cardiffnlp/twitter-roberta-base-sentiment",
+                    "RoBERTa Sentiment (Accurate)" = "cardiffnlp/twitter-roberta-base-sentiment-latest",
                     "BERT Multilingual" = "nlptown/bert-base-multilingual-uncased-sentiment"
                   ),
                   selected = "distilbert-base-uncased-finetuned-sst-2-english"
                 ),
                 actionButton("run_neural_sentiment", "Analyze Sentiment", class = "btn-primary btn-block")
               ),
-              # LLM-based options
               conditionalPanel(
                 condition = "input.sentiment_method == 'llm'",
-                selectInput(
+                radioButtons(
                   "llm_sentiment_provider",
-                  "LLM Provider",
+                  "AI Provider:",
                   choices = c(
-                    "Ollama (Local)" = "ollama",
-                    "OpenAI" = "openai",
-                    "Gemini" = "gemini"
+                    "Local (Ollama - Free, Private)" = "ollama",
+                    "OpenAI (API Key Required)" = "openai",
+                    "Gemini (API Key Required)" = "gemini"
                   ),
-                  selected = "ollama"
+                  selected = "ollama",
+                  inline = FALSE
                 ),
                 uiOutput("llm_sentiment_model_ui"),
                 checkboxInput(
@@ -2415,13 +2537,13 @@ Supports:
                 max = 10,
                 step = 1
               ),
-                              div(
-                  class = "category-toggle",
-                  div(style = "margin-left: 15px; font-size: 16px;", checkboxInput("use_category_cooccur",
-                    "Use category-specific analysis",
-                    value = FALSE
-                  ))
-                )
+              div(
+                class = "category-toggle",
+                div(style = "font-size: 16px;", checkboxInput("use_category_cooccur",
+                  "Use category-specific analysis",
+                  value = FALSE
+                ))
+              )
             ),
             conditionalPanel(
               condition = "input.use_category_cooccur == true && input.doc_var_co_occurrence != 'None' && input.doc_var_co_occurrence != ''",
@@ -2513,13 +2635,13 @@ Supports:
                 max = 10,
                 step = 1
               ),
-                              div(
-                  class = "category-toggle",
-                  div(style = "margin-left: 15px; font-size: 16px;", checkboxInput("use_category_corr",
-                    "Use category-specific analysis",
-                    value = FALSE
-                  ))
-                )
+              div(
+                class = "category-toggle",
+                div(style = "font-size: 16px;", checkboxInput("use_category_corr",
+                  "Use category-specific analysis",
+                  value = FALSE
+                ))
+              )
             ),
             conditionalPanel(
               condition = "input.use_category_corr == true && input.doc_var_correlation != 'None' && input.doc_var_correlation != ''",
@@ -2946,7 +3068,7 @@ Supports:
                   value = "probability",
                   checked = "checked"
                 ),
-                tags$span("Structural Topic Model (STM)", style = "margin-left: 5px;"),
+                tags$span("Structural Topic Model", style = "margin-left: 5px;"),
                 actionLink("showSTMInfo", icon("info-circle"),
                           style = "color: #337ab7; font-size: 16px; margin-left: 8px;",
                           title = "Learn about STM")
@@ -2962,7 +3084,7 @@ Supports:
                   name = "topic_modeling_path",
                   value = "embedding"
                 ),
-                tags$span("Embedding-based Topics (UMAP+HDBSCAN)", style = "margin-left: 5px;"),
+                tags$span("Embedding-based Topic Model", style = "margin-left: 5px;"),
                 actionLink("showEmbeddingTopicsInfo", icon("info-circle"),
                           style = "color: #337ab7; font-size: 16px; margin-left: 8px;",
                           title = "Learn about Embedding-based Topics")
@@ -3138,7 +3260,6 @@ Supports:
               min = 3,
               max = 15
             ),
-            # Provider selection
             radioButtons(
               "stm_label_provider",
               "AI Provider:",
@@ -3148,51 +3269,48 @@ Supports:
                 "Gemini (API Key Required)" = "gemini"
               ),
               selected = "ollama",
-              inline = TRUE
+              inline = FALSE
             ),
-            # Ollama model selection
             conditionalPanel(
               condition = "input.stm_label_provider == 'ollama'",
               selectInput(
                 "stm_label_ollama_model",
                 "Ollama Model:",
-                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
-                selected = "phi3:mini"
+                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "llama3.2"
               ),
               tags$p(
-                style = "font-size: 12px; color: #666;",
+                style = "font-size: 16px; color: #666;",
                 "Requires Ollama. Get it from ",
                 tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
               )
             ),
-            # OpenAI settings
             conditionalPanel(
               condition = "input.stm_label_provider == 'openai'",
               selectInput(
                 "stm_label_openai_model",
                 "OpenAI Model:",
-                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
-                selected = "gpt-4o-mini"
+                choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
+                selected = "gpt-4.1-mini"
               ),
               passwordInput(
                 "stm_label_openai_api_key",
                 "API Key:",
-                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                placeholder = "sk-..."
               )
             ),
-            # Gemini settings
             conditionalPanel(
               condition = "input.stm_label_provider == 'gemini'",
               selectInput(
                 "stm_label_gemini_model",
                 "Gemini Model:",
-                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
-                selected = "gemini-2.0-flash"
+                choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
+                selected = "gemini-2.5-flash"
               ),
               passwordInput(
                 "stm_label_gemini_api_key",
                 "API Key:",
-                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza..."
               )
             ),
             textAreaInput(
@@ -3337,63 +3455,58 @@ Focus on incorporating the most significant keywords while following the guideli
                 "Gemini (API Key Required)" = "gemini"
               ),
               selected = "ollama",
-              inline = TRUE
+              inline = FALSE
             ),
 
-            # Ollama-specific options
             conditionalPanel(
               condition = "input.k_rec_provider == 'ollama'",
               selectInput(
                 "k_rec_ollama_model",
                 "Ollama Model:",
-                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
-                selected = "phi3:mini"
+                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "llama3.2"
               ),
               tags$p(
-                style = "font-size: 12px; color: #666;",
+                style = "font-size: 16px; color: #666;",
                 "Requires Ollama. Get it from ",
                 tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
               )
             ),
 
-            # OpenAI-specific options
             conditionalPanel(
               condition = "input.k_rec_provider == 'openai'",
               selectInput(
                 "k_rec_openai_model",
                 "OpenAI Model:",
                 choices = c(
-                  "gpt-4o-mini" = "gpt-4o-mini",
-                  "gpt-4o" = "gpt-4o",
-                  "gpt-4-turbo" = "gpt-4-turbo",
-                  "gpt-3.5-turbo" = "gpt-3.5-turbo"
+                  "GPT-4.1 Mini (Fast)" = "gpt-4.1-mini",
+                  "GPT-4.1 (Accurate)" = "gpt-4.1"
                 ),
-                selected = "gpt-4o-mini"
+                selected = "gpt-4.1-mini"
               ),
               passwordInput(
                 "k_rec_openai_api_key",
                 "API Key:",
-                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                placeholder = "sk-..."
               )
             ),
 
-            # Gemini-specific options
             conditionalPanel(
               condition = "input.k_rec_provider == 'gemini'",
               selectInput(
                 "k_rec_gemini_model",
                 "Gemini Model:",
                 choices = c(
-                  "gemini-2.0-flash" = "gemini-2.0-flash",
-                  "gemini-1.5-flash" = "gemini-1.5-flash",
-                  "gemini-1.5-pro" = "gemini-1.5-pro"
+                  "Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash",
+                  "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite",
+                  "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"
                 ),
-                selected = "gemini-2.0-flash"
+                selected = "gemini-2.5-flash"
               ),
               passwordInput(
                 "k_rec_gemini_api_key",
                 "API Key:",
-                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza..."
               )
             ),
 
@@ -3505,7 +3618,6 @@ Focus on incorporating the most significant keywords while following the guideli
               "Max tokens",
               min = 50, max = 500, value = 150, step = 25
             ),
-            # Provider selection
             radioButtons(
               "content_provider",
               "AI Provider:",
@@ -3515,51 +3627,48 @@ Focus on incorporating the most significant keywords while following the guideli
                 "Gemini (API Key Required)" = "gemini"
               ),
               selected = "ollama",
-              inline = TRUE
+              inline = FALSE
             ),
-            # Ollama model selection
             conditionalPanel(
               condition = "input.content_provider == 'ollama'",
               selectInput(
                 "content_ollama_model",
                 "Ollama Model:",
-                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
-                selected = "phi3:mini"
+                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "llama3.2"
               ),
               tags$p(
-                style = "font-size: 12px; color: #666;",
+                style = "font-size: 16px; color: #666;",
                 "Requires Ollama. Get it from ",
                 tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
               )
             ),
-            # OpenAI settings
             conditionalPanel(
               condition = "input.content_provider == 'openai'",
               selectInput(
                 "content_openai_model",
                 "OpenAI Model:",
-                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
-                selected = "gpt-4o-mini"
+                choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
+                selected = "gpt-4.1-mini"
               ),
               passwordInput(
                 "content_openai_api_key",
                 "API Key:",
-                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                placeholder = "sk-..."
               )
             ),
-            # Gemini settings
             conditionalPanel(
               condition = "input.content_provider == 'gemini'",
               selectInput(
                 "content_gemini_model",
                 "Gemini Model:",
-                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
-                selected = "gemini-2.0-flash"
+                choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
+                selected = "gemini-2.5-flash"
               ),
               passwordInput(
                 "content_gemini_api_key",
                 "API Key:",
-                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza..."
               )
             ),
             textAreaInput(
@@ -3600,82 +3709,110 @@ Focus on incorporating the most significant keywords while following the guideli
               selected = "python"
             ),
 
-            uiOutput("embedding_topic_python_status"),
+            uiOutput("embedding_topic_provider_status"),
 
-            selectInput(
-              "embedding_model_name",
-              "Embedding model:",
+            conditionalPanel(
+              condition = "input.embedding_backend == 'python'",
+              uiOutput("embedding_topic_backend_status")
+            ),
+
+            radioButtons(
+              "topic_embedding_provider",
+              "Embedding Provider:",
               choices = c(
-                "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2" = "all-mpnet-base-v2",
-                "nomic-embed-text" = "nomic-embed-text",
-                "mxbai-embed-large" = "mxbai-embed-large"
+                "Local (Ollama - Free, Private)" = "ollama",
+                "Sentence Transformers (Python)" = "sentence-transformers",
+                "OpenAI (API Key Required)" = "openai",
+                "Gemini (API Key Required)" = "gemini"
               ),
-              selected = "all-MiniLM-L6-v2"
+              selected = "ollama",
+              inline = FALSE
+            ),
+
+            conditionalPanel(
+              condition = "input.topic_embedding_provider == 'ollama'",
+              selectInput(
+                "topic_embedding_ollama_model",
+                "Ollama Model:",
+                choices = c(
+                  "Nomic Embed Text (Default)" = "nomic-embed-text",
+                  "MxBai Embed Large (Higher Quality)" = "mxbai-embed-large",
+                  "All-MiniLM (Lightweight)" = "all-minilm"
+                ),
+                selected = "nomic-embed-text"
+              ),
+              tags$p(
+                style = "font-size: 16px; color: #666;",
+                "Requires Ollama. Get it from ",
+                tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+              )
+            ),
+
+            conditionalPanel(
+              condition = "input.topic_embedding_provider == 'sentence-transformers'",
+              selectInput(
+                "topic_embedding_st_model",
+                "Model:",
+                choices = c(
+                  "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
+                  "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2"
+                ),
+                selected = "all-MiniLM-L6-v2"
+              ),
+              tags$p(
+                style = "font-size: 16px; color: #666;",
+                "Requires Python + sentence-transformers"
+              )
+            ),
+
+            conditionalPanel(
+              condition = "input.topic_embedding_provider == 'openai'",
+              selectInput(
+                "topic_embedding_openai_model",
+                "OpenAI Model:",
+                choices = c(
+                  "Text Embedding 3 Small (Default)" = "text-embedding-3-small",
+                  "Text Embedding 3 Large (Higher Quality)" = "text-embedding-3-large"
+                ),
+                selected = "text-embedding-3-small"
+              ),
+              passwordInput("topic_embedding_openai_api_key", "API Key:", placeholder = "sk-...")
+            ),
+
+            conditionalPanel(
+              condition = "input.topic_embedding_provider == 'gemini'",
+              selectInput(
+                "topic_embedding_gemini_model",
+                "Gemini Model:",
+                choices = c("Gemini Embedding 001" = "gemini-embedding-001"),
+                selected = "gemini-embedding-001"
+              ),
+              passwordInput("topic_embedding_gemini_api_key", "API Key:", placeholder = "AIza...")
             ),
 
             conditionalPanel(
               condition = "input.embedding_backend == 'python'",
-              selectInput(
-                "embedding_method",
-                "Topic discovery method:",
-                choices = c(
-                  "UMAP + HDBSCAN" = "umap_hdbscan",
-                  "Embedding Clustering" = "embedding_clustering",
-                  "Hierarchical Semantic" = "hierarchical_semantic"
-                ),
-                selected = "umap_hdbscan"
+              sliderInput(
+                "embedding_umap_neighbors",
+                "Neighbors:",
+                value = 15,
+                min = 5,
+                max = 50
               ),
-
-              conditionalPanel(
-                condition = "input.embedding_method == 'umap_hdbscan'",
-                sliderInput(
-                  "embedding_umap_neighbors",
-                  "Neighbors:",
-                  value = 15,
-                  min = 5,
-                  max = 50
-                ),
-                sliderInput(
-                  "embedding_umap_min_dist",
-                  "Min distance (0.0 = tight clusters for topic modeling):",
-                  value = 0.0,
-                  min = 0.0,
-                  max = 0.99,
-                  step = 0.01
-                ),
-                sliderInput(
-                  "embedding_min_topic_size",
-                  "Min cluster size:",
-                  value = 10,
-                  min = 2,
-                  max = 50
-                ),
-                selectInput(
-                  "embedding_cluster_selection",
-                  "Cluster selection method:",
-                  choices = c(
-                    "EOM (default, broader topics)" = "eom",
-                    "Leaf (finer-grained topics)" = "leaf"
-                  ),
-                  selected = "eom"
-                ),
-                checkboxInput(
-                  "embedding_reduce_outliers",
-                  "Reduce outliers",
-                  value = FALSE
-                )
+              sliderInput(
+                "embedding_umap_min_dist",
+                "Min distance (0.0 = tight clusters for topic modeling):",
+                value = 0.0,
+                min = 0.0,
+                max = 0.99,
+                step = 0.01
               ),
-
-              conditionalPanel(
-                condition = "input.embedding_method != 'umap_hdbscan'",
-                numericInput(
-                  "embedding_n_topics",
-                  "Number of topics",
-                  value = 10,
-                  min = 2,
-                  max = 50
-                )
+              sliderInput(
+                "embedding_min_topic_size",
+                "Min cluster size:",
+                value = 10,
+                min = 2,
+                max = 50
               )
             ),
 
@@ -3793,30 +3930,6 @@ Focus on incorporating the most significant keywords while following the guideli
               )
             ),
 
-            selectInput(
-              "embedding_topic_representation",
-              "Topic representation",
-              choices = c(
-                "c-TF-IDF (BERTopic style)" = "c-tfidf",
-                "Standard TF-IDF" = "tfidf",
-                "Maximal Marginal Relevance" = "mmr",
-                "Term Frequency" = "frequency"
-              ),
-              selected = "c-tfidf"
-            ),
-
-            conditionalPanel(
-              condition = "input.embedding_backend == 'python'",
-              sliderInput(
-                "embedding_topic_diversity",
-                "Topic diversity",
-                value = 0.5,
-                min = 0,
-                max = 1,
-                step = 0.1
-              )
-            ),
-
             actionButton("embedding_run", "Run Model", class = "btn-primary btn-block")
           ),
 
@@ -3901,9 +4014,7 @@ Focus on incorporating the most significant keywords while following the guideli
               "Embedding model",
               choices = c(
                 "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2" = "all-mpnet-base-v2",
-                "nomic-embed-text" = "nomic-embed-text",
-                "mxbai-embed-large" = "mxbai-embed-large"
+                "all-mpnet-base-v2" = "all-mpnet-base-v2"
               ),
               selected = "all-MiniLM-L6-v2"
             ),
@@ -4024,7 +4135,6 @@ Focus on incorporating the most significant keywords while following the guideli
               min = 3,
               max = 15
             ),
-            # Provider selection
             radioButtons(
               "hybrid_label_provider",
               "AI Provider:",
@@ -4034,51 +4144,48 @@ Focus on incorporating the most significant keywords while following the guideli
                 "Gemini (API Key Required)" = "gemini"
               ),
               selected = "ollama",
-              inline = TRUE
+              inline = FALSE
             ),
-            # Ollama model selection
             conditionalPanel(
               condition = "input.hybrid_label_provider == 'ollama'",
               selectInput(
                 "hybrid_label_ollama_model",
                 "Ollama Model:",
-                choices = c("phi3:mini", "llama3", "mistral", "gemma2"),
-                selected = "phi3:mini"
+                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "llama3.2"
               ),
               tags$p(
-                style = "font-size: 12px; color: #666;",
+                style = "font-size: 16px; color: #666;",
                 "Requires Ollama. Get it from ",
                 tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
               )
             ),
-            # OpenAI settings
             conditionalPanel(
               condition = "input.hybrid_label_provider == 'openai'",
               selectInput(
                 "hybrid_label_openai_model",
                 "OpenAI Model:",
-                choices = c("gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"),
-                selected = "gpt-4o-mini"
+                choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
+                selected = "gpt-4.1-mini"
               ),
               passwordInput(
                 "hybrid_label_openai_api_key",
                 "API Key:",
-                placeholder = "sk-... (or set OPENAI_API_KEY in .Renviron)"
+                placeholder = "sk-..."
               )
             ),
-            # Gemini settings
             conditionalPanel(
               condition = "input.hybrid_label_provider == 'gemini'",
               selectInput(
                 "hybrid_label_gemini_model",
                 "Gemini Model:",
-                choices = c("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
-                selected = "gemini-2.0-flash"
+                choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
+                selected = "gemini-2.5-flash"
               ),
               passwordInput(
                 "hybrid_label_gemini_api_key",
                 "API Key:",
-                placeholder = "AIza... (or set GEMINI_API_KEY in .Renviron)"
+                placeholder = "AIza..."
               )
             ),
             textAreaInput(
@@ -4506,7 +4613,7 @@ Focus on incorporating the most significant keywords while following the guideli
               value = "ai_content",
               div(
                 style = "padding: 20px;",
-                
+
                 conditionalPanel(
                   condition = "output.has_generated_content == true",
                   DT::dataTableOutput("generated_content_table")
