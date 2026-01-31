@@ -83,7 +83,8 @@ server <- shinyServer(function(input, output, session) {
       input$cluster_gemini_api_key, input$llm_sentiment_gemini_api_key,
       input$stm_label_gemini_api_key, input$k_rec_gemini_api_key,
       input$content_gemini_api_key, input$hybrid_label_gemini_api_key,
-      input$topic_embedding_gemini_api_key, input$global_gemini_api_key
+      input$topic_embedding_gemini_api_key, input$global_gemini_api_key,
+      input$gemini_vision_api_key
     )
     valid <- keys[!is.null(keys) & nzchar(keys)]
     if (length(valid) > 0) ai_config$gemini_api_key <- valid[1]
@@ -92,6 +93,7 @@ server <- shinyServer(function(input, output, session) {
   available_ollama_models <- reactiveVal(NULL)
 
   observe({
+    if (is_remote) return()
     invalidateLater(30000)
     models <- tryCatch({
       if (TextAnalysisR::check_ollama(verbose = FALSE)) {
@@ -121,6 +123,8 @@ server <- shinyServer(function(input, output, session) {
   ################################################################################
 
   is_web <- TextAnalysisR::check_web_deployment()
+  is_docker <- TextAnalysisR:::check_docker_deployment()
+  is_remote <- is_web || is_docker
   feature_status <- reactive({
     TextAnalysisR::get_feature_status()
   })
@@ -228,11 +232,9 @@ server <- shinyServer(function(input, output, session) {
     }
   })
 
-  # Multimodal PDF Options UI (conditional on Python availability)
+  # Multimodal PDF Options UI (R-native, no Python required)
   output$multimodal_options_ui <- renderUI({
     req(input$dataset_choice == "Upload Your File")
-    python_available <- python_check_result()
-    if (is.null(python_available)) return(NULL)
 
     if (is_web) {
       return(tags$div(
@@ -240,27 +242,6 @@ server <- shinyServer(function(input, output, session) {
         style = "margin-top: -10px;",
         tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
         "Multimodal PDF extraction available in R package version only."
-      ))
-    }
-
-    if (!python_available) {
-      return(tags$div(
-        class = "pdf-info-box status-main-info",
-        style = "margin-top: -10px;",
-        tags$div(
-          style = "margin-bottom: 10px;",
-          tags$strong("PDF with Charts/Diagrams?", style = "color: #0c1f4a; font-size: 16px;")
-        ),
-        tags$div(
-          style = "font-size: 16px; color: #64748B;",
-          "Multimodal extraction requires Python. ",
-          tags$a(
-            "Setup Python",
-            href = "#",
-            onclick = "Shiny.setInputValue('show_python_setup', Math.random()); return false;",
-            style = "color: #337ab7; text-decoration: underline;"
-          )
-        )
       ))
     }
 
@@ -281,7 +262,8 @@ server <- shinyServer(function(input, output, session) {
           "Vision provider:",
           choices = c(
             "Local (Ollama - Free, Private)" = "ollama",
-            "Cloud (OpenAI - Requires API Key)" = "openai"
+            "OpenAI (API Key Required)" = "openai",
+            "Gemini (API Key Required)" = "gemini"
           ),
           selected = "ollama",
           inline = FALSE
@@ -309,6 +291,18 @@ server <- shinyServer(function(input, output, session) {
             "OpenAI model:",
             choices = c("GPT-4.1 (Accurate)" = "gpt-4.1", "GPT-4.1 Mini (Fast)" = "gpt-4.1-mini"),
             selected = "gpt-4.1"
+          )
+        ),
+        conditionalPanel(
+          condition = "input.vision_provider == 'gemini'",
+          passwordInput("gemini_vision_api_key",
+            "Gemini API Key:",
+            placeholder = "AI..."
+          ),
+          selectInput("gemini_vision_model",
+            "Gemini model:",
+            choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
+            selected = "gemini-2.5-flash"
           )
         )
       )
@@ -376,9 +370,11 @@ server <- shinyServer(function(input, output, session) {
       shinyjs::reset("file")
       updateTextAreaInput(session, "text_input", value = "")
     }
+    file_upload_result(NULL)
   })
 
   file_validated <- reactiveVal(NULL)
+  file_upload_result <- reactiveVal(NULL)
 
   observeEvent(input$file, {
     req(input$file)
@@ -403,6 +399,276 @@ server <- shinyServer(function(input, output, session) {
       file_validated(FALSE)
     })
   })
+
+  observeEvent(file_validated(), {
+    req(isTRUE(file_validated()))
+    req(input$file)
+
+    tryCatch({
+      if (!is.data.frame(input$file) || nrow(input$file) == 0) {
+        stop("Invalid file upload data")
+      }
+
+      file_data <- input$file[1, ]
+
+      required_cols <- c("name", "size", "type", "datapath")
+      missing_cols <- setdiff(required_cols, names(file_data))
+      if (length(missing_cols) > 0) {
+        stop("Missing file information: ", paste(missing_cols, collapse = ", "))
+      }
+
+      file_size_mb <- file_data$size / (1024^2)
+      if (file_size_mb > 100) {
+        showModal(modalDialog(
+          title = tags$div(
+            style = "color: #f59e0b;",
+            icon("exclamation-triangle"),
+            " File Too Large"
+          ),
+          paste("The uploaded file is", round(file_size_mb, 2), "MB. Please upload a file smaller than 100MB."),
+          easyClose = TRUE,
+          footer = modalButton("Close")
+        ))
+        return()
+      }
+
+      if (file_size_mb > 50) {
+        show_loading_notification("Processing large file...", id = "loadingFile")
+      }
+
+      if (!file.exists(file_data$datapath)) {
+        stop("File not found")
+      }
+
+      file_info <- data.frame(filepath = file_data$datapath, stringsAsFactors = FALSE)
+
+      if (file.info(file_data$datapath)$size == 0) {
+        stop("File is empty")
+      }
+
+      if (!requireNamespace("TextAnalysisR", quietly = TRUE)) {
+        stop("TextAnalysisR package is not available")
+      }
+
+      if (!exists("import_files", where = asNamespace("TextAnalysisR"))) {
+        stop("TextAnalysisR::import_files function not found")
+      }
+
+      file_extension <- tolower(tools::file_ext(file_data$name))
+
+      if (file_extension == "pdf") {
+        use_multimodal <- isolate(isTRUE(input$enable_multimodal))
+
+        loading_msg <- if (use_multimodal) {
+          "Extracting text and analyzing images/charts..."
+        } else {
+          "Processing PDF file..."
+        }
+        show_loading_notification(loading_msg, id = "processingPDF")
+
+        vision_provider <- isolate(input$vision_provider %||% "ollama")
+        api_key <- switch(vision_provider,
+          "openai" = isolate(get_api_key("openai", input$openai_api_key)),
+          "gemini" = isolate(get_api_key("gemini", input$gemini_vision_api_key)),
+          NULL
+        )
+        vision_model <- switch(vision_provider,
+          "ollama" = isolate(input$ollama_vision_model %||% "llava"),
+          "openai" = isolate(input$openai_vision_model %||% "gpt-4.1"),
+          "gemini" = isolate(input$gemini_vision_model %||% "gemini-2.5-flash"),
+          NULL
+        )
+        if (use_multimodal) log_ai_usage("Vision OCR", vision_provider, vision_model)
+
+        pdf_result <- tryCatch({
+          TextAnalysisR::process_pdf_unified(
+            file_path = file_data$datapath,
+            use_multimodal = use_multimodal,
+            vision_provider = vision_provider,
+            vision_model = vision_model,
+            api_key = api_key,
+            describe_images = TRUE
+          )
+        }, error = function(e) {
+          list(
+            success = FALSE,
+            type = "error",
+            method = "none",
+            message = paste("PDF processing error:", e$message)
+          )
+        })
+
+        try(removeNotification("processingPDF"), silent = TRUE)
+
+        if (!pdf_result$success) {
+          error_type <- pdf_result$type %||% "error"
+
+          if (error_type == "prerequisite_error") {
+            showModal(modalDialog(
+              title = tags$div(
+                style = "color: #f59e0b;",
+                icon("exclamation-triangle"),
+                " Multimodal Extraction - Setup Required"
+              ),
+              tags$div(
+                style = "white-space: pre-wrap; font-family: monospace; font-size: 16px;",
+                pdf_result$message
+              ),
+              easyClose = TRUE,
+              footer = modalButton("Close")
+            ))
+          } else if (error_type == "extraction_error") {
+            showModal(modalDialog(
+              title = tags$div(
+                style = "color: #dc2626;",
+                icon("times-circle"),
+                " Multimodal Extraction Error"
+              ),
+              tags$div(
+                style = "white-space: pre-wrap; font-family: monospace; font-size: 16px;",
+                pdf_result$message
+              ),
+              easyClose = TRUE,
+              footer = modalButton("Close")
+            ))
+          } else {
+            showModal(modalDialog(
+              title = tags$div(
+                style = "color: #dc2626;",
+                icon("times-circle"),
+                " PDF Processing Failed"
+              ),
+              pdf_result$message,
+              easyClose = TRUE,
+              footer = modalButton("Close")
+            ))
+          }
+          return()
+        }
+
+        if (pdf_result$type == "multimodal") {
+          showNotification(
+            HTML(paste0(
+              "✓ Multimodal extraction: ", pdf_result$num_images, " images<br>",
+              "Provider: ", pdf_result$vision_provider
+            )),
+            type = "message",
+            duration = 8
+          )
+        } else {
+          showNotification(
+            paste0("✓ ", pdf_result$message),
+            type = "message",
+            duration = 5
+          )
+
+          if (!use_multimodal) {
+            tryCatch({
+              page_count <- pdftools::pdf_info(file_data$datapath)$pages
+              text_chars <- sum(nchar(pdf_result$data$text))
+              chars_per_page <- if (page_count > 0) text_chars / page_count else text_chars
+              if (chars_per_page < 200 && page_count > 0) {
+                showNotification(
+                  "This PDF has limited text per page and may contain charts or images. Enable 'Image/chart extraction' for better results.",
+                  type = "warning", duration = 10
+                )
+              }
+            }, error = function(e) NULL)
+          }
+        }
+
+        result <- pdf_result$data
+        if (!"category" %in% names(result)) {
+          result$category <- rep("Uploaded_PDF", nrow(result))
+        }
+
+      } else {
+        result <- tryCatch(
+          {
+            suppressWarnings(suppressMessages({
+              TextAnalysisR::import_files(input$dataset_choice, file_info = file_info)
+            }))
+          },
+          error = function(e) {
+            if (file_extension %in% c("csv", "txt")) {
+              if (file_extension == "csv") {
+                data <- read.csv(file_data$datapath, stringsAsFactors = FALSE, quote = "\"", fill = TRUE)
+              } else {
+                lines <- readLines(file_data$datapath)
+                data <- data.frame(
+                  text = lines[lines != ""],
+                  category = rep("Uploaded", length(lines[lines != ""])),
+                  stringsAsFactors = FALSE
+                )
+              }
+
+              if (!"text" %in% names(data)) {
+                if (ncol(data) >= 1) {
+                  names(data)[1] <- "text"
+                }
+                if (ncol(data) >= 2 && !"category" %in% names(data)) {
+                  names(data)[2] <- "category"
+                }
+              }
+
+              return(data)
+            } else {
+              stop("Unsupported file format. Please upload CSV, TXT, or PDF files.")
+            }
+          }
+        )
+      }
+
+      if (is.null(result)) {
+        stop("Unable to process file")
+      }
+
+      if (!is.data.frame(result)) {
+        stop("File processing did not return a valid data frame")
+      }
+
+      if (nrow(result) == 0) {
+        stop("File processing returned an empty data frame")
+      }
+
+      try(removeNotification("loadingFile"), silent = TRUE)
+
+      file_upload_result(result)
+
+    }, error = function(e) {
+      try(removeNotification("loadingFile"), silent = TRUE)
+
+      cat("=== FILE PROCESSING ERROR DEBUG ===\n")
+      cat("Error message:", e$message, "\n")
+      cat("Error class:", class(e), "\n")
+      if (!is.null(e$call)) cat("Error call:", deparse(e$call), "\n")
+      if (exists("input") && !is.null(input$file)) {
+        cat("File name:", input$file$name, "\n")
+        cat("File size:", input$file$size, "bytes\n")
+        cat("File type:", input$file$type, "\n")
+        cat("File datapath:", input$file$datapath, "\n")
+        cat("File exists:", file.exists(input$file$datapath), "\n")
+      }
+      cat("=== END DEBUG ===\n")
+
+      error_msg <- if (nzchar(e$message)) {
+        e$message
+      } else {
+        "Unknown error occurred while processing the file. Check console for details."
+      }
+
+      showModal(modalDialog(
+        title = tags$div(
+          style = "color: #dc2626;",
+          icon("times-circle"),
+          " Error"
+        ),
+        error_msg,
+        easyClose = TRUE,
+        footer = modalButton("Close")
+      ))
+    })
+  }, ignoreInit = TRUE)
 
   mydata <- reactive({
     req(input$dataset_choice)
@@ -607,283 +873,22 @@ server <- shinyServer(function(input, output, session) {
             }
           )
         } else if (input$dataset_choice == "Upload Your File") {
-          if (is.null(input$file)) {
-            return(NULL)
-          }
-
-          if (!isTRUE(file_validated())) {
-            return(NULL)
-          }
-
-          if (!is.data.frame(input$file) || nrow(input$file) == 0) {
-            stop("Invalid file upload data")
-          }
-
-          file_data <- input$file[1, ]
-
-          required_cols <- c("name", "size", "type", "datapath")
-          missing_cols <- setdiff(required_cols, names(file_data))
-          if (length(missing_cols) > 0) {
-            stop("Missing file information: ", paste(missing_cols, collapse = ", "))
-          }
-
-          file_size_mb <- file_data$size / (1024^2)
-          if (file_size_mb > 100) {
-            showModal(modalDialog(
-              title = tags$div(
-                style = "color: #f59e0b;",
-                icon("exclamation-triangle"),
-                " File Too Large"
-              ),
-              paste("The uploaded file is", round(file_size_mb, 2), "MB. Please upload a file smaller than 100MB."),
-              easyClose = TRUE,
-              footer = modalButton("Close")
-            ))
-            return(NULL)
-          }
-
-          if (file_size_mb > 50) {
-            show_loading_notification("Processing large file...", id = "loadingFile")
-          }
-
-          if (!file.exists(file_data$datapath)) {
-            stop("File not found")
-          }
-
-          file_info <- data.frame(filepath = file_data$datapath, stringsAsFactors = FALSE)
-
-          if (!file.exists(file_data$datapath)) {
-            stop("File path does not exist: ", file_data$datapath)
-          }
-
-          if (file.info(file_data$datapath)$size == 0) {
-            stop("File is empty")
-          }
-
-          if (!requireNamespace("TextAnalysisR", quietly = TRUE)) {
-            stop("TextAnalysisR package is not available")
-          }
-
-          if (!exists("import_files", where = asNamespace("TextAnalysisR"))) {
-            stop("TextAnalysisR::import_files function not found")
-          }
-
-          file_extension <- tolower(tools::file_ext(file_data$name))
-
-          if (file_extension == "pdf") {
-            # Use unified PDF processing function
-            use_multimodal <- isTRUE(input$enable_multimodal)
-
-            # Check multimodal feature availability
-            if (use_multimodal && !TextAnalysisR::check_feature("python")) {
-              showNotification("Multimodal PDF requires Python. Using standard extraction.", type = "warning")
-              use_multimodal <- FALSE
-            }
-
-            # Show loading notification
-            loading_msg <- if (use_multimodal) {
-              "Extracting text and analyzing images/charts..."
-            } else {
-              "Processing PDF file..."
-            }
-            show_loading_notification(loading_msg, id = "processingPDF")
-
-            # Get settings
-            vision_provider <- input$vision_provider %||% "ollama"
-            api_key <- if (vision_provider == "openai") get_api_key("openai", input$openai_api_key) else NULL
-            vision_model <- if (vision_provider == "ollama") {
-              input$ollama_vision_model %||% "llava"
-            } else {
-              input$openai_vision_model %||% "gpt-4.1"
-            }
-            log_ai_usage("Vision OCR", vision_provider, vision_model)
-
-            # Process PDF with unified function
-            pdf_result <- tryCatch({
-              TextAnalysisR::process_pdf_unified(
-                file_path = file_data$datapath,
-                use_multimodal = use_multimodal,
-                vision_provider = vision_provider,
-                vision_model = vision_model,
-                api_key = api_key,
-                describe_images = TRUE
-              )
-            }, error = function(e) {
-              list(
-                success = FALSE,
-                type = "error",
-                method = "none",
-                message = paste("PDF processing error:", e$message)
-              )
-            })
-
-            try(removeNotification("processingPDF"), silent = TRUE)
-
-            # Handle result
-            if (!pdf_result$success) {
-              error_type <- pdf_result$type %||% "error"
-
-              if (error_type == "prerequisite_error") {
-                showModal(modalDialog(
-                  title = tags$div(
-                    style = "color: #f59e0b;",
-                    icon("exclamation-triangle"),
-                    " Multimodal Extraction - Setup Required"
-                  ),
-                  tags$div(
-                    style = "white-space: pre-wrap; font-family: monospace; font-size: 16px;",
-                    pdf_result$message
-                  ),
-                  easyClose = TRUE,
-                  footer = modalButton("Close")
-                ))
-              } else if (error_type == "extraction_error") {
-                showModal(modalDialog(
-                  title = tags$div(
-                    style = "color: #dc2626;",
-                    icon("times-circle"),
-                    " Multimodal Extraction Error"
-                  ),
-                  tags$div(
-                    style = "white-space: pre-wrap; font-family: monospace; font-size: 16px;",
-                    pdf_result$message
-                  ),
-                  easyClose = TRUE,
-                  footer = modalButton("Close")
-                ))
-              } else {
-                showModal(modalDialog(
-                  title = tags$div(
-                    style = "color: #dc2626;",
-                    icon("times-circle"),
-                    " PDF Processing Failed"
-                  ),
-                  pdf_result$message,
-                  easyClose = TRUE,
-                  footer = modalButton("Close")
-                ))
-              }
-              return(NULL)
-            }
-
-            # Show success notification with method info
-            if (pdf_result$type == "multimodal") {
-              showNotification(
-                HTML(paste0(
-                  "✓ Multimodal extraction: ", pdf_result$num_images, " images<br>",
-                  "Provider: ", pdf_result$vision_provider
-                )),
-                type = "message",
-                duration = 8
-              )
-            } else {
-              method_label <- switch(pdf_result$method,
-                "python" = "Python (Enhanced)",
-                "r" = "R (Basic)",
-                "Unknown"
-              )
-              showNotification(
-                paste0("✓ ", method_label, ": ", pdf_result$message),
-                type = "message",
-                duration = 5
-              )
-            }
-
-            # Prepare result data frame
-            result <- pdf_result$data
-            if (!"category" %in% names(result)) {
-              result$category <- rep("Uploaded_PDF", nrow(result))
-            }
-
-          } else {
-            result <- tryCatch(
-              {
-                suppressWarnings(suppressMessages({
-                  TextAnalysisR::import_files(input$dataset_choice, file_info = file_info)
-                }))
-              },
-              error = function(e) {
-                if (file_extension %in% c("csv", "txt")) {
-                  if (file_extension == "csv") {
-                    data <- read.csv(file_data$datapath, stringsAsFactors = FALSE, quote = "\"", fill = TRUE)
-                  } else {
-                    lines <- readLines(file_data$datapath)
-                    data <- data.frame(
-                      text = lines[lines != ""],
-                      category = rep("Uploaded", length(lines[lines != ""])),
-                      stringsAsFactors = FALSE
-                    )
-                  }
-
-                  if (!"text" %in% names(data)) {
-                    if (ncol(data) >= 1) {
-                      names(data)[1] <- "text"
-                    }
-                    if (ncol(data) >= 2 && !"category" %in% names(data)) {
-                      names(data)[2] <- "category"
-                    }
-                  }
-
-                  return(data)
-                } else {
-                  stop("Unsupported file format. Please upload CSV, TXT, or PDF files.")
-                }
-              }
-            )
-          }
-
-          if (is.null(result)) {
-            stop("Unable to process file")
-          }
-
-          if (!is.data.frame(result)) {
-            stop("File processing did not return a valid data frame")
-          }
-
-          if (nrow(result) == 0) {
-            stop("File processing returned an empty data frame")
-          }
-
-          try(removeNotification("loadingFile"), silent = TRUE)
-
-          return(result)
+          return(file_upload_result())
         } else {
           return(NULL)
         }
       },
       error = function(e) {
-        try(removeNotification("loadingFile"), silent = TRUE)
-
-        cat("=== FILE PROCESSING ERROR DEBUG ===\n")
-        cat("Error message:", e$message, "\n")
-        cat("Error class:", class(e), "\n")
-        if (!is.null(e$call)) cat("Error call:", deparse(e$call), "\n")
-        if (exists("input") && !is.null(input$file)) {
-          cat("File name:", input$file$name, "\n")
-          cat("File size:", input$file$size, "bytes\n")
-          cat("File type:", input$file$type, "\n")
-          cat("File datapath:", input$file$datapath, "\n")
-          cat("File exists:", file.exists(input$file$datapath), "\n")
-        }
-        cat("=== END DEBUG ===\n")
-
-        error_msg <- if (nzchar(e$message)) {
-          e$message
-        } else {
-          "Unknown error occurred while processing the file. Check console for details."
-        }
-
         showModal(modalDialog(
           title = tags$div(
             style = "color: #dc2626;",
             icon("times-circle"),
             " Error"
           ),
-          error_msg,
+          e$message,
           easyClose = TRUE,
           footer = modalButton("Close")
         ))
-
         return(NULL)
       }
     )
@@ -904,10 +909,6 @@ server <- shinyServer(function(input, output, session) {
     )
   )
 
-  output$data_loaded <- reactive({
-    !is.null(mydata())
-  })
-  outputOptions(output, "data_loaded", suspendWhenHidden = FALSE)
 
   colnames <- reactive({
     data <- mydata()
@@ -8546,6 +8547,15 @@ server <- shinyServer(function(input, output, session) {
 
     switch(provider,
       "ollama" = {
+        if (is_remote) {
+          return(div(
+            class = "alert alert-info",
+            style = "padding: 8px; margin-bottom: 10px;",
+            icon("info-circle"),
+            " Ollama is for local use only. Select OpenAI or Gemini on the web server."
+          ))
+        }
+
         ollama_available <- tryCatch({
           TextAnalysisR::check_ollama()
         }, error = function(e) FALSE)
@@ -8570,10 +8580,10 @@ server <- shinyServer(function(input, output, session) {
           )
         } else {
           div(
-            class = "alert alert-warning",
+            class = "alert alert-info",
             style = "padding: 8px; margin-bottom: 10px;",
-            icon("exclamation-triangle"),
-            " Ollama not running. Start Ollama or select another provider."
+            icon("info-circle"),
+            " Ollama not detected. Install from ollama.com or select another provider."
           )
         }
       },
@@ -8625,9 +8635,14 @@ server <- shinyServer(function(input, output, session) {
 
       api_key <- NULL
       if (provider == "ollama") {
+        if (is_remote) {
+          remove_notification_by_id("llm_sentiment_loading")
+          showNotification("Ollama requires local installation. Please use OpenAI or Gemini on the web server.", type = "warning")
+          return()
+        }
         if (!TextAnalysisR::check_ollama()) {
           remove_notification_by_id("llm_sentiment_loading")
-          show_error_notification("Ollama is not running. Please start Ollama first.")
+          showNotification("Ollama is not detected. Install from ollama.com or select another provider.", type = "warning")
           return()
         }
       } else if (provider == "openai") {
@@ -12158,13 +12173,13 @@ server <- shinyServer(function(input, output, session) {
     label_content <- if (input$semantic_analysis_tabs == "similarity") {
       tags$div(
         style = "display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;",
-        tags$label("Feature Space", style = "margin: 0;"),
+        tags$label("Feature space", style = "margin: 0;"),
         actionLink("showSemanticMethodsInfo", icon("info-circle"),
                   style = "color: #337ab7; font-size: 16px;",
                   title = "Click for detailed method descriptions")
       )
     } else {
-      tags$label("Feature Space", style = "margin-bottom: 5px;")
+      tags$label("Feature space", style = "margin-bottom: 5px;")
     }
 
     tagList(
@@ -12251,6 +12266,7 @@ server <- shinyServer(function(input, output, session) {
     provider <- input$embedding_provider_setup %||% "ollama"
     model_name <- switch(provider,
       "ollama" = input$embedding_ollama_model %||% "nomic-embed-text",
+      "sentence-transformers" = input$embedding_st_model %||% "all-MiniLM-L6-v2",
       "openai" = input$embedding_openai_model %||% "text-embedding-3-small",
       "gemini" = input$embedding_gemini_model %||% "gemini-embedding-001",
       NULL
@@ -12294,12 +12310,13 @@ server <- shinyServer(function(input, output, session) {
     }, error = function(e) {
       remove_notification_by_id(loading_id)
 
+      error_options <- if (is_remote) {
+        "Options: 1) Use Sentence Transformers, 2) Set OPENAI_API_KEY or GEMINI_API_KEY."
+      } else {
+        "Options: 1) Start Ollama, 2) Run setup_python_env(), 3) Set OPENAI_API_KEY or GEMINI_API_KEY."
+      }
       show_error_notification(
-        paste0(
-          "Error generating embeddings: ", e$message, ". ",
-          "Options: 1) Start Ollama, 2) Run setup_python_env(), ",
-          "3) Set OPENAI_API_KEY or GEMINI_API_KEY."
-        )
+        paste0("Error generating embeddings: ", e$message, ". ", error_options)
       )
     })
   })
@@ -13047,9 +13064,8 @@ server <- shinyServer(function(input, output, session) {
       api_key <- NULL
 
       if (provider == "ollama") {
-        # Check Ollama availability (local only)
-        if (is_web) {
-          showNotification("Ollama requires local installation. Please use OpenAI or Gemini on web.", type = "warning")
+        if (is_remote) {
+          showNotification("Ollama requires local installation. Please use OpenAI or Gemini on the web server.", type = "warning")
           return()
         }
 
@@ -13131,7 +13147,57 @@ server <- shinyServer(function(input, output, session) {
     if (search_method != "keyword") {
       similarity_data <- comparison_results$results[[search_method]]
 
-      if (is.null(similarity_data)) {
+      if (is.null(similarity_data) && search_method == "embeddings") {
+        search_provider <- input$search_embedding_provider %||% "ollama"
+        search_model <- switch(search_provider,
+          "ollama" = input$search_embedding_ollama_model %||% "nomic-embed-text",
+          "sentence-transformers" = input$search_embedding_st_model %||% "all-MiniLM-L6-v2",
+          "openai" = input$search_embedding_openai_model %||% "text-embedding-3-small",
+          "gemini" = input$search_embedding_gemini_model %||% "gemini-embedding-001",
+          NULL
+        )
+        search_api_key <- switch(search_provider,
+          "openai" = get_api_key("openai", input$search_embedding_openai_api_key),
+          "gemini" = get_api_key("gemini", input$search_embedding_gemini_api_key),
+          NULL
+        )
+        if (!is.null(search_api_key) && !nzchar(search_api_key)) search_api_key <- NULL
+
+        log_ai_usage("Search Embeddings", search_provider, search_model)
+        loading_id <- show_loading_notification(paste0("Generating embeddings using ", search_provider, "..."))
+
+        embed_result <- tryCatch({
+          embeddings <- TextAnalysisR::get_best_embeddings(
+            texts = valid_docs,
+            provider = search_provider,
+            model = search_model,
+            api_key = search_api_key,
+            verbose = FALSE
+          )
+          embeddings_cache$embeddings <- embeddings
+          embeddings_cache$model <- search_model %||% "auto-detected"
+          embeddings_cache$provider <- search_provider
+          embeddings_cache$texts_hash <- digest::digest(valid_docs, algo = "md5")
+          embeddings_cache$timestamp <- Sys.time()
+          embeddings_cache$source <- "search_embeddings"
+          embeddings_cache$n_docs <- nrow(embeddings)
+
+          sim_matrix <- as.matrix(proxy::simil(embeddings, method = "cosine"))
+          comparison_results$results[["embeddings"]] <- list(
+            similarity_matrix = sim_matrix,
+            method = "embeddings"
+          )
+          TRUE
+        }, error = function(e) {
+          show_error_notification(paste0("Error generating embeddings: ", e$message))
+          FALSE
+        })
+
+        remove_notification_by_id(loading_id)
+
+        if (!isTRUE(embed_result)) return()
+        similarity_data <- comparison_results$results[["embeddings"]]
+      } else if (is.null(similarity_data)) {
         method_label <- if (search_method == "ngrams") {
           "N-grams"
         } else {
@@ -15827,7 +15893,7 @@ server <- shinyServer(function(input, output, session) {
       }
     }
 
-    cat("Feature Space:", tools::toTitleCase(feature_type), "\n")
+    cat("Feature space:", tools::toTitleCase(feature_type), "\n")
     safe_print("Documents Analyzed", metrics$n_docs)
     safe_print("Mean Similarity", metrics$mean_similarity, 4)
     safe_print("Median Similarity", metrics$median_similarity, 4)
@@ -16091,9 +16157,9 @@ server <- shinyServer(function(input, output, session) {
     method <- document_clustering_results$method %||% "UMAP"
 
     tags$div(
-      tags$h6(strong("Analysis Configuration"), style = "color: #0c1f4a;"),
-      tags$p(paste("Feature Space:", feature_space)),
-      tags$p(paste("Reduction Method:", method))
+      tags$h6(strong("Analysis configuration"), style = "color: #0c1f4a;"),
+      tags$p(paste("Feature space:", feature_space)),
+      tags$p(paste("Reduction method:", method))
     )
   })
 
@@ -16591,7 +16657,7 @@ server <- shinyServer(function(input, output, session) {
 
     htmltools::tags$div(
       style = "border: 1px solid #dee2e6; padding: 12px; margin-bottom: 15px; border-radius: 4px; background: white;",
-      htmltools::tags$h5(strong("Feature Space Information"), style = "color: #0c1f4a; margin: 0 0 8px 0;"),
+      htmltools::tags$h5(strong("Feature space information"), style = "color: #0c1f4a; margin: 0 0 8px 0;"),
       htmltools::tags$table(
         style = "width: 100%; margin-top: 8px; margin-bottom: 8px; font-size: 16px;",
         htmltools::tags$tr(
@@ -16599,7 +16665,7 @@ server <- shinyServer(function(input, output, session) {
           htmltools::tags$th("Value", style = "text-align: left; padding: 4px 0; color: #4b5563; font-weight: 500;")
         ),
         htmltools::tags$tr(
-          htmltools::tags$td("Feature Space", style = "padding: 4px 20px 4px 0;"),
+          htmltools::tags$td("Feature space", style = "padding: 4px 20px 4px 0;"),
           htmltools::tags$td(feature_space_display, style = "padding: 4px 0; font-weight: 600; color: #0c1f4a;")
         ),
         htmltools::tags$tr(
@@ -17811,6 +17877,7 @@ server <- shinyServer(function(input, output, session) {
   }, options = list(pageLength = 10, scrollX = TRUE))
 
   ollama_available_cluster <- reactive({
+    if (is_remote) return(FALSE)
     TextAnalysisR::check_ollama(verbose = FALSE)
   })
 
@@ -17825,6 +17892,15 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$ollama_status_cluster <- renderUI({
+    if (is_remote) {
+      return(tags$div(
+        style = "background-color: #F1F5F9; padding: 8px; border-radius: 4px; margin-bottom: 10px;",
+        tags$small(
+          style = "color: #64748B;",
+          icon("info-circle"), " Ollama is for local use only. Use OpenAI or Gemini on the web server."
+        )
+      ))
+    }
     if (ollama_available_cluster()) {
       models <- ollama_models_cluster()
       if (!is.null(models) && length(models) > 0) {
@@ -17846,11 +17922,12 @@ server <- shinyServer(function(input, output, session) {
       }
     } else {
       tags$div(
-        style = "background-color: #FEE2E2; padding: 8px; border-radius: 4px; margin-bottom: 10px;",
+        style = "background-color: #F1F5F9; padding: 8px; border-radius: 4px; margin-bottom: 10px;",
         tags$small(
-          style = "color: #991B1B;",
-          icon("times-circle"), " Ollama not available. Install from: ",
-          tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+          style = "color: #64748B;",
+          icon("info-circle"), " Ollama not detected. Install from ",
+          tags$a(href = "https://ollama.com", target = "_blank", "ollama.com"),
+          " for local AI features."
         )
       )
     }
@@ -17875,10 +17952,12 @@ server <- shinyServer(function(input, output, session) {
     if (is.null(provider)) provider <- "auto"
 
     if (provider == "auto") {
-      if (ollama_available_cluster()) {
+      if (is_remote) {
+        tags$p(style = "color: #64748B; font-size: 16px;", icon("info-circle"), " Will use OpenAI or Gemini (Ollama requires local installation)")
+      } else if (ollama_available_cluster()) {
         tags$p(style = "color: #337ab7; font-size: 16px;", icon("info-circle"), " Using Ollama (local AI)")
       } else {
-        tags$p(style = "color: #DC2626; font-size: 16px;", icon("info-circle"), " Will use OpenAI (requires API key)")
+        tags$p(style = "color: #64748B; font-size: 16px;", icon("info-circle"), " Will use OpenAI (requires API key). Install Ollama for local AI.")
       }
     }
   })
@@ -17895,17 +17974,11 @@ server <- shinyServer(function(input, output, session) {
     api_key <- NULL
     model <- NULL
 
-    # Check if running on web deployment
-    is_web <- !is.null(getOption("shiny.host")) ||
-      grepl("shinyapps\\.io|textanalysisr\\.org", Sys.getenv("SHINY_URL", ""))
-
-    # Provider-specific validation
     if (provider == "ollama") {
-      # Ollama is local only - not available on web deployment
-      if (is_web) {
+      if (is_remote) {
         shiny::showNotification(
-          "Ollama requires local installation. Please use OpenAI or Gemini on web.",
-          type = "error",
+          "Ollama requires local installation. Please use OpenAI or Gemini on the web server.",
+          type = "warning",
           duration = 5
         )
         return()
@@ -18520,17 +18593,11 @@ server <- shinyServer(function(input, output, session) {
     api_key <- NULL
     model <- NULL
 
-    # Check if running on web deployment
-    is_web <- !is.null(getOption("shiny.host")) ||
-      grepl("shinyapps\\.io|textanalysisr\\.org", Sys.getenv("SHINY_URL", ""))
-
-    # Provider-specific validation
     if (provider == "ollama") {
-      # Ollama is local only - not available on web deployment
-      if (is_web) {
+      if (is_remote) {
         shiny::showNotification(
-          "Ollama requires local installation. Please use OpenAI or Gemini on web.",
-          type = "error",
+          "Ollama requires local installation. Please use OpenAI or Gemini on the web server.",
+          type = "warning",
           duration = 5
         )
         return()
@@ -19227,6 +19294,15 @@ server <- shinyServer(function(input, output, session) {
     provider <- input$topic_embedding_provider %||% "ollama"
 
     if (provider == "ollama") {
+      if (is_remote) {
+        return(tags$div(
+          class = "status-sidebar-info",
+          style = "margin-bottom: 10px;",
+          tags$i(class = "fa fa-info-circle status-icon", style = "color: #64748B;"),
+          tags$span("Ollama is for local use only. Use another provider on the web server.")
+        ))
+      }
+
       ollama_ok <- isolate(tryCatch({
         TextAnalysisR::check_ollama(verbose = FALSE)
       }, error = function(e) FALSE))
@@ -19240,10 +19316,10 @@ server <- shinyServer(function(input, output, session) {
         )
       } else {
         tags$div(
-          class = "status-sidebar-warning",
+          class = "status-sidebar-info",
           style = "margin-bottom: 10px;",
-          tags$i(class = "fa fa-exclamation-triangle status-icon status-icon-warning"),
-          tags$span("Ollama not detected. Install from ollama.com")
+          tags$i(class = "fa fa-info-circle status-icon", style = "color: #64748B;"),
+          tags$span("Ollama not detected. Install from ollama.com for local AI features.")
         )
       }
     } else if (provider == "sentence-transformers") {
@@ -20727,10 +20803,9 @@ server <- shinyServer(function(input, output, session) {
     provider <- input$stm_label_provider %||% "ollama"
     api_key <- NULL
 
-    # Check provider availability and get API key
     if (provider == "ollama") {
-      if (is_web) {
-        showNotification("Ollama requires local installation. Please use OpenAI or Gemini.", type = "warning")
+      if (is_remote) {
+        showNotification("Ollama requires local installation. Please use OpenAI or Gemini on the web server.", type = "warning")
         return()
       }
       if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
@@ -20823,17 +20898,11 @@ server <- shinyServer(function(input, output, session) {
     api_key <- NULL
     model <- NULL
 
-    # Check if running on web deployment
-    is_web <- !is.null(getOption("shiny.host")) ||
-      grepl("shinyapps\\.io|textanalysisr\\.org", Sys.getenv("SHINY_URL", ""))
-
-    # Provider-specific validation
     if (provider == "ollama") {
-      # Ollama is local only - not available on web deployment
-      if (is_web) {
+      if (is_remote) {
         shiny::showNotification(
-          "Ollama requires local installation. Please use OpenAI or Gemini on web.",
-          type = "error",
+          "Ollama requires local installation. Please use OpenAI or Gemini on the web server.",
+          type = "warning",
           duration = 5
         )
         return()
@@ -22002,10 +22071,9 @@ server <- shinyServer(function(input, output, session) {
     provider <- input$hybrid_label_provider %||% "ollama"
     api_key <- NULL
 
-    # Check provider availability and get API key
     if (provider == "ollama") {
-      if (is_web) {
-        showNotification("Ollama requires local installation. Please use OpenAI or Gemini.", type = "warning")
+      if (is_remote) {
+        showNotification("Ollama requires local installation. Please use OpenAI or Gemini on the web server.", type = "warning")
         return()
       }
       if (!TextAnalysisR::check_ollama(verbose = FALSE)) {
@@ -22450,6 +22518,13 @@ server <- shinyServer(function(input, output, session) {
   })
 
   output$global_ollama_status <- renderUI({
+    if (is_remote) {
+      return(tagList(
+        tags$span(style = "color: #64748B;", icon("info-circle"), " Ollama is for local use only"),
+        tags$p(style = "font-size: 16px; color: #666;",
+          "Use OpenAI or Gemini on the web server.")
+      ))
+    }
     models <- available_ollama_models()
     if (!is.null(models) && length(models) > 0) {
       tagList(
@@ -22460,9 +22535,10 @@ server <- shinyServer(function(input, output, session) {
       )
     } else {
       tagList(
-        tags$span(style = "color: #dc3545;", icon("exclamation-triangle"), " Ollama not detected"),
+        tags$span(style = "color: #64748B;", icon("info-circle"), " Ollama not detected"),
         tags$p(style = "font-size: 16px; color: #666;",
-          "Install from ", tags$a(href = "https://ollama.com", target = "_blank", "ollama.com"))
+          "Install from ", tags$a(href = "https://ollama.com", target = "_blank", "ollama.com"),
+          " for local AI features.")
       )
     }
   })

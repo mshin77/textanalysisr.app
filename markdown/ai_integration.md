@@ -37,6 +37,7 @@ TextAnalysisR provides AI/NLP capabilities via local and web-based providers.
 - **Content Generation**: Survey items, research questions, themes
 - **Cluster Labels**: AI-suggested names for document clusters
 - **RAG Search**: Question-answering over your corpus
+- **Vision AI**: PDF image/chart extraction via Ollama, OpenAI, or Gemini
 - **Sentiment Analysis**: LLM-based or local transformer models
 - **Linguistic Analysis**: POS, NER, dependency parsing via spaCy
 
@@ -45,7 +46,7 @@ TextAnalysisR provides AI/NLP capabilities via local and web-based providers.
 ```r
 # Local AI (recommended for privacy)
 # Install Ollama: https://ollama.com
-# Then: ollama pull phi3:mini
+# Then: ollama pull llama3.2
 
 # Web-based AI
 Sys.setenv(OPENAI_API_KEY = "your-key")

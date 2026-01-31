@@ -28,19 +28,18 @@ ui <- fluidPage(
     tags$meta(name = "description", content = "TextAnalysisR: Comprehensive text mining and semantic analysis toolkit"),
     tags$meta(name = "keywords", content = "text mining, topic modeling, semantic analysis, R Shiny"),
 
-    # CSP temporarily disabled for testing
-    # tags$meta(
-    #   `http-equiv` = "Content-Security-Policy",
-    #   content = paste(
-    #     "default-src 'self';",
-    #     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly https://translate.google.com http://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com https://translate-pa.googleapis.com;",
-    #     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://translate.googleusercontent.com https://www.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com;",
-    #     "font-src 'self' https://fonts.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:;",
-    #     "img-src 'self' data: https: http://translate.google.com https://www.gstatic.com https://translate.google.com;",
-    #     "connect-src 'self' https://translate.googleapis.com https://translate-pa.googleapis.com http://translate.googleapis.com;",
-    #     "frame-src 'self' http: https: https://translate.google.com https://translate.googleusercontent.com;"
-    #   )
-    # ),
+    tags$meta(
+      `http-equiv` = "Content-Security-Policy",
+      content = paste(
+        "default-src 'self';",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly https://translate.google.com http://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com https://translate-pa.googleapis.com;",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://translate.googleusercontent.com https://www.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com;",
+        "font-src 'self' https://fonts.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:;",
+        "img-src 'self' data: https: http://translate.google.com https://www.gstatic.com https://translate.google.com;",
+        "connect-src 'self' http://127.0.0.1:* http://localhost:* https://translate.googleapis.com https://translate-pa.googleapis.com http://translate.googleapis.com;",
+        "frame-src 'self' http: https: https://translate.google.com https://translate.googleusercontent.com;"
+      )
+    ),
     tags$meta(`http-equiv` = "X-Content-Type-Options", content = "nosniff"),
     tags$meta(`http-equiv` = "X-XSS-Protection", content = "1; mode=block"),
     tags$meta(`http-equiv` = "Referrer-Policy", content = "no-referrer-when-downgrade"),
@@ -48,10 +47,60 @@ ui <- fluidPage(
     tags$meta(name = "theme-color", content = "#337ab7"),
 
     # Font Awesome icons
-    tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"),
+    tags$link(
+      rel = "stylesheet",
+      href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css",
+      integrity = "sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==",
+      crossorigin = "anonymous",
+      referrerpolicy = "no-referrer"
+    ),
 
     # Google Translate API (external library - must remain here)
-    tags$script(src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit")
+    tags$script(src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"),
+
+    tags$style(HTML("
+      .password-wrapper { position: relative; }
+      .password-wrapper input[type='password'],
+      .password-wrapper input[type='text'] { padding-right: 36px; }
+      .password-toggle {
+        position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+        background: none; border: none; cursor: pointer; color: #888;
+        padding: 2px 4px; font-size: 14px; line-height: 1; z-index: 2;
+      }
+      .password-toggle:hover { color: #333; }
+    ")),
+    tags$script(HTML("
+      $(document).on('shiny:value shiny:inputchanged shiny:bound', function() {
+        setTimeout(function() {
+          $('input[type=\"password\"]').each(function() {
+            if ($(this).parent().hasClass('password-wrapper')) return;
+            $(this).wrap('<div class=\"password-wrapper\"></div>');
+            var btn = $('<button type=\"button\" class=\"password-toggle\" title=\"Show/hide\" aria-label=\"Toggle visibility\"><i class=\"fa fa-eye\"></i></button>');
+            $(this).after(btn);
+          });
+        }, 100);
+      });
+      $(document).on('click', '.password-toggle', function(e) {
+        e.preventDefault();
+        var input = $(this).siblings('input');
+        var icon = $(this).find('i');
+        if (input.attr('type') === 'password') {
+          input.attr('type', 'text');
+          icon.removeClass('fa-eye').addClass('fa-eye-slash');
+        } else {
+          input.attr('type', 'password');
+          icon.removeClass('fa-eye-slash').addClass('fa-eye');
+        }
+      });
+      $(document).ready(function() {
+        $('input[type=\"password\"]').each(function() {
+          if ($(this).parent().hasClass('password-wrapper')) return;
+          $(this).wrap('<div class=\"password-wrapper\"></div>');
+          var btn = $('<button type=\"button\" class=\"password-toggle\" title=\"Show/hide\" aria-label=\"Toggle visibility\"><i class=\"fa fa-eye\"></i></button>');
+          $(this).after(btn);
+        });
+      });
+    "))
   ),
 
   tags$div(
@@ -222,14 +271,69 @@ ui <- fluidPage(
           conditionalPanel(
             condition = "!output.has_ai_usage_log",
             div(
-              style = "padding: 60px 40px; text-align: center;",
-              div(
-                style = "max-width: 400px; margin: 0 auto;",
-                tags$i(class = "fa fa-robot", style = "font-size: 48px; color: #CBD5E1; margin-bottom: 20px; display: block;", "aria-hidden" = "true"),
-                tags$p(
-                  "Use any AI feature to start logging model usage",
-                  style = "font-size: 18px; font-weight: 400; line-height: 1.7; color: #64748B; margin: 0;"
+              style = "padding: 30px 20px;",
+              tags$h5(HTML("<strong>AI Features Overview</strong>"), style = "color: #0c1f4a; margin-bottom: 16px;"),
+              tags$p(style = "font-size: 16px; color: #64748B; margin-bottom: 20px;",
+                "Configure API keys in the sidebar, then use AI features across the app. Usage is logged here for reproducibility."),
+              tags$table(
+                class = "table table-bordered",
+                style = "font-size: 16px;",
+                tags$thead(
+                  tags$tr(
+                    tags$th("Feature", style = "width: 30%;"),
+                    tags$th("Providers"),
+                    tags$th("Tab", style = "width: 22%;")
+                  )
+                ),
+                tags$tbody(
+                  tags$tr(
+                    tags$td("Document Similarity"),
+                    tags$td("Ollama, Sentence Transformers, OpenAI, Gemini"),
+                    tags$td("Semantic Analysis")
+                  ),
+                  tags$tr(
+                    tags$td("Semantic Search"),
+                    tags$td("Ollama, Sentence Transformers, OpenAI, Gemini"),
+                    tags$td("Semantic Analysis")
+                  ),
+                  tags$tr(
+                    tags$td("RAG Q&A"),
+                    tags$td("Ollama, OpenAI, Gemini"),
+                    tags$td("Semantic Analysis")
+                  ),
+                  tags$tr(
+                    tags$td("LLM Sentiment"),
+                    tags$td("Ollama, OpenAI, Gemini"),
+                    tags$td("Semantic Analysis")
+                  ),
+                  tags$tr(
+                    tags$td("Topic Modeling Embeddings"),
+                    tags$td("Ollama, Sentence Transformers, OpenAI, Gemini"),
+                    tags$td("Topic Modeling")
+                  ),
+                  tags$tr(
+                    tags$td("Topic Labels & Content"),
+                    tags$td("Ollama, OpenAI, Gemini"),
+                    tags$td("Topic Modeling")
+                  ),
+                  tags$tr(
+                    tags$td("Vision OCR"),
+                    tags$td("Ollama, OpenAI, Gemini"),
+                    tags$td("Upload")
+                  )
                 )
+              ),
+              tags$div(
+                style = "margin-top: 20px; padding: 12px 16px; background-color: #F1F5F9; border-radius: 6px;",
+                tags$p(style = "margin: 0 0 6px 0; font-size: 16px; color: #334155;",
+                  tags$strong("Ollama"), " \u2014 Free, private, runs locally. Install from ",
+                  tags$a(href = "https://ollama.com", target = "_blank", "ollama.com"), "."),
+                tags$p(style = "margin: 0 0 6px 0; font-size: 16px; color: #334155;",
+                  tags$strong("Sentence Transformers"), " \u2014 Free, runs locally. Requires Python + sentence-transformers."),
+                tags$p(style = "margin: 0 0 6px 0; font-size: 16px; color: #334155;",
+                  tags$strong("OpenAI"), " \u2014 Cloud API. Enter key above or set ", tags$code("OPENAI_API_KEY"), " in .Renviron."),
+                tags$p(style = "margin: 0; font-size: 16px; color: #334155;",
+                  tags$strong("Gemini"), " \u2014 Cloud API. Enter key above or set ", tags$code("GEMINI_API_KEY"), " in .Renviron.")
               )
             )
           )
@@ -1866,6 +1970,7 @@ Supports:
                 "AI Provider:",
                 choices = c(
                   "Local (Ollama - Free, Private)" = "ollama",
+                  "Sentence Transformers (Python)" = "sentence-transformers",
                   "OpenAI (API Key Required)" = "openai",
                   "Gemini (API Key Required)" = "gemini"
                 ),
@@ -1884,6 +1989,22 @@ Supports:
                   style = "font-size: 16px; color: #666;",
                   "Requires Ollama. Get it from ",
                   tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+                )
+              ),
+              conditionalPanel(
+                condition = "input.embedding_provider_setup == 'sentence-transformers'",
+                selectInput(
+                  "embedding_st_model",
+                  "Model:",
+                  choices = c(
+                    "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
+                    "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2"
+                  ),
+                  selected = "all-MiniLM-L6-v2"
+                ),
+                tags$p(
+                  style = "font-size: 16px; color: #666;",
+                  "Requires Python + sentence-transformers"
                 )
               ),
               conditionalPanel(
@@ -2015,8 +2136,87 @@ Supports:
               selected = "keyword"
             ),
             conditionalPanel(
-              condition = "input.search_method != 'keyword' && input.search_method != 'rag'",
+              condition = "input.search_method != 'keyword' && input.search_method != 'rag' && input.search_method != 'embeddings'",
               uiOutput("search_method_status_message")
+            ),
+            conditionalPanel(
+              condition = "input.search_method == 'embeddings'",
+              radioButtons(
+                "search_embedding_provider",
+                "AI Provider:",
+                choices = c(
+                  "Local (Ollama - Free, Private)" = "ollama",
+                  "Sentence Transformers (Python)" = "sentence-transformers",
+                  "OpenAI (API Key Required)" = "openai",
+                  "Gemini (API Key Required)" = "gemini"
+                ),
+                selected = "ollama"
+              ),
+              conditionalPanel(
+                condition = "input.search_embedding_provider == 'ollama'",
+                selectInput(
+                  "search_embedding_ollama_model",
+                  "Ollama Model:",
+                  choices = c(
+                    "Nomic Embed Text (Default)" = "nomic-embed-text",
+                    "MxBai Embed Large (Higher Quality)" = "mxbai-embed-large",
+                    "All-MiniLM (Lightweight)" = "all-minilm"
+                  ),
+                  selected = "nomic-embed-text"
+                ),
+                tags$p(
+                  style = "font-size: 16px; color: #666;",
+                  "Requires Ollama. Get it from ",
+                  tags$a(href = "https://ollama.com", target = "_blank", "ollama.com")
+                )
+              ),
+              conditionalPanel(
+                condition = "input.search_embedding_provider == 'sentence-transformers'",
+                selectInput(
+                  "search_embedding_st_model",
+                  "Model:",
+                  choices = c(
+                    "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
+                    "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2"
+                  ),
+                  selected = "all-MiniLM-L6-v2"
+                ),
+                tags$p(
+                  style = "font-size: 16px; color: #666;",
+                  "Requires Python + sentence-transformers"
+                )
+              ),
+              conditionalPanel(
+                condition = "input.search_embedding_provider == 'openai'",
+                selectInput(
+                  "search_embedding_openai_model",
+                  "OpenAI Model:",
+                  choices = c(
+                    "Text Embedding 3 Small (Default)" = "text-embedding-3-small",
+                    "Text Embedding 3 Large (Higher Quality)" = "text-embedding-3-large"
+                  ),
+                  selected = "text-embedding-3-small"
+                ),
+                passwordInput(
+                  "search_embedding_openai_api_key",
+                  "API Key:",
+                  placeholder = "sk-..."
+                )
+              ),
+              conditionalPanel(
+                condition = "input.search_embedding_provider == 'gemini'",
+                selectInput(
+                  "search_embedding_gemini_model",
+                  "Gemini Model:",
+                  choices = c("Gemini Embedding 001" = "gemini-embedding-001"),
+                  selected = "gemini-embedding-001"
+                ),
+                passwordInput(
+                  "search_embedding_gemini_api_key",
+                  "API Key:",
+                  placeholder = "AIza..."
+                )
+              )
             ),
             conditionalPanel(
               condition = "input.search_method == 'rag'",
@@ -2382,7 +2582,7 @@ Supports:
                 condition = "input.sentiment_method == 'llm'",
                 radioButtons(
                   "llm_sentiment_provider",
-                  "AI Provider:",
+                  "Sentiment model",
                   choices = c(
                     "Local (Ollama - Free, Private)" = "ollama",
                     "OpenAI (API Key Required)" = "openai",
@@ -3718,7 +3918,7 @@ Focus on incorporating the most significant keywords while following the guideli
 
             radioButtons(
               "topic_embedding_provider",
-              "Embedding Provider:",
+              "AI Provider:",
               choices = c(
                 "Local (Ollama - Free, Private)" = "ollama",
                 "Sentence Transformers (Python)" = "sentence-transformers",

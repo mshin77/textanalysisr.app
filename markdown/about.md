@@ -8,8 +8,8 @@ GPL-3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.
 
 Comprehensive toolkit for text mining and natural language processing
 with an interactive `Shiny` interface. Import documents from multiple
-formats (`PDF`, `DOCX`, `XLSX`, `CSV`, `TXT`) using
-[Marker](https://github.com/VikParuchuri/marker) for PDF extraction,
+formats (`PDF`, `DOCX`, `XLSX`, `CSV`, `TXT`) with R-native PDF
+extraction and vision AI for charts/diagrams,
 preprocess with [quanteda](https://github.com/quanteda/quanteda), and
 perform linguistic analysis via [spaCy](https://spacy.io/), topic
 modeling ([stm](https://github.com/bstewart/stm),

@@ -17,7 +17,7 @@
 
 - Large file support (>10MB)
 - AI-suggested topic labels via local and web-based APIs
-- Python PDF extraction
+- Multimodal PDF extraction with vision AI (Ollama/OpenAI/Gemini)
 
 ## Linguistic Analysis Setup
 
