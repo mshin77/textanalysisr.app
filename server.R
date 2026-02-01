@@ -90,6 +90,11 @@ server <- shinyServer(function(input, output, session) {
     if (length(valid) > 0) ai_config$gemini_api_key <- valid[1]
   })
 
+  output$has_openai_key <- reactive({ nzchar(ai_config$openai_api_key %||% "") })
+  outputOptions(output, "has_openai_key", suspendWhenHidden = FALSE)
+  output$has_gemini_key <- reactive({ nzchar(ai_config$gemini_api_key %||% "") })
+  outputOptions(output, "has_gemini_key", suspendWhenHidden = FALSE)
+
   available_ollama_models <- reactiveVal(NULL)
 
   observe({
@@ -127,6 +132,24 @@ server <- shinyServer(function(input, output, session) {
   is_remote <- is_web || is_docker
   feature_status <- reactive({
     TextAnalysisR::get_feature_status()
+  })
+
+  observe({
+    if (!is_remote) return()
+    llm_providers <- c("OpenAI (API Key Required)" = "openai", "Gemini (API Key Required)" = "gemini")
+    embed_providers <- c("Sentence Transformers (Python)" = "sentence-transformers",
+                         "OpenAI (API Key Required)" = "openai", "Gemini (API Key Required)" = "gemini")
+
+    updateRadioButtons(session, "embedding_provider_setup", choices = embed_providers, selected = "sentence-transformers")
+    updateRadioButtons(session, "search_embedding_provider", choices = embed_providers, selected = "sentence-transformers")
+    updateRadioButtons(session, "topic_embedding_provider", choices = embed_providers, selected = "sentence-transformers")
+    updateRadioButtons(session, "rag_provider", choices = llm_providers, selected = "openai")
+    updateRadioButtons(session, "cluster_label_provider", choices = llm_providers, selected = "openai")
+    updateRadioButtons(session, "llm_sentiment_provider", choices = llm_providers, selected = "openai")
+    updateRadioButtons(session, "stm_label_provider", choices = llm_providers, selected = "openai")
+    updateRadioButtons(session, "k_rec_provider", choices = llm_providers, selected = "openai")
+    updateRadioButtons(session, "content_provider", choices = llm_providers, selected = "openai")
+    updateRadioButtons(session, "hybrid_label_provider", choices = llm_providers, selected = "openai")
   })
 
   # spaCy initialization status
@@ -239,7 +262,7 @@ server <- shinyServer(function(input, output, session) {
     if (is_web) {
       return(tags$div(
         class = "pdf-info-box status-main-warning",
-        style = "margin-top: -10px;",
+        style = "margin-top: 8px; margin-bottom: 10px;",
         tags$i(class = "fa fa-info-circle status-icon status-icon-warning"),
         "Multimodal PDF extraction available in R package version only."
       ))
@@ -247,7 +270,7 @@ server <- shinyServer(function(input, output, session) {
 
     tags$div(
       class = "pdf-info-box status-main-info",
-      style = "margin-top: -10px;",
+      style = "margin-top: 8px; margin-bottom: 10px;",
       tags$div(
         style = "margin-bottom: 10px;",
         tags$strong("PDF with Charts/Diagrams?", style = "color: #0c1f4a; font-size: 16px;")
@@ -260,12 +283,12 @@ server <- shinyServer(function(input, output, session) {
         condition = "input.enable_multimodal == true",
         radioButtons("vision_provider",
           "Vision provider:",
-          choices = c(
-            "Local (Ollama - Free, Private)" = "ollama",
-            "OpenAI (API Key Required)" = "openai",
-            "Gemini (API Key Required)" = "gemini"
-          ),
-          selected = "ollama",
+          choices = if (is_remote) {
+            c("OpenAI (API Key Required)" = "openai", "Gemini (API Key Required)" = "gemini")
+          } else {
+            c("Local (Ollama - Free, Private)" = "ollama", "OpenAI (API Key Required)" = "openai", "Gemini (API Key Required)" = "gemini")
+          },
+          selected = if (is_remote) "openai" else "ollama",
           inline = FALSE
         ),
         conditionalPanel(
@@ -283,9 +306,14 @@ server <- shinyServer(function(input, output, session) {
         ),
         conditionalPanel(
           condition = "input.vision_provider == 'openai'",
-          passwordInput("openai_api_key",
-            "OpenAI API Key:",
-            placeholder = "sk-..."
+          conditionalPanel(
+            condition = "output.has_openai_key",
+            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
+              tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+          ),
+          conditionalPanel(
+            condition = "!output.has_openai_key",
+            passwordInput("openai_api_key", "OpenAI API Key:", placeholder = "sk-...")
           ),
           selectInput("openai_vision_model",
             "OpenAI model:",
@@ -295,9 +323,14 @@ server <- shinyServer(function(input, output, session) {
         ),
         conditionalPanel(
           condition = "input.vision_provider == 'gemini'",
-          passwordInput("gemini_vision_api_key",
-            "Gemini API Key:",
-            placeholder = "AI..."
+          conditionalPanel(
+            condition = "output.has_gemini_key",
+            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
+              tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+          ),
+          conditionalPanel(
+            condition = "!output.has_gemini_key",
+            passwordInput("gemini_vision_api_key", "Gemini API Key:", placeholder = "AI...")
           ),
           selectInput("gemini_vision_model",
             "Gemini model:",
@@ -547,14 +580,26 @@ server <- shinyServer(function(input, output, session) {
         }
 
         if (pdf_result$type == "multimodal") {
-          showNotification(
-            HTML(paste0(
-              "✓ Multimodal extraction: ", pdf_result$num_images, " images<br>",
-              "Provider: ", pdf_result$vision_provider
-            )),
-            type = "message",
-            duration = 8
-          )
+          num_described <- pdf_result$num_images %||% 0
+          if (num_described == 0) {
+            showNotification(
+              HTML(paste0(
+                "⚠ Multimodal extraction completed but no images were described.<br>",
+                "The API call may have failed. Check your API key and try again."
+              )),
+              type = "warning",
+              duration = 10
+            )
+          } else {
+            showNotification(
+              HTML(paste0(
+                "✓ Multimodal extraction: ", num_described, " images<br>",
+                "Provider: ", pdf_result$vision_provider
+              )),
+              type = "message",
+              duration = 8
+            )
+          }
         } else {
           showNotification(
             paste0("✓ ", pdf_result$message),
@@ -8382,13 +8427,13 @@ server <- shinyServer(function(input, output, session) {
           return()
         }
 
-        if (!"text" %in% names(texts_df)) {
+        if (!"united_texts" %in% names(texts_df)) {
           remove_notification_by_id("sentiment_loading")
           showNotification("Text column not found. Please unite text columns first.", type = "error")
           return()
         }
 
-        texts_vec <- texts_df$text
+        texts_vec <- texts_df$united_texts
         doc_names <- if ("doc_id" %in% names(texts_df)) texts_df$doc_id else quanteda::docnames(dfm_obj)
 
         sentiment_analysis_results <- tryCatch({
@@ -8432,8 +8477,8 @@ server <- shinyServer(function(input, output, session) {
           }
         })
 
-        texts_vec <- if (feature_type == "ngrams" && "text" %in% names(texts_df)) {
-          texts_df$text
+        texts_vec <- if (feature_type == "ngrams" && "united_texts" %in% names(texts_df)) {
+          texts_df$united_texts
         } else {
           NULL
         }
@@ -8491,13 +8536,13 @@ server <- shinyServer(function(input, output, session) {
 
       texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
 
-      if (is.null(texts_df) || !"text" %in% names(texts_df)) {
+      if (is.null(texts_df) || !"united_texts" %in% names(texts_df)) {
         remove_notification_by_id("neural_sentiment_loading")
         show_error_notification("No text data available. Please unite text columns first.")
         return()
       }
 
-      texts_vec <- texts_df$text
+      texts_vec <- texts_df$united_texts
       doc_names <- if ("doc_id" %in% names(texts_df)) texts_df$doc_id else paste0("doc", seq_len(nrow(texts_df)))
 
       model_name <- input$neural_sentiment_model %||% "distilbert-base-uncased-finetuned-sst-2-english"
@@ -8598,10 +8643,14 @@ server <- shinyServer(function(input, output, session) {
             ),
             selected = "gpt-4.1-mini"
           ),
-          passwordInput(
-            "llm_sentiment_openai_api_key",
-            "API Key:",
-            placeholder = "sk-..."
+          conditionalPanel(
+            condition = "output.has_openai_key",
+            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
+              tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+          ),
+          conditionalPanel(
+            condition = "!output.has_openai_key",
+            passwordInput("llm_sentiment_openai_api_key", "API Key:", placeholder = "sk-...")
           )
         )
       },
@@ -8617,10 +8666,14 @@ server <- shinyServer(function(input, output, session) {
             ),
             selected = "gemini-2.5-flash"
           ),
-          passwordInput(
-            "llm_sentiment_gemini_api_key",
-            "API Key:",
-            placeholder = "AIza..."
+          conditionalPanel(
+            condition = "output.has_gemini_key",
+            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
+              tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+          ),
+          conditionalPanel(
+            condition = "!output.has_gemini_key",
+            passwordInput("llm_sentiment_gemini_api_key", "API Key:", placeholder = "AIza...")
           )
         )
       }
@@ -8649,27 +8702,27 @@ server <- shinyServer(function(input, output, session) {
         api_key <- get_api_key("openai", input$llm_sentiment_openai_api_key)
         if (!nzchar(api_key)) {
           remove_notification_by_id("llm_sentiment_loading")
-          show_error_notification("OpenAI API key not found. Enter it above or set OPENAI_API_KEY in .Renviron.")
+          show_error_notification(TextAnalysisR:::.missing_api_key_message("openai", "shiny"))
           return()
         }
       } else if (provider == "gemini") {
         api_key <- get_api_key("gemini", input$llm_sentiment_gemini_api_key)
         if (!nzchar(api_key)) {
           remove_notification_by_id("llm_sentiment_loading")
-          show_error_notification("Gemini API key not found. Enter it above or set GEMINI_API_KEY in .Renviron.")
+          show_error_notification(TextAnalysisR:::.missing_api_key_message("gemini", "shiny"))
           return()
         }
       }
 
       texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
 
-      if (is.null(texts_df) || !"text" %in% names(texts_df)) {
+      if (is.null(texts_df) || !"united_texts" %in% names(texts_df)) {
         remove_notification_by_id("llm_sentiment_loading")
         show_error_notification("No text data available. Please unite text columns first.")
         return()
       }
 
-      texts_vec <- texts_df$text
+      texts_vec <- texts_df$united_texts
       doc_names <- if ("doc_id" %in% names(texts_df)) texts_df$doc_id else paste0("doc", seq_len(nrow(texts_df)))
 
       model_name <- input$llm_sentiment_model
@@ -12247,7 +12300,7 @@ server <- shinyServer(function(input, output, session) {
   observeEvent(input$generate_embeddings, {
     texts_df <- tryCatch(united_tbl(), error = function(e) NULL)
 
-    if (is.null(texts_df) || !"text" %in% names(texts_df)) {
+    if (is.null(texts_df) || !"united_texts" %in% names(texts_df)) {
       showNotification(
         "Please unite text columns first before generating embeddings.",
         type = "error",
@@ -12256,7 +12309,7 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    texts_vec <- texts_df$text
+    texts_vec <- texts_df$united_texts
 
     if (length(texts_vec) == 0) {
       showNotification("No texts available for embedding generation.", type = "error")
@@ -13091,7 +13144,7 @@ server <- shinyServer(function(input, output, session) {
       } else if (provider == "openai") {
         api_key <- get_api_key("openai", input$rag_openai_api_key)
         if (!nzchar(api_key)) {
-          showNotification("OpenAI API key required. Enter in the field or set OPENAI_API_KEY.", type = "error")
+          showNotification(TextAnalysisR:::.missing_api_key_message("openai", "shiny"), type = "error")
           return()
         }
         chat_model <- input$rag_openai_model %||% "gpt-4.1-mini"
@@ -13099,7 +13152,7 @@ server <- shinyServer(function(input, output, session) {
       } else if (provider == "gemini") {
         api_key <- get_api_key("gemini", input$rag_gemini_api_key)
         if (!nzchar(api_key)) {
-          showNotification("Gemini API key required. Enter in the field or set GEMINI_API_KEY.", type = "error")
+          showNotification(TextAnalysisR:::.missing_api_key_message("gemini", "shiny"), type = "error")
           return()
         }
         chat_model <- input$rag_gemini_model %||% "gemini-2.5-flash"
@@ -18009,7 +18062,7 @@ server <- shinyServer(function(input, output, session) {
       api_key <- get_api_key("openai", input$cluster_openai_api_key)
       if (!nzchar(api_key)) {
         shiny::showNotification(
-          "OpenAI API key required. Enter in the API Key field or set OPENAI_API_KEY in .Renviron",
+          TextAnalysisR:::.missing_api_key_message("openai", "shiny"),
           type = "error", duration = 5
         )
         return()
@@ -18020,7 +18073,7 @@ server <- shinyServer(function(input, output, session) {
       api_key <- get_api_key("gemini", input$cluster_gemini_api_key)
       if (!nzchar(api_key)) {
         shiny::showNotification(
-          "Gemini API key required. Enter in the API Key field or set GEMINI_API_KEY in .Renviron",
+          TextAnalysisR:::.missing_api_key_message("gemini", "shiny"),
           type = "error", duration = 5
         )
         return()
@@ -18628,7 +18681,7 @@ server <- shinyServer(function(input, output, session) {
       api_key <- get_api_key("openai", input$k_rec_openai_api_key)
       if (!nzchar(api_key)) {
         shiny::showNotification(
-          "OpenAI API key required. Enter in the API Key field or set OPENAI_API_KEY in .Renviron",
+          TextAnalysisR:::.missing_api_key_message("openai", "shiny"),
           type = "error", duration = 5
         )
         return()
@@ -18651,7 +18704,7 @@ server <- shinyServer(function(input, output, session) {
       api_key <- get_api_key("gemini", input$k_rec_gemini_api_key)
       if (!nzchar(api_key)) {
         shiny::showNotification(
-          "Gemini API key required. Enter in the API Key field or set GEMINI_API_KEY in .Renviron",
+          TextAnalysisR:::.missing_api_key_message("gemini", "shiny"),
           type = "error", duration = 5
         )
         return()
@@ -20828,7 +20881,7 @@ server <- shinyServer(function(input, output, session) {
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$stm_label_openai_api_key)
       if (!nzchar(api_key)) {
-        showNotification("OpenAI API key required. Enter in the field or set OPENAI_API_KEY.", type = "error")
+        showNotification(TextAnalysisR:::.missing_api_key_message("openai", "shiny"), type = "error")
         return()
       }
       model <- input$stm_label_openai_model %||% "gpt-4.1-mini"
@@ -20836,7 +20889,7 @@ server <- shinyServer(function(input, output, session) {
     } else if (provider == "gemini") {
       api_key <- get_api_key("gemini", input$stm_label_gemini_api_key)
       if (!nzchar(api_key)) {
-        showNotification("Gemini API key required. Enter in the field or set GEMINI_API_KEY.", type = "error")
+        showNotification(TextAnalysisR:::.missing_api_key_message("gemini", "shiny"), type = "error")
         return()
       }
       model <- input$stm_label_gemini_model %||% "gemini-2.5-flash"
@@ -20933,7 +20986,7 @@ server <- shinyServer(function(input, output, session) {
       api_key <- get_api_key("openai", input$content_openai_api_key)
       if (!nzchar(api_key)) {
         shiny::showNotification(
-          "OpenAI API key required. Enter in the API Key field or set OPENAI_API_KEY in .Renviron",
+          TextAnalysisR:::.missing_api_key_message("openai", "shiny"),
           type = "error", duration = 5
         )
         return()
@@ -20956,7 +21009,7 @@ server <- shinyServer(function(input, output, session) {
       api_key <- get_api_key("gemini", input$content_gemini_api_key)
       if (!nzchar(api_key)) {
         shiny::showNotification(
-          "Gemini API key required. Enter in the API Key field or set GEMINI_API_KEY in .Renviron",
+          TextAnalysisR:::.missing_api_key_message("gemini", "shiny"),
           type = "error", duration = 5
         )
         return()
@@ -22096,7 +22149,7 @@ server <- shinyServer(function(input, output, session) {
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$hybrid_label_openai_api_key)
       if (!nzchar(api_key)) {
-        showNotification("OpenAI API key required. Enter in the field or set OPENAI_API_KEY.", type = "error")
+        showNotification(TextAnalysisR:::.missing_api_key_message("openai", "shiny"), type = "error")
         return()
       }
       model <- input$hybrid_label_openai_model %||% "gpt-4.1-mini"
@@ -22104,7 +22157,7 @@ server <- shinyServer(function(input, output, session) {
     } else if (provider == "gemini") {
       api_key <- get_api_key("gemini", input$hybrid_label_gemini_api_key)
       if (!nzchar(api_key)) {
-        showNotification("Gemini API key required. Enter in the field or set GEMINI_API_KEY.", type = "error")
+        showNotification(TextAnalysisR:::.missing_api_key_message("gemini", "shiny"), type = "error")
         return()
       }
       model <- input$hybrid_label_gemini_model %||% "gemini-2.5-flash"
@@ -22519,10 +22572,12 @@ server <- shinyServer(function(input, output, session) {
 
   output$global_ollama_status <- renderUI({
     if (is_remote) {
-      return(tagList(
-        tags$span(style = "color: #64748B;", icon("info-circle"), " Ollama is for local use only"),
-        tags$p(style = "font-size: 16px; color: #666;",
-          "Use OpenAI or Gemini on the web server.")
+      return(tags$div(
+        style = "background-color: #F1F5F9; padding: 8px; border-radius: 4px; margin-bottom: 10px;",
+        tags$small(
+          style = "color: #64748B;",
+          icon("info-circle"), " Ollama is for local use only. Use OpenAI or Gemini on the web server."
+        )
       ))
     }
     models <- available_ollama_models()
