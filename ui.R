@@ -2021,14 +2021,11 @@ Supports:
                   choices = c("Text Embedding 3 Small (Default)" = "text-embedding-3-small", "Text Embedding 3 Large (Higher Quality)" = "text-embedding-3-large"),
                   selected = "text-embedding-3-small"
                 ),
-                conditionalPanel(
-                  condition = "!output.has_openai_key",
-                  passwordInput("embedding_openai_api_key", "API Key:", placeholder = "sk-...")
-                ),
+                passwordInput("embedding_openai_api_key", "API Key:", placeholder = "sk-..."),
                 conditionalPanel(
                   condition = "output.has_openai_key",
-                  tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                  tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                    icon("check-circle"), " Key stored. Enter new key to override.")
                 )
               ),
               conditionalPanel(
@@ -2039,14 +2036,11 @@ Supports:
                   choices = c("Gemini Embedding 001" = "gemini-embedding-001"),
                   selected = "gemini-embedding-001"
                 ),
-                conditionalPanel(
-                  condition = "!output.has_gemini_key",
-                  passwordInput("embedding_gemini_api_key", "API Key:", placeholder = "AIza...")
-                ),
+                passwordInput("embedding_gemini_api_key", "API Key:", placeholder = "AIza..."),
                 conditionalPanel(
                   condition = "output.has_gemini_key",
-                  tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                  tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                    icon("check-circle"), " Key stored. Enter new key to override.")
                 )
               ),
               div(
@@ -2211,14 +2205,11 @@ Supports:
                   ),
                   selected = "text-embedding-3-small"
                 ),
-                conditionalPanel(
-                  condition = "!output.has_openai_key",
-                  passwordInput("search_embedding_openai_api_key", "API Key:", placeholder = "sk-...")
-                ),
+                passwordInput("search_embedding_openai_api_key", "API Key:", placeholder = "sk-..."),
                 conditionalPanel(
                   condition = "output.has_openai_key",
-                  tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                  tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                    icon("check-circle"), " Key stored. Enter new key to override.")
                 )
               ),
               conditionalPanel(
@@ -2229,14 +2220,11 @@ Supports:
                   choices = c("Gemini Embedding 001" = "gemini-embedding-001"),
                   selected = "gemini-embedding-001"
                 ),
-                conditionalPanel(
-                  condition = "!output.has_gemini_key",
-                  passwordInput("search_embedding_gemini_api_key", "API Key:", placeholder = "AIza...")
-                ),
+                passwordInput("search_embedding_gemini_api_key", "API Key:", placeholder = "AIza..."),
                 conditionalPanel(
                   condition = "output.has_gemini_key",
-                  tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                  tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                    icon("check-circle"), " Key stored. Enter new key to override.")
                 )
               )
             ),
@@ -2276,14 +2264,11 @@ Supports:
                   choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
                   selected = "gpt-4.1-mini"
                 ),
-                conditionalPanel(
-                  condition = "!output.has_openai_key",
-                  passwordInput("rag_openai_api_key", "API Key:", placeholder = "sk-...")
-                ),
+                passwordInput("rag_openai_api_key", "API Key:", placeholder = "sk-..."),
                 conditionalPanel(
                   condition = "output.has_openai_key",
-                  tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                  tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                    icon("check-circle"), " Key stored. Enter new key to override.")
                 )
               ),
               # Gemini settings
@@ -2295,14 +2280,11 @@ Supports:
                   choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
                   selected = "gemini-2.5-flash"
                 ),
-                conditionalPanel(
-                  condition = "!output.has_gemini_key",
-                  passwordInput("rag_gemini_api_key", "API Key:", placeholder = "AIza...")
-                ),
+                passwordInput("rag_gemini_api_key", "API Key:", placeholder = "AIza..."),
                 conditionalPanel(
                   condition = "output.has_gemini_key",
-                  tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                  tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                    icon("check-circle"), " Key stored. Enter new key to override.")
                 )
               )
             ),
@@ -2523,14 +2505,11 @@ Supports:
                 choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
                 selected = "gpt-4.1-mini"
               ),
-              conditionalPanel(
-                condition = "!output.has_openai_key",
-                passwordInput("cluster_openai_api_key", "API Key:", placeholder = "sk-...")
-              ),
+              passwordInput("cluster_openai_api_key", "API Key:", placeholder = "sk-..."),
               conditionalPanel(
                 condition = "output.has_openai_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
 
@@ -2542,14 +2521,11 @@ Supports:
                 choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
                 selected = "gemini-2.5-flash"
               ),
-              conditionalPanel(
-                condition = "!output.has_gemini_key",
-                passwordInput("cluster_gemini_api_key", "API Key:", placeholder = "AIza...")
-              ),
+              passwordInput("cluster_gemini_api_key", "API Key:", placeholder = "AIza..."),
               conditionalPanel(
                 condition = "output.has_gemini_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
 
@@ -3531,14 +3507,11 @@ Supports:
                 choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
                 selected = "gpt-4.1-mini"
               ),
-              conditionalPanel(
-                condition = "!output.has_openai_key",
-                passwordInput("stm_label_openai_api_key", "API Key:", placeholder = "sk-...")
-              ),
+              passwordInput("stm_label_openai_api_key", "API Key:", placeholder = "sk-..."),
               conditionalPanel(
                 condition = "output.has_openai_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
             conditionalPanel(
@@ -3549,14 +3522,11 @@ Supports:
                 choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
                 selected = "gemini-2.5-flash"
               ),
-              conditionalPanel(
-                condition = "!output.has_gemini_key",
-                passwordInput("stm_label_gemini_api_key", "API Key:", placeholder = "AIza...")
-              ),
+              passwordInput("stm_label_gemini_api_key", "API Key:", placeholder = "AIza..."),
               conditionalPanel(
                 condition = "output.has_gemini_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
             textAreaInput(
@@ -3730,14 +3700,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 ),
                 selected = "gpt-4.1-mini"
               ),
-              conditionalPanel(
-                condition = "!output.has_openai_key",
-                passwordInput("k_rec_openai_api_key", "API Key:", placeholder = "sk-...")
-              ),
+              passwordInput("k_rec_openai_api_key", "API Key:", placeholder = "sk-..."),
               conditionalPanel(
                 condition = "output.has_openai_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
 
@@ -3753,14 +3720,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 ),
                 selected = "gemini-2.5-flash"
               ),
-              conditionalPanel(
-                condition = "!output.has_gemini_key",
-                passwordInput("k_rec_gemini_api_key", "API Key:", placeholder = "AIza...")
-              ),
+              passwordInput("k_rec_gemini_api_key", "API Key:", placeholder = "AIza..."),
               conditionalPanel(
                 condition = "output.has_gemini_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
 
@@ -3905,14 +3869,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
                 selected = "gpt-4.1-mini"
               ),
-              conditionalPanel(
-                condition = "!output.has_openai_key",
-                passwordInput("content_openai_api_key", "API Key:", placeholder = "sk-...")
-              ),
+              passwordInput("content_openai_api_key", "API Key:", placeholder = "sk-..."),
               conditionalPanel(
                 condition = "output.has_openai_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
             conditionalPanel(
@@ -3923,14 +3884,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
                 selected = "gemini-2.5-flash"
               ),
-              conditionalPanel(
-                condition = "!output.has_gemini_key",
-                passwordInput("content_gemini_api_key", "API Key:", placeholder = "AIza...")
-              ),
+              passwordInput("content_gemini_api_key", "API Key:", placeholder = "AIza..."),
               conditionalPanel(
                 condition = "output.has_gemini_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
             textAreaInput(
@@ -4038,14 +3996,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 ),
                 selected = "text-embedding-3-small"
               ),
-              conditionalPanel(
-                condition = "!output.has_openai_key",
-                passwordInput("topic_embedding_openai_api_key", "API Key:", placeholder = "sk-...")
-              ),
+              passwordInput("topic_embedding_openai_api_key", "API Key:", placeholder = "sk-..."),
               conditionalPanel(
                 condition = "output.has_openai_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
 
@@ -4057,14 +4012,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 choices = c("Gemini Embedding 001" = "gemini-embedding-001"),
                 selected = "gemini-embedding-001"
               ),
-              conditionalPanel(
-                condition = "!output.has_gemini_key",
-                passwordInput("topic_embedding_gemini_api_key", "API Key:", placeholder = "AIza...")
-              ),
+              passwordInput("topic_embedding_gemini_api_key", "API Key:", placeholder = "AIza..."),
               conditionalPanel(
                 condition = "output.has_gemini_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
 
@@ -4447,14 +4399,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 choices = c("GPT-4.1 Mini (Fast)" = "gpt-4.1-mini", "GPT-4.1 (Accurate)" = "gpt-4.1"),
                 selected = "gpt-4.1-mini"
               ),
-              conditionalPanel(
-                condition = "!output.has_openai_key",
-                passwordInput("hybrid_label_openai_api_key", "API Key:", placeholder = "sk-...")
-              ),
+              passwordInput("hybrid_label_openai_api_key", "API Key:", placeholder = "sk-..."),
               conditionalPanel(
                 condition = "output.has_openai_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
             conditionalPanel(
@@ -4465,14 +4414,11 @@ Focus on incorporating the most significant keywords while following the guideli
                 choices = c("Gemini 2.5 Flash (Fast)" = "gemini-2.5-flash", "Gemini 2.5 Flash Lite (Economy)" = "gemini-2.5-flash-lite", "Gemini 2.5 Pro (Accurate)" = "gemini-2.5-pro"),
                 selected = "gemini-2.5-flash"
               ),
-              conditionalPanel(
-                condition = "!output.has_gemini_key",
-                passwordInput("hybrid_label_gemini_api_key", "API Key:", placeholder = "AIza...")
-              ),
+              passwordInput("hybrid_label_gemini_api_key", "API Key:", placeholder = "AIza..."),
               conditionalPanel(
                 condition = "output.has_gemini_key",
-                tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
+                tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+                  icon("check-circle"), " Key stored. Enter new key to override.")
               )
             ),
             textAreaInput(

@@ -306,14 +306,11 @@ server <- shinyServer(function(input, output, session) {
         ),
         conditionalPanel(
           condition = "input.vision_provider == 'openai'",
+          passwordInput("openai_api_key", "OpenAI API Key:", placeholder = "sk-..."),
           conditionalPanel(
             condition = "output.has_openai_key",
-            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
-          ),
-          conditionalPanel(
-            condition = "!output.has_openai_key",
-            passwordInput("openai_api_key", "OpenAI API Key:", placeholder = "sk-...")
+            tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+              icon("check-circle"), " Key stored. Enter new key to override.")
           ),
           selectInput("openai_vision_model",
             "OpenAI model:",
@@ -323,14 +320,11 @@ server <- shinyServer(function(input, output, session) {
         ),
         conditionalPanel(
           condition = "input.vision_provider == 'gemini'",
+          passwordInput("gemini_vision_api_key", "Gemini API Key:", placeholder = "AIza..."),
           conditionalPanel(
             condition = "output.has_gemini_key",
-            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
-          ),
-          conditionalPanel(
-            condition = "!output.has_gemini_key",
-            passwordInput("gemini_vision_api_key", "Gemini API Key:", placeholder = "AI...")
+            tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+              icon("check-circle"), " Key stored. Enter new key to override.")
           ),
           selectInput("gemini_vision_model",
             "Gemini model:",
@@ -8643,14 +8637,11 @@ server <- shinyServer(function(input, output, session) {
             ),
             selected = "gpt-4.1-mini"
           ),
+          passwordInput("llm_sentiment_openai_api_key", "API Key:", placeholder = "sk-..."),
           conditionalPanel(
             condition = "output.has_openai_key",
-            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
-          ),
-          conditionalPanel(
-            condition = "!output.has_openai_key",
-            passwordInput("llm_sentiment_openai_api_key", "API Key:", placeholder = "sk-...")
+            tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+              icon("check-circle"), " Key stored. Enter new key to override.")
           )
         )
       },
@@ -8666,14 +8657,11 @@ server <- shinyServer(function(input, output, session) {
             ),
             selected = "gemini-2.5-flash"
           ),
+          passwordInput("llm_sentiment_gemini_api_key", "API Key:", placeholder = "AIza..."),
           conditionalPanel(
             condition = "output.has_gemini_key",
-            tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
-          ),
-          conditionalPanel(
-            condition = "!output.has_gemini_key",
-            passwordInput("llm_sentiment_gemini_api_key", "API Key:", placeholder = "AIza...")
+            tags$div(style = "color: #065F46; font-size: 12px; margin-top: -8px; margin-bottom: 8px;",
+              icon("check-circle"), " Key stored. Enter new key to override.")
           )
         )
       }
