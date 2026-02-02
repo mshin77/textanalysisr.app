@@ -36,11 +36,11 @@ ui <- fluidPage(
       `http-equiv` = "Content-Security-Policy",
       content = paste(
         "default-src 'self';",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly https://translate.google.com http://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com https://translate-pa.googleapis.com;",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.plot.ly https://translate.google.com http://translate.google.com https://translate.googleapis.com https://translate.googleusercontent.com https://translate-pa.googleapis.com https://static.cloudflareinsights.com;",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://translate.googleapis.com https://translate.googleusercontent.com https://www.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com;",
         "font-src 'self' https://fonts.gstatic.com https://use.fontawesome.com https://cdnjs.cloudflare.com https://ka-f.fontawesome.com data:;",
         "img-src 'self' data: https: http://translate.google.com https://www.gstatic.com https://translate.google.com;",
-        "connect-src 'self' http://127.0.0.1:* http://localhost:* https://translate.googleapis.com https://translate-pa.googleapis.com http://translate.googleapis.com;",
+        "connect-src 'self' http://127.0.0.1:* http://localhost:* https://translate.googleapis.com https://translate-pa.googleapis.com http://translate.googleapis.com https://cloudflareinsights.com;",
         "frame-src 'self' http: https: https://translate.google.com https://translate.googleusercontent.com;"
       )
     ),
@@ -2028,7 +2028,7 @@ Supports:
                 conditionalPanel(
                   condition = "output.has_openai_key",
                   tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                    tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
                 )
               ),
               conditionalPanel(
@@ -2046,7 +2046,7 @@ Supports:
                 conditionalPanel(
                   condition = "output.has_gemini_key",
                   tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                    tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
                 )
               ),
               div(
@@ -2218,7 +2218,7 @@ Supports:
                 conditionalPanel(
                   condition = "output.has_openai_key",
                   tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                    tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
                 )
               ),
               conditionalPanel(
@@ -2236,7 +2236,7 @@ Supports:
                 conditionalPanel(
                   condition = "output.has_gemini_key",
                   tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                    tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
                 )
               )
             ),
@@ -2283,7 +2283,7 @@ Supports:
                 conditionalPanel(
                   condition = "output.has_openai_key",
                   tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                    tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
                 )
               ),
               # Gemini settings
@@ -2302,7 +2302,7 @@ Supports:
                 conditionalPanel(
                   condition = "output.has_gemini_key",
                   tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                    tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                    tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
                 )
               )
             ),
@@ -2530,7 +2530,7 @@ Supports:
               conditionalPanel(
                 condition = "output.has_openai_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
               )
             ),
 
@@ -2549,7 +2549,7 @@ Supports:
               conditionalPanel(
                 condition = "output.has_gemini_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
               )
             ),
 
@@ -3538,7 +3538,7 @@ Supports:
               conditionalPanel(
                 condition = "output.has_openai_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
               )
             ),
             conditionalPanel(
@@ -3556,7 +3556,7 @@ Supports:
               conditionalPanel(
                 condition = "output.has_gemini_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
               )
             ),
             textAreaInput(
@@ -3737,7 +3737,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_openai_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
               )
             ),
 
@@ -3760,7 +3760,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_gemini_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
               )
             ),
 
@@ -3912,7 +3912,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_openai_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
               )
             ),
             conditionalPanel(
@@ -3930,7 +3930,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_gemini_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
               )
             ),
             textAreaInput(
@@ -4045,7 +4045,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_openai_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
               )
             ),
 
@@ -4064,7 +4064,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_gemini_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
               )
             ),
 
@@ -4263,7 +4263,8 @@ Focus on incorporating the most significant keywords while following the guideli
               "hybrid_categorical_var",
               "Categorical covariate(s)",
               choices = NULL,
-              multiple = TRUE
+              multiple = TRUE,
+              options = list(placeholder = "Optional")
             ),
             selectizeInput(
               "hybrid_continuous_var",
@@ -4453,7 +4454,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_openai_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
               )
             ),
             conditionalPanel(
@@ -4471,7 +4472,7 @@ Focus on incorporating the most significant keywords while following the guideli
               conditionalPanel(
                 condition = "output.has_gemini_key",
                 tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-                  tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+                  tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
               )
             ),
             textAreaInput(

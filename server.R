@@ -309,7 +309,7 @@ server <- shinyServer(function(input, output, session) {
           conditionalPanel(
             condition = "output.has_openai_key",
             tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+              tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
           ),
           conditionalPanel(
             condition = "!output.has_openai_key",
@@ -326,7 +326,7 @@ server <- shinyServer(function(input, output, session) {
           conditionalPanel(
             condition = "output.has_gemini_key",
             tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+              tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
           ),
           conditionalPanel(
             condition = "!output.has_gemini_key",
@@ -8646,7 +8646,7 @@ server <- shinyServer(function(input, output, session) {
           conditionalPanel(
             condition = "output.has_openai_key",
             tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("check-circle"), " Using OpenAI key from AI Setup"))
+              tags$small(style = "color: #065F46;", icon("lock"), " OpenAI key stored"))
           ),
           conditionalPanel(
             condition = "!output.has_openai_key",
@@ -8669,7 +8669,7 @@ server <- shinyServer(function(input, output, session) {
           conditionalPanel(
             condition = "output.has_gemini_key",
             tags$div(style = "background-color: #D1FAE5; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px;",
-              tags$small(style = "color: #065F46;", icon("check-circle"), " Using Gemini key from AI Setup"))
+              tags$small(style = "color: #065F46;", icon("lock"), " Gemini key stored"))
           ),
           conditionalPanel(
             condition = "!output.has_gemini_key",
@@ -11185,6 +11185,8 @@ server <- shinyServer(function(input, output, session) {
     category_filter = NULL,
     timestamp = NULL
   )
+
+  embedding_displayed <- reactiveVal(FALSE)
 
   observeEvent(input$doc_id_var, {
     if (!is.null(comparison_results$calculated_doc_id_var) &&
@@ -16196,7 +16198,7 @@ server <- shinyServer(function(input, output, session) {
 
   output$has_document_topic_results <- reactive({
     tryCatch({
-      !is.null(gamma_terms())
+      !is.null(gamma_terms()) || isTRUE(embedding_displayed())
     }, error = function(e) {
       FALSE
     })
@@ -18354,8 +18356,7 @@ server <- shinyServer(function(input, output, session) {
               verbose = TRUE
             )
           } else {
-            # Use multiple cores for faster searchK (leave 1 core free)
-            n_cores <- max(1, parallel::detectCores() - 1)
+            n_cores <- if (.Platform$OS.type == "windows") 1L else max(1L, parallel::detectCores() - 1L)
             stm::searchK(
               data = out()$meta,
               documents = out()$documents,
@@ -18368,7 +18369,7 @@ server <- shinyServer(function(input, output, session) {
               sigma.prior = 0,
               kappa.prior = input$stm_kappa_prior_search,
               max.em.its = input$stm_max_em_its_search,
-              emtol = 1e-04,  # Relaxed tolerance for faster convergence
+              emtol = 1e-04,
               cores = n_cores,
               control = list(alpha = 1)
             )
@@ -18376,7 +18377,7 @@ server <- shinyServer(function(input, output, session) {
         }, error = function(search_error) {
           if (grepl("chol|decomposition|singular", search_error$message, ignore.case = TRUE)) {
             showNotification("Spectral initialization failed. Using LDA initialization instead...", type = "warning")
-            n_cores <- max(1, parallel::detectCores() - 1)
+            n_cores <- if (.Platform$OS.type == "windows") 1L else max(1L, parallel::detectCores() - 1L)
             stm::searchK(
               data = out()$meta,
               documents = out()$documents,
@@ -18389,7 +18390,7 @@ server <- shinyServer(function(input, output, session) {
               sigma.prior = 0,
               kappa.prior = input$stm_kappa_prior_search,
               max.em.its = input$stm_max_em_its_search,
-              emtol = 1e-04,  # Relaxed tolerance for faster convergence
+              emtol = 1e-04,
               cores = n_cores,
               control = list(alpha = 1)
             )
@@ -18686,7 +18687,7 @@ server <- shinyServer(function(input, output, session) {
         )
         return()
       }
-      if (!TextAnalysisR:::validate_api_key(api_key, strict = TRUE)) {
+      if (!TextAnalysisR:::validate_api_key(api_key, strict = TRUE)$valid) {
         TextAnalysisR:::log_security_event(
           "INVALID_API_KEY_ATTEMPT",
           "Malformed API key submitted for K recommendation",
@@ -18827,15 +18828,14 @@ server <- shinyServer(function(input, output, session) {
       # Call the appropriate provider
       recommendation <- if (provider == "ollama") {
         TextAnalysisR::call_ollama(
-          prompt = user_prompt,
-          system_prompt = system_prompt,
+          prompt = paste0(system_prompt, "\n\n", user_prompt),
           model = model,
           temperature = 0.7,
           max_tokens = 500
         )
       } else if (provider == "openai") {
         TextAnalysisR::call_openai_chat(
-          prompt = user_prompt,
+          user_prompt = user_prompt,
           system_prompt = system_prompt,
           model = model,
           api_key = api_key,
@@ -18844,7 +18844,7 @@ server <- shinyServer(function(input, output, session) {
         )
       } else if (provider == "gemini") {
         TextAnalysisR::call_gemini_chat(
-          prompt = user_prompt,
+          user_prompt = user_prompt,
           system_prompt = system_prompt,
           model = model,
           api_key = api_key,
@@ -19462,6 +19462,8 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observeEvent(input$embedding_run, {
+    embedding_displayed(FALSE)
+
     if (!TextAnalysisR::require_feature("embeddings", session)) {
       return()
     }
@@ -19912,6 +19914,49 @@ server <- shinyServer(function(input, output, session) {
     }
 
     if ("topic_assignments" %in% names(stm_K_number())) {
+      embedding_displayed(TRUE)
+
+      model <- stm_K_number()
+      n_topics <- length(unique(model$topic_assignments[model$topic_assignments > 0]))
+      n_docs <- length(model$topic_assignments)
+      n_outliers <- sum(model$topic_assignments == -1)
+      outlier_pct <- round(100 * n_outliers / n_docs, 1)
+
+      output$topic_term_message <- renderUI({
+        tags$div(
+          style = "padding: 12px 16px; background: #f0f7ff; border-left: 4px solid #337ab7; margin-bottom: 16px; font-size: 15px;",
+          tags$strong("Embedding-based Topic Model Summary: "),
+          paste0(n_topics, " topics discovered from ", n_docs, " documents"),
+          if (n_outliers > 0) paste0(" (", n_outliers, " outliers, ", outlier_pct, "%)") else NULL
+        )
+      })
+
+      output$topic_term_plot_uiOutput <- renderUI({
+        DT::dataTableOutput("embedding_keyword_table", width = "100%")
+      })
+
+      output$embedding_keyword_table <- DT::renderDataTable({
+        model <- stm_K_number()
+        if ("topic_keywords" %in% names(model)) {
+          topic_counts <- table(model$topic_assignments[model$topic_assignments > 0])
+
+          topic_df <- data.frame(
+            Topic = names(model$topic_keywords),
+            `Top Keywords (c-TF-IDF)` = sapply(model$topic_keywords, function(x) paste(head(x, 7), collapse = ", ")),
+            `Document Count` = as.numeric(topic_counts[names(model$topic_keywords)]),
+            stringsAsFactors = FALSE
+          )
+
+          if ("topic_diversity" %in% names(model)) {
+            topic_df$Diversity <- round(model$topic_diversity, 3)
+          }
+
+          DT::datatable(topic_df, options = list(pageLength = 15))
+        }
+      })
+
+      output$topic_term_table_uiOutput <- renderUI({ NULL })
+
       output$topic_prevalence_plot_uiOutput <- renderUI({
         tagList(
           div(
@@ -20991,7 +21036,7 @@ server <- shinyServer(function(input, output, session) {
         )
         return()
       }
-      if (!TextAnalysisR:::validate_api_key(api_key, strict = TRUE)) {
+      if (!TextAnalysisR:::validate_api_key(api_key, strict = TRUE)$valid) {
         TextAnalysisR:::log_security_event(
           "INVALID_API_KEY_ATTEMPT",
           "Malformed API key submitted for content generation",
@@ -21884,6 +21929,10 @@ server <- shinyServer(function(input, output, session) {
     if (is.null(stm_K_number()) || is.null(out()) || is.null(input$stm_topic_texts) || is.null(mydata())) {
       return(NULL)
     }
+    showNotification(
+      "Finding representative documents...",
+      type = "message", duration = NULL, id = "stm_quote_notification"
+    )
     tryCatch(
       {
         pn <- input$topic_number_quote %>% as.numeric()
@@ -21953,8 +22002,12 @@ server <- shinyServer(function(input, output, session) {
         }
       },
       error = function(e) {
+        tryCatch(removeNotification(id = "stm_quote_notification"), error = function(e) {})
         showNotification(paste("Error finding topic thoughts:", e$message), type = "error")
         return(NULL)
+      },
+      finally = {
+        tryCatch(removeNotification(id = "stm_quote_notification"), error = function(e) {})
       }
     )
   })
@@ -22061,6 +22114,10 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
+    showNotification(
+      "Finding representative documents...",
+      type = "message", duration = NULL, id = "hybrid_quote_notification"
+    )
     tryCatch({
       stm_model <- hybrid_result$stm_result$model
       if (is.null(stm_model)) {
@@ -22109,7 +22166,10 @@ server <- shinyServer(function(input, output, session) {
         showNotification("No documents found for this topic.", type = "warning")
       }
     }, error = function(e) {
+      tryCatch(removeNotification(id = "hybrid_quote_notification"), error = function(e) {})
       showNotification(paste("Error finding topic quotes:", e$message), type = "error")
+    }, finally = {
+      tryCatch(removeNotification(id = "hybrid_quote_notification"), error = function(e) {})
     })
   })
 
@@ -22222,6 +22282,10 @@ server <- shinyServer(function(input, output, session) {
       return(NULL)
     }
 
+    showNotification(
+      "Estimating effects for STM model...",
+      type = "message", duration = NULL, id = "stm_effect_notification"
+    )
     tryCatch(
       {
         categorical_var <- if (!is.null(input$stm_categorical_var_2)) unlist(strsplit(as.character(input$stm_categorical_var_2), ",\\s*")) else NULL
@@ -22264,8 +22328,12 @@ server <- shinyServer(function(input, output, session) {
         }
       },
       error = function(e) {
+        tryCatch(removeNotification(id = "stm_effect_notification"), error = function(e) {})
         showNotification(paste("Error estimating effects:", e$message), type = "error")
         return(NULL)
+      },
+      finally = {
+        tryCatch(removeNotification(id = "stm_effect_notification"), error = function(e) {})
       }
     )
   })
