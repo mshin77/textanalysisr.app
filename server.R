@@ -18816,10 +18816,11 @@ server <- shinyServer(function(input, output, session) {
       # Call the appropriate provider
       recommendation <- if (provider == "ollama") {
         TextAnalysisR::call_ollama(
-          prompt = paste0(system_prompt, "\n\n", user_prompt),
+          prompt = user_prompt,
           model = model,
+          system = system_prompt,
           temperature = 0.7,
-          max_tokens = 500
+          max_tokens = 2048
         )
       } else if (provider == "openai") {
         TextAnalysisR::call_openai_chat(
@@ -18828,7 +18829,7 @@ server <- shinyServer(function(input, output, session) {
           model = model,
           api_key = api_key,
           temperature = 0.7,
-          max_tokens = 500
+          max_tokens = 2048
         )
       } else if (provider == "gemini") {
         TextAnalysisR::call_gemini_chat(
@@ -18837,7 +18838,7 @@ server <- shinyServer(function(input, output, session) {
           model = model,
           api_key = api_key,
           temperature = 0.7,
-          max_tokens = 500
+          max_tokens = 2048
         )
       }
 

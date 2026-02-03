@@ -626,10 +626,11 @@ $(document).ready(function() {
     // Add active class only to the current hovered option
     $(this).addClass('active');
   });
-  
+
   $(document).on('mouseleave', '.selectize-dropdown', function() {
     // Clear all active states when mouse leaves dropdown
     $('.selectize-dropdown .option').removeClass('active');
   });
 });
+
 
