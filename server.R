@@ -2313,8 +2313,8 @@ server <- shinyServer(function(input, output, session) {
         "",
         "If you use this preprocessing workflow in your research, please cite:",
         "",
-        "Shin, M. (2025). TextAnalysisR: Text mining workflow tool (Version 0.0.3)",
-        "  [R package]. https://github.com/mshin77/TextAnalysisR",
+        "Shin, M. (2025). TextAnalysisR: A text mining workflow tool (R package version 0.0.3)",
+        "  [Computer software]. https://github.com/mshin77/TextAnalysisR",
         "",
         "================================================================================",
         "END OF REPORT",
@@ -8602,14 +8602,14 @@ server <- shinyServer(function(input, output, session) {
         if (ollama_available) {
           models <- tryCatch({
             TextAnalysisR::list_ollama_models()
-          }, error = function(e) c("llama3.2", "mistral", "gemma3"))
+          }, error = function(e) c("tinyllama", "llama3.2", "mistral", "gemma3"))
 
           tagList(
             selectInput(
               "llm_sentiment_model",
               "Ollama Model",
               choices = models,
-              selected = if ("llama3.2" %in% models) "llama3.2" else models[1]
+              selected = if ("tinyllama" %in% models) "tinyllama" else models[1]
             ),
             tags$p(
               style = "font-size: 16px; color: #666;",
@@ -13120,7 +13120,7 @@ server <- shinyServer(function(input, output, session) {
                  <ol>
                    <li>Download Ollama from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>
                    <li>Run: <code>ollama pull nomic-embed-text</code> (for embeddings)</li>
-                   <li>Run: <code>ollama pull llama3.2</code> (for chat)</li>
+                   <li>Run: <code>ollama pull tinyllama</code> (for chat)</li>
                    <li>Start Ollama and try again</li>
                  </ol>"),
             easyClose = TRUE,
@@ -13129,7 +13129,7 @@ server <- shinyServer(function(input, output, session) {
           return()
         }
 
-        chat_model <- input$rag_ollama_model %||% "llama3.2"
+        chat_model <- input$rag_ollama_model %||% "tinyllama"
 
       } else if (provider == "openai") {
         api_key <- get_api_key("openai", input$rag_openai_api_key)
@@ -16106,7 +16106,8 @@ server <- shinyServer(function(input, output, session) {
     search_result <- hybrid_K_search()
     if (!is.null(search_result) && !is.null(search_result$results)) {
       height_val <- input$height_search_k %||% 600
-      plotly::plotlyOutput("hybrid_quality_metrics_plot", height = paste0(height_val, "px"), width = "100%")
+      width_val <- input$width_search_k %||% 1000
+      plotly::plotlyOutput("hybrid_quality_metrics_plot", height = paste0(height_val, "px"), width = paste0(width_val, "px"))
     }
   })
 
@@ -16155,7 +16156,8 @@ server <- shinyServer(function(input, output, session) {
     search_result <- hybrid_K_search()
     if (!is.null(search_result) && !is.null(search_result$results)) {
       height_val <- input$height_search_k %||% 600
-      plotly::plotlyOutput("hybrid_model_comparison_plot", height = paste0(height_val, "px"), width = "100%")
+      width_val <- input$width_search_k %||% 1000
+      plotly::plotlyOutput("hybrid_model_comparison_plot", height = paste0(height_val, "px"), width = paste0(width_val, "px"))
     }
   })
 
@@ -17959,7 +17961,7 @@ server <- shinyServer(function(input, output, session) {
           style = "background-color: #FEF3C7; padding: 8px; border-radius: 4px; margin-bottom: 10px;",
           tags$small(
             style = "color: #92400E;",
-            icon("exclamation-triangle"), " Ollama running but no models found. Run: ollama pull llama3.2"
+            icon("exclamation-triangle"), " Ollama running but no models found. Run: ollama pull tinyllama"
           )
         )
       }
@@ -18037,7 +18039,7 @@ server <- shinyServer(function(input, output, session) {
             "<ol>",
             "<li>Download from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>",
             "<li>Install and start Ollama</li>",
-            "<li>Run: <code>ollama pull llama3.2</code></li>",
+            "<li>Run: <code>ollama pull tinyllama</code></li>",
             "</ol>"
           )),
           easyClose = TRUE,
@@ -18046,7 +18048,7 @@ server <- shinyServer(function(input, output, session) {
         return()
       }
 
-      model <- input$cluster_ollama_model %||% "llama3.2"
+      model <- input$cluster_ollama_model %||% "tinyllama"
 
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$cluster_openai_api_key)
@@ -18462,12 +18464,13 @@ server <- shinyServer(function(input, output, session) {
 
   output$quality_metrics_plot_uiOutput <- renderUI({
     height_val <- input$height_search_k %||% 600
+    width_val <- input$width_search_k %||% 1000
     div(
-      style = "margin-bottom: 20px; overflow: hidden;",
+      style = "margin-bottom: 20px; overflow: auto;",
       plotly::plotlyOutput(
         "quality_metrics_plot",
         height = paste0(height_val, "px"),
-        width = "100%"
+        width = paste0(width_val, "px")
       )
     )
   })
@@ -18609,12 +18612,13 @@ server <- shinyServer(function(input, output, session) {
 
   output$model_comparison_plot_uiOutput <- renderUI({
     height_val <- input$height_search_k %||% 600
+    width_val <- input$width_search_k %||% 1000
     div(
-      style = "margin-bottom: 20px; overflow: hidden;",
+      style = "margin-bottom: 20px; overflow: auto;",
       plotly::plotlyOutput(
         "model_comparison_plot",
         height = paste0(height_val, "px"),
-        width = "100%"
+        width = paste0(width_val, "px")
       )
     )
   })
@@ -18655,7 +18659,7 @@ server <- shinyServer(function(input, output, session) {
             "<ol>",
             "<li>Download from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>",
             "<li>Install and start Ollama</li>",
-            "<li>Run: <code>ollama pull llama3.2</code></li>",
+            "<li>Run: <code>ollama pull tinyllama</code></li>",
             "</ol>"
           )),
           easyClose = TRUE,
@@ -18664,7 +18668,7 @@ server <- shinyServer(function(input, output, session) {
         return()
       }
 
-      model <- input$k_rec_ollama_model %||% "llama3.2"
+      model <- input$k_rec_ollama_model %||% "tinyllama"
 
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$k_rec_openai_api_key)
@@ -18820,26 +18824,35 @@ server <- shinyServer(function(input, output, session) {
           model = model,
           system = system_prompt,
           temperature = 0.7,
-          max_tokens = 2048
+          max_tokens = 2048,
+          timeout = 300
         )
-      } else if (provider == "openai") {
-        TextAnalysisR::call_openai_chat(
-          user_prompt = user_prompt,
-          system_prompt = system_prompt,
-          model = model,
-          api_key = api_key,
-          temperature = 0.7,
-          max_tokens = 2048
+      } else if (provider == "openai" || provider == "gemini") {
+        enhanced_prompt <- paste0(
+          user_prompt,
+          "\n\nIMPORTANT: Provide a detailed, multi-paragraph analysis. ",
+          "Include specific metric values in your explanation. ",
+          "Discuss trade-offs between different K values and explain your reasoning thoroughly."
         )
-      } else if (provider == "gemini") {
-        TextAnalysisR::call_gemini_chat(
-          user_prompt = user_prompt,
-          system_prompt = system_prompt,
-          model = model,
-          api_key = api_key,
-          temperature = 0.7,
-          max_tokens = 2048
-        )
+        if (provider == "openai") {
+          TextAnalysisR::call_openai_chat(
+            user_prompt = enhanced_prompt,
+            system_prompt = system_prompt,
+            model = model,
+            api_key = api_key,
+            temperature = 0.7,
+            max_tokens = 2048
+          )
+        } else {
+          TextAnalysisR::call_gemini_chat(
+            user_prompt = enhanced_prompt,
+            system_prompt = system_prompt,
+            model = model,
+            api_key = api_key,
+            temperature = 0.7,
+            max_tokens = 2048
+          )
+        }
       }
 
       # Extract K value from recommendation
@@ -18859,12 +18872,14 @@ server <- shinyServer(function(input, output, session) {
 
     }, error = function(e) {
       tryCatch(removeNotification(id = "ai_gen_notification"), error = function(e) {})
-      error_msg <- if (!is.null(e$message) && nchar(e$message) > 0) {
+      error_msg <- if (grepl("timeout|timed out", e$message, ignore.case = TRUE)) {
+        "Ollama request timed out. The model may be loading or your hardware may be slow. Try again or use a smaller model like 'tinyllama'."
+      } else if (!is.null(e$message) && nchar(e$message) > 0) {
         paste("AI recommendation error:", e$message)
       } else {
         "Error generating AI recommendation. Please check your settings and try again."
       }
-      shiny::showNotification(error_msg, type = "error", duration = 5)
+      shiny::showNotification(error_msg, type = "error", duration = 8)
     })
   })
 
@@ -20902,7 +20917,7 @@ server <- shinyServer(function(input, output, session) {
                <p><strong>Setup:</strong></p>
                <ol>
                  <li>Download Ollama from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>
-                 <li>Run: <code>ollama pull llama3.2</code></li>
+                 <li>Run: <code>ollama pull tinyllama</code></li>
                  <li>Start Ollama and try again</li>
                </ol>"),
           easyClose = TRUE,
@@ -20910,7 +20925,7 @@ server <- shinyServer(function(input, output, session) {
         ))
         return()
       }
-      model <- input$stm_label_ollama_model %||% "llama3.2"
+      model <- input$stm_label_ollama_model %||% "tinyllama"
 
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$stm_label_openai_api_key)
@@ -21005,7 +21020,7 @@ server <- shinyServer(function(input, output, session) {
             "<ol>",
             "<li>Download from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>",
             "<li>Install and start Ollama</li>",
-            "<li>Run: <code>ollama pull llama3.2</code></li>",
+            "<li>Run: <code>ollama pull tinyllama</code></li>",
             "</ol>"
           )),
           easyClose = TRUE,
@@ -21014,7 +21029,7 @@ server <- shinyServer(function(input, output, session) {
         return()
       }
 
-      model <- input$content_ollama_model %||% "llama3.2"
+      model <- input$content_ollama_model %||% "tinyllama"
 
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$content_openai_api_key)
@@ -21275,26 +21290,54 @@ server <- shinyServer(function(input, output, session) {
                             "beta" = "Probability"
     )
 
-    plot_word_probability(
+    ncol_val <- get_ncol_top_terms()
+    plot_height <- input$height %||% 1000
+    plot_width <- input$width %||% 1000
+
+    ggplot_obj <- TextAnalysisR::plot_word_probability(
       top_topic_terms = topic_term_data,
       topic_label = final_labels,
-      ncol = get_ncol_top_terms(),
-      height = input$height,
-      width = input$width,
+      ncol = ncol_val,
+      height = plot_height,
+      width = plot_width,
       ylab = measure_label,
       title = paste("Top Terms by", measure_label),
       colors = topic_colors,
-      measure_label = measure_label
+      measure_label = measure_label,
+      base_font_size = 11
+    ) +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(size = 12),
+        axis.text.y = ggplot2::element_text(size = 12),
+        axis.title.x = ggplot2::element_text(size = 12),
+        axis.title.y = ggplot2::element_text(size = 12)
+      )
+
+    plotly_obj <- plotly::ggplotly(ggplot_obj, tooltip = "text", height = plot_height, width = plot_width)
+
+    plotly_obj$x$layout$annotations <- lapply(
+      plotly_obj$x$layout$annotations,
+      function(x) { x$font$size <- 14; x }
     )
+
+    plotly_obj %>%
+      plotly::layout(
+        margin = list(t = 50, b = 50, l = 80, r = 20),
+        hovermode = "closest"
+      ) %>%
+      plotly::style(hoverinfo = "text")
   })
 
   output$topic_term_plot_uiOutput <- renderUI({
+    plot_height <- input$height %||% 1000
+    plot_width <- input$width %||% 1000
+
     div(
-      style = "margin-bottom: 20px; overflow: hidden;",
+      style = "margin-bottom: 20px; overflow: auto;",
       plotly::plotlyOutput(
         "topic_term_plot",
-        height = 500,
-        width = "100%"
+        height = paste0(plot_height, "px"),
+        width = paste0(plot_width, "px")
       )
     )
   })
@@ -21596,12 +21639,12 @@ server <- shinyServer(function(input, output, session) {
 
   top_terms_selected <- reactive({
     topic_data <- topic_table_data()
-    if (is.null(topic_data) || !is.data.frame(topic_data)) {
+    if (is.null(topic_data) || inherits(topic_data, "htmlwidget") || !is.data.frame(topic_data)) {
       return(NULL)
     }
 
     beta_data <- beta_td()
-    if (is.null(beta_data) || !is.data.frame(beta_data)) {
+    if (is.null(beta_data) || inherits(beta_data, "htmlwidget") || !is.data.frame(beta_data)) {
       return(NULL)
     }
 
@@ -21611,10 +21654,9 @@ server <- shinyServer(function(input, output, session) {
 
     beta_data %>%
       dplyr::group_by(topic) %>%
-      dplyr::top_n(input$stm_top_term_number_2, beta) %>%
+      dplyr::slice_max(beta, n = input$stm_top_term_number_2 %||% 10) %>%
       dplyr::arrange(beta) %>%
-      dplyr::summarise(terms = paste(term, collapse = ", ")) %>%
-      dplyr::ungroup() %>%
+      dplyr::summarise(terms = paste(term, collapse = ", "), .groups = "drop") %>%
       dplyr::left_join(topic_mapping, by = "topic")
   })
 
@@ -21632,21 +21674,26 @@ server <- shinyServer(function(input, output, session) {
     tryCatch(
       {
         package_result <- tryCatch({
-          TextAnalysisR::calculate_topic_probability(
+          result <- TextAnalysisR::calculate_topic_probability(
             stm_model = stm_K_number(),
             top_n = input$topic_number %||% 10,
             verbose = FALSE
           )
+          if (inherits(result, "data.frame") && !inherits(result, "datatables")) {
+            result
+          } else {
+            NULL
+          }
         }, error = function(e) NULL)
 
         topic_data <- topic_table_data()
-        if (!is.data.frame(topic_data)) {
+        if (is.null(topic_data) || inherits(topic_data, "htmlwidget") || !is.data.frame(topic_data)) {
           showNotification("Topic data is not available. Please ensure topic modeling has been run.", type = "error")
           return(NULL)
         }
 
         top_terms <- top_terms_selected()
-        if (!is.data.frame(top_terms)) {
+        if (is.null(top_terms) || inherits(top_terms, "htmlwidget") || !is.data.frame(top_terms)) {
           showNotification("Top terms data is not available.", type = "error")
           return(NULL)
         }
@@ -21664,8 +21711,8 @@ server <- shinyServer(function(input, output, session) {
 
           gamma_td %>%
             dplyr::group_by(topic) %>%
-            dplyr::summarise(gamma = mean(gamma)) %>%
-            dplyr::arrange(desc(gamma)) %>%
+            dplyr::summarise(gamma = mean(gamma), .groups = "drop") %>%
+            dplyr::arrange(dplyr::desc(gamma)) %>%
             dplyr::left_join(top_terms, by = "topic") %>%
             dplyr::left_join(topic_mapping, by = "topic") %>%
             dplyr::mutate(topic = reorder(topic, gamma))
@@ -21781,14 +21828,20 @@ server <- shinyServer(function(input, output, session) {
         )
       }
 
-      plot_topic_probability(
+      ggplot_obj <- TextAnalysisR::plot_topic_probability(
         gamma_data = topic_prevalence_data,
         top_n = input$topic_number,
-        height = input$height_topic_prevalence,
-        width = input$width_topic_prevalence,
         topic_labels = TRUE,
         colors = topic_colors
       )
+
+      plotly::ggplotly(
+        ggplot_obj,
+        tooltip = "text",
+        height = input$height_topic_prevalence,
+        width = input$width_topic_prevalence
+      ) %>%
+        plotly::layout(margin = list(t = 50, b = 40, l = 80, r = 40))
     })
   })
 
@@ -22185,7 +22238,7 @@ server <- shinyServer(function(input, output, session) {
                <p><strong>Setup:</strong></p>
                <ol>
                  <li>Download Ollama from <a href='https://ollama.com' target='_blank'>ollama.com</a></li>
-                 <li>Run: <code>ollama pull llama3.2</code></li>
+                 <li>Run: <code>ollama pull tinyllama</code></li>
                  <li>Start Ollama and try again</li>
                </ol>"),
           easyClose = TRUE,
@@ -22193,7 +22246,7 @@ server <- shinyServer(function(input, output, session) {
         ))
         return()
       }
-      model <- input$hybrid_label_ollama_model %||% "llama3.2"
+      model <- input$hybrid_label_ollama_model %||% "tinyllama"
 
     } else if (provider == "openai") {
       api_key <- get_api_key("openai", input$hybrid_label_openai_api_key)
@@ -22598,7 +22651,7 @@ server <- shinyServer(function(input, output, session) {
   observe({
     models <- available_ollama_models()
     if (!is.null(models) && length(models) > 0) {
-      llm_default <- if ("llama3.2" %in% models) "llama3.2" else models[1]
+      llm_default <- if ("tinyllama" %in% models) "tinyllama" else models[1]
       llm_ids <- c("cluster_ollama_model", "rag_ollama_model",
                    "stm_label_ollama_model", "k_rec_ollama_model",
                    "content_ollama_model", "hybrid_label_ollama_model")

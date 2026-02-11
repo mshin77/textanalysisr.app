@@ -46,7 +46,7 @@ TextAnalysisR provides AI/NLP capabilities via local and web-based providers.
 ```r
 # Local AI (recommended for privacy)
 # Install Ollama: https://ollama.com
-# Then: ollama pull llama3.2
+# Then: ollama pull tinyllama
 
 # Web-based AI
 Sys.setenv(OPENAI_API_KEY = "your-key")

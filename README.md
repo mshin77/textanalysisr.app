@@ -50,9 +50,9 @@ for tutorials.
 
 ## Citation
 
--   Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* (R
-    package version 0.0.3) \[Computer software\].
-    <https://mshin77.github.io/TextAnalysisR>
+- Shin, M. (2025). *TextAnalysisR: A text mining workflow tool* (R
+  package version 0.0.3) \[Computer software\].
+  <https://mshin77.github.io/TextAnalysisR>
 
--   Shin, M. (2026). *TextAnalysisR: A text mining workflow tool* \[Web
-    application\]. <https://www.textanalysisr.org>
+- Shin, M. (2026). *TextAnalysisR: A text mining workflow tool* \[Web
+  application\]. <https://www.textanalysisr.org>

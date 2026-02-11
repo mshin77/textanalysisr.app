@@ -2246,8 +2246,8 @@ Supports:
                 selectInput(
                   "rag_ollama_model",
                   "Ollama Model:",
-                  choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
-                  selected = "llama3.2"
+                  choices = c("TinyLlama (Default)" = "tinyllama", "Llama 3.2" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                  selected = "tinyllama"
                 ),
                 tags$p(
                   style = "font-size: 16px; color: #666; margin-top: 5px;",
@@ -2487,8 +2487,8 @@ Supports:
               selectInput(
                 "cluster_ollama_model",
                 "Ollama Model:",
-                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
-                selected = "llama3.2"
+                choices = c("TinyLlama (Default)" = "tinyllama", "Llama 3.2" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "tinyllama"
               ),
               tags$p(
                 style = "font-size: 16px; color: #666;",
@@ -3490,8 +3490,8 @@ Supports:
               selectInput(
                 "stm_label_ollama_model",
                 "Ollama Model:",
-                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
-                selected = "llama3.2"
+                choices = c("TinyLlama (Default)" = "tinyllama", "Llama 3.2" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "tinyllama"
               ),
               tags$p(
                 style = "font-size: 16px; color: #666;",
@@ -3679,8 +3679,8 @@ Focus on incorporating the most significant keywords while following the guideli
               selectInput(
                 "k_rec_ollama_model",
                 "Ollama Model:",
-                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
-                selected = "llama3.2"
+                choices = c("TinyLlama (Default)" = "tinyllama", "Llama 3.2" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "tinyllama"
               ),
               tags$p(
                 style = "font-size: 16px; color: #666;",
@@ -3852,8 +3852,8 @@ Focus on incorporating the most significant keywords while following the guideli
               selectInput(
                 "content_ollama_model",
                 "Ollama Model:",
-                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
-                selected = "llama3.2"
+                choices = c("TinyLlama (Default)" = "tinyllama", "Llama 3.2" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "tinyllama"
               ),
               tags$p(
                 style = "font-size: 16px; color: #666;",
@@ -4382,8 +4382,8 @@ Focus on incorporating the most significant keywords while following the guideli
               selectInput(
                 "hybrid_label_ollama_model",
                 "Ollama Model:",
-                choices = c("Llama 3.2 (Default)" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
-                selected = "llama3.2"
+                choices = c("TinyLlama (Default)" = "tinyllama", "Llama 3.2" = "llama3.2", "Mistral" = "mistral", "Gemma 3" = "gemma3"),
+                selected = "tinyllama"
               ),
               tags$p(
                 style = "font-size: 16px; color: #666;",
