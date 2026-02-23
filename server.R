@@ -2313,7 +2313,7 @@ server <- shinyServer(function(input, output, session) {
         "",
         "If you use this preprocessing workflow in your research, please cite:",
         "",
-        "Shin, M. (2025). TextAnalysisR: A text mining workflow tool (R package version 0.0.3)",
+        "Shin, M. (2026). TextAnalysisR: A text mining workflow tool (R package version 0.0.3)",
         "  [Computer software]. https://github.com/mshin77/TextAnalysisR",
         "",
         "================================================================================",

@@ -29,7 +29,7 @@ ui <- fluidPage(
   tags$head(
     tags$meta(charset = "UTF-8"),
     tags$meta(name = "viewport", content = "width=device-width, initial-scale=1.0"),
-    tags$meta(name = "description", content = "TextAnalysisR: Comprehensive text mining and semantic analysis toolkit"),
+    tags$meta(name = "description", content = "TextAnalysisR: A text mining workflow tool"),
     tags$meta(name = "keywords", content = "text mining, topic modeling, semantic analysis, R Shiny"),
 
     tags$meta(
@@ -194,7 +194,7 @@ ui <- fluidPage(
   ),
 
   titlePanel("TextAnalysisR",
-    windowTitle = "TextAnalysisR: Text Mining and Semantic Analysis Toolkit"
+    windowTitle = "TextAnalysisR: A Text Mining Workflow Tool"
   ),
   tags$main(
     id = "main-content",
