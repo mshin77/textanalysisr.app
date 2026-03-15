@@ -1709,7 +1709,9 @@ Supports:
                     ),
                     # Download button for Dependency Parsing
                     uiOutput("dep_download_button"),
-                    uiOutput("dep_displacy_container")
+                    uiOutput("dep_displacy_container"),
+                    br(),
+                    DT::dataTableOutput("dep_table")
                   )
                 ),
                 tabPanel(
@@ -1757,7 +1759,7 @@ Supports:
                     # Existing frequency plot
                     uiOutput("entity_plot_uiOutput"),
                     br(),
-                    DT::dataTableOutput("entity_table")
+                    uiOutput("entity_table_uiOutput")
                   )
                 )
               )
@@ -1914,14 +1916,14 @@ Supports:
         sidebarPanel(
           width = 3,
           class = "sidebar-panel",
-          # Category variable - only for tabs that use it (Similarity and Comparative)
+          # Categorical variable - only for tabs that use it (Similarity and Comparative)
           conditionalPanel(
             condition = "input.semantic_analysis_tabs == 'similarity' || input.semantic_analysis_tabs == 'comparative'",
             div(
               style = "margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0;",
               selectizeInput(
                 "doc_category_var",
-                "Category variable",
+                "Categorical variable",
                 choices = NULL,
                 selected = "",
                 options = list(
@@ -1972,7 +1974,7 @@ Supports:
               tags$p(style = "font-size: 16px; color: #666; margin-bottom: 10px;", "Document-to-document similarity using vector embeddings."),
               uiOutput("embedding_status_ui"),
               radioButtons(
-                "embedding_provider_setup",
+                "embedding_provider",
                 "AI Provider:",
                 choices = c(
                   "Local (Ollama - Free, Private)" = "ollama",
@@ -1984,7 +1986,7 @@ Supports:
                 inline = FALSE
               ),
               conditionalPanel(
-                condition = "input.embedding_provider_setup == 'ollama'",
+                condition = "input.embedding_provider == 'ollama'",
                 selectInput(
                   "embedding_ollama_model",
                   "Ollama Model:",
@@ -1998,13 +2000,16 @@ Supports:
                 )
               ),
               conditionalPanel(
-                condition = "input.embedding_provider_setup == 'sentence-transformers'",
+                condition = "input.embedding_provider == 'sentence-transformers'",
                 selectInput(
                   "embedding_st_model",
                   "Model:",
                   choices = c(
                     "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
-                    "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2"
+                    "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2",
+                    "BGE Base EN v1.5 (BERTopic Optimized)" = "BAAI/bge-base-en-v1.5",
+                    "Nomic Embed Text v2 (Multilingual)" = "nomic-ai/nomic-embed-text-v2-moe",
+                    "GTE Multilingual Base (Fast, Multilingual)" = "Alibaba-NLP/gte-multilingual-base"
                   ),
                   selected = "all-MiniLM-L6-v2"
                 ),
@@ -2014,7 +2019,7 @@ Supports:
                 )
               ),
               conditionalPanel(
-                condition = "input.embedding_provider_setup == 'openai'",
+                condition = "input.embedding_provider == 'openai'",
                 selectInput(
                   "embedding_openai_model",
                   "OpenAI Model:",
@@ -2029,7 +2034,7 @@ Supports:
                 )
               ),
               conditionalPanel(
-                condition = "input.embedding_provider_setup == 'gemini'",
+                condition = "input.embedding_provider == 'gemini'",
                 selectInput(
                   "embedding_gemini_model",
                   "Gemini Model:",
@@ -2185,7 +2190,10 @@ Supports:
                   "Model:",
                   choices = c(
                     "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
-                    "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2"
+                    "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2",
+                    "BGE Base EN v1.5 (BERTopic Optimized)" = "BAAI/bge-base-en-v1.5",
+                    "Nomic Embed Text v2 (Multilingual)" = "nomic-ai/nomic-embed-text-v2-moe",
+                    "GTE Multilingual Base (Fast, Multilingual)" = "Alibaba-NLP/gte-multilingual-base"
                   ),
                   selected = "all-MiniLM-L6-v2"
                 ),
@@ -2596,7 +2604,7 @@ Supports:
                 condition = "input.sentiment_method == 'llm'",
                 radioButtons(
                   "llm_sentiment_provider",
-                  "Sentiment model",
+                  "AI Provider:",
                   choices = c(
                     "Local (Ollama - Free, Private)" = "ollama",
                     "OpenAI (API Key Required)" = "openai",
@@ -2626,7 +2634,7 @@ Supports:
               condition = "input.sentiment_subtabs == 'category'",
               selectizeInput(
                 "sentiment_category_var",
-                "Category variable",
+                "Categorical variable",
                 choices = NULL,
                 multiple = FALSE
               ),
@@ -3373,7 +3381,7 @@ Supports:
           conditionalPanel(
             condition = "input.topic_modeling_path == 'probability' && input.conditioned3 == 5",
             tags$h5(strong("Structural topic model"), style = "color: #0c1f4a; margin-bottom: 10px;"),
-            uiOutput("stm_K_number_uiOutput"),
+            uiOutput("stm_k_selector_uiOutput"),
             selectInput(
               "stm_topic_measure",
               "Topic term measure",
@@ -3975,7 +3983,10 @@ Focus on incorporating the most significant keywords while following the guideli
                 "Model:",
                 choices = c(
                   "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
-                  "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2"
+                  "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2",
+                  "BGE Base EN v1.5 (BERTopic Optimized)" = "BAAI/bge-base-en-v1.5",
+                  "Nomic Embed Text v2 (Multilingual)" = "nomic-ai/nomic-embed-text-v2-moe",
+                  "GTE Multilingual Base (Fast, Multilingual)" = "Alibaba-NLP/gte-multilingual-base"
                 ),
                 selected = "all-MiniLM-L6-v2"
               ),
@@ -4030,6 +4041,13 @@ Focus on incorporating the most significant keywords while following the guideli
                 max = 50
               ),
               sliderInput(
+                "embedding_umap_n_components",
+                "UMAP dimensions:",
+                value = 5,
+                min = 2,
+                max = 50
+              ),
+              sliderInput(
                 "embedding_umap_min_dist",
                 "Min distance (0.0 = tight clusters for topic modeling):",
                 value = 0.0,
@@ -4037,12 +4055,30 @@ Focus on incorporating the most significant keywords while following the guideli
                 max = 0.99,
                 step = 0.01
               ),
+              selectInput(
+                "embedding_umap_metric",
+                "Distance metric:",
+                choices = c(
+                  "Cosine (recommended for text)" = "cosine",
+                  "Euclidean" = "euclidean"
+                ),
+                selected = "cosine"
+              ),
               sliderInput(
                 "embedding_min_topic_size",
                 "Min cluster size:",
                 value = 10,
                 min = 2,
                 max = 50
+              ),
+              selectInput(
+                "embedding_cluster_selection",
+                "Cluster selection method:",
+                choices = c(
+                  "EOM (broader topics, default)" = "eom",
+                  "Leaf (smaller, focused topics)" = "leaf"
+                ),
+                selected = "eom"
               )
             ),
 
@@ -4069,12 +4105,28 @@ Focus on incorporating the most significant keywords while following the guideli
                   max = 50
                 ),
                 sliderInput(
+                  "embedding_r_umap_n_components",
+                  "UMAP dimensions:",
+                  value = 5,
+                  min = 2,
+                  max = 50
+                ),
+                sliderInput(
                   "embedding_r_umap_min_dist",
-                  "Min distance:",
-                  value = 0.1,
+                  "Min distance (0.0 = tight clusters for topic modeling):",
+                  value = 0.0,
                   min = 0.0,
                   max = 0.5,
                   step = 0.01
+                ),
+                selectInput(
+                  "embedding_r_umap_metric",
+                  "Distance metric:",
+                  choices = c(
+                    "Cosine (recommended for text)" = "cosine",
+                    "Euclidean" = "euclidean"
+                  ),
+                  selected = "cosine"
                 )
               ),
 
@@ -4244,8 +4296,11 @@ Focus on incorporating the most significant keywords while following the guideli
               "hybrid_embedding_model",
               "Embedding model",
               choices = c(
-                "all-MiniLM-L6-v2" = "all-MiniLM-L6-v2",
-                "all-mpnet-base-v2" = "all-mpnet-base-v2"
+                "all-MiniLM-L6-v2 (Fast)" = "all-MiniLM-L6-v2",
+                "all-mpnet-base-v2 (Higher Quality)" = "all-mpnet-base-v2",
+                "BGE Base EN v1.5 (BERTopic Optimized)" = "BAAI/bge-base-en-v1.5",
+                "Nomic Embed Text v2 (Multilingual)" = "nomic-ai/nomic-embed-text-v2-moe",
+                "GTE Multilingual Base (Fast, Multilingual)" = "Alibaba-NLP/gte-multilingual-base"
               ),
               selected = "all-MiniLM-L6-v2"
             ),
@@ -4718,6 +4773,23 @@ Focus on incorporating the most significant keywords while following the guideli
                     value = "comparison",
                     br(),
                     uiOutput("hybrid_model_comparison_plot_uiOutput")
+                  ),
+                  tabPanel(
+                    "Topic Alignment",
+                    value = "alignment",
+                    br(),
+                    wellPanel(
+                      style = "background-color: #f0f8ff; border: 1px solid #4682b4;",
+                      tags$div(
+                        style = "font-size: 16px; line-height: 1.6;",
+                        p(tags$b("STM vs Embedding Topic Alignment"), style = "font-family: monospace; font-size: 16px; font-weight: bold; margin-bottom: 8px;"),
+                        p("Shows how STM probabilistic topics correspond to embedding-based clusters. Higher alignment indicates convergent validity between the two approaches.", style = "margin: 5px 0;")
+                      )
+                    ),
+                    br(),
+                    uiOutput("hybrid_alignment_plot_uiOutput"),
+                    br(),
+                    DT::dataTableOutput("hybrid_alignment_table")
                   )
                 )
               ),

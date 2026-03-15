@@ -40,6 +40,15 @@ server <- shinyServer(function(input, output, session) {
 
   `%||%` <- function(a, b) if (is.null(a)) b else a
 
+
+  # Convert ggplot to plotly with consistent tooltip styling
+  gg_to_plotly <- function(gg, tooltip = "text", height = NULL, width = NULL) {
+    p <- plotly::ggplotly(gg, tooltip = tooltip, height = height, width = width)
+    p %>% plotly::layout(
+      hoverlabel = TextAnalysisR::get_plotly_hover_config()
+    ) %>% plotly::style(hoverinfo = "text")
+  }
+
   ################################################################################
   # CENTRALIZED AI CONFIGURATION
   ################################################################################
@@ -140,7 +149,7 @@ server <- shinyServer(function(input, output, session) {
     embed_providers <- c("Sentence Transformers (Python)" = "sentence-transformers",
                          "OpenAI (API Key Required)" = "openai", "Gemini (API Key Required)" = "gemini")
 
-    updateRadioButtons(session, "embedding_provider_setup", choices = embed_providers, selected = "sentence-transformers")
+    updateRadioButtons(session, "embedding_provider", choices = embed_providers, selected = "sentence-transformers")
     updateRadioButtons(session, "search_embedding_provider", choices = embed_providers, selected = "sentence-transformers")
     updateRadioButtons(session, "topic_embedding_provider", choices = embed_providers, selected = "sentence-transformers")
     updateRadioButtons(session, "rag_provider", choices = llm_providers, selected = "openai")
@@ -834,9 +843,9 @@ server <- shinyServer(function(input, output, session) {
                   csv_content <- paste(lines_with_delim, collapse = "\n")
 
                   if (detected_delimiter == "\t") {
-                    data <- read.delim(textConnection(csv_content), stringsAsFactors = FALSE, check.names = FALSE, quote = "\"", fill = TRUE, header = TRUE)
+                    data <- read.delim(textConnection(csv_content), stringsAsFactors = FALSE, check.names = FALSE, quote = "", fill = TRUE, header = TRUE)
                   } else {
-                    data <- read.csv(textConnection(csv_content), sep = detected_delimiter, stringsAsFactors = FALSE, check.names = FALSE, quote = "\"", fill = TRUE, header = TRUE)
+                    data <- read.csv(textConnection(csv_content), sep = detected_delimiter, stringsAsFactors = FALSE, check.names = FALSE, quote = "", fill = TRUE, header = TRUE)
                   }
 
                   col_names <- names(data)
@@ -1729,12 +1738,12 @@ server <- shinyServer(function(input, output, session) {
 
   output$ngram_detection_plot <- plotly::renderPlotly({
     req(ngram_stats())
-    TextAnalysisR::plot_ngram_frequency(
+    gg_to_plotly(TextAnalysisR::plot_ngram_frequency(
       ngram_data = ngram_stats(),
       top_n = 30,
       selected = input$multi_word_expressions,
       title = "N-gram Frequency"
-    )
+    ))
   })
 
   output$ngram_detection_plot_uiOutput <- renderUI({
@@ -1852,13 +1861,13 @@ server <- shinyServer(function(input, output, session) {
       ) %>%
       dplyr::arrange(desc(frequency))
 
-    TextAnalysisR::plot_mwe_frequency(
+    gg_to_plotly(TextAnalysisR::plot_mwe_frequency(
       mwe_data = freq_mwe,
       title = "Multi-Word Expression Frequency After Compounding",
       color_by_source = TRUE,
       primary_color = "#10B981",
       secondary_color = "#A855F7"
-    )
+    ))
   })
 
   output$selected_ngrams_plot_uiOutput <- renderUI({
@@ -1891,13 +1900,13 @@ server <- shinyServer(function(input, output, session) {
         dplyr::arrange(dplyr::desc(count))
     }
 
-    TextAnalysisR::plot_ngram_frequency(
+    gg_to_plotly(TextAnalysisR::plot_ngram_frequency(
       ngram_data = selected_ngrams,
       title = "Multi-Word Frequency",
       highlight_color = "#10B981",
       default_color = "#10B981",
       show_stats = FALSE
-    )
+    ))
   })
 
   output$dictionary_plot_uiOutput <- renderUI({
@@ -2066,7 +2075,7 @@ server <- shinyServer(function(input, output, session) {
 
   output$dfm_plot <- plotly::renderPlotly({
     req(dfm_init())
-    dfm_init() %>% TextAnalysisR::plot_word_frequency(n = 20)
+    gg_to_plotly(dfm_init() %>% TextAnalysisR::plot_word_frequency(n = 20))
   })
 
   output$dfm_table <- DT::renderDataTable({
@@ -2477,7 +2486,7 @@ server <- shinyServer(function(input, output, session) {
 
     dfm_for_plot <- quanteda::dfm(tokens_for_plot)
 
-    dfm_for_plot %>% TextAnalysisR::plot_word_frequency(n = 20)
+    gg_to_plotly(dfm_for_plot %>% TextAnalysisR::plot_word_frequency(n = 20))
   })
 
   output$stopword_table <- DT::renderDataTable({
@@ -2878,7 +2887,7 @@ server <- shinyServer(function(input, output, session) {
 
   output$lemma_plot <- plotly::renderPlotly({
     req(dfm_lemma())
-    dfm_lemma() %>% TextAnalysisR::plot_word_frequency(n = 20)
+    gg_to_plotly(dfm_lemma() %>% TextAnalysisR::plot_word_frequency(n = 20))
   })
 
   output$lemma_table <- DT::renderDataTable({
@@ -3349,37 +3358,37 @@ server <- shinyServer(function(input, output, session) {
   # Morphology Plot Renderers
   output$morph_number_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "Number", "Grammatical Number")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "Number", "Grammatical Number"))
   })
 
   output$morph_tense_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "Tense", "Verb Tense")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "Tense", "Verb Tense"))
   })
 
   output$morph_verbform_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "VerbForm", "Verb Form")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "VerbForm", "Verb Form"))
   })
 
   output$morph_person_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "Person", "Grammatical Person")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "Person", "Grammatical Person"))
   })
 
   output$morph_case_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "Case", "Grammatical Case")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "Case", "Grammatical Case"))
   })
 
   output$morph_mood_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "Mood", "Verbal Mood")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "Mood", "Verbal Mood"))
   })
 
   output$morph_aspect_plot <- plotly::renderPlotly({
     req(morph_data())
-    TextAnalysisR::plot_morphology_feature(morph_data(), "Aspect", "Verb Aspect")
+    gg_to_plotly(TextAnalysisR::plot_morphology_feature(morph_data(), "Aspect", "Verb Aspect"))
   })
 
   # Morphology Summary Table
@@ -3892,11 +3901,11 @@ server <- shinyServer(function(input, output, session) {
       dplyr::count(pos, sort = TRUE) %>%
       dplyr::slice_head(n = top_n)
 
-    TextAnalysisR::plot_pos_frequencies(
+    gg_to_plotly(TextAnalysisR::plot_pos_frequencies(
       pos_data = pos_freq,
       top_n = top_n,
       title = "Part-of-Speech Tag Frequency"
-    )
+    ))
   })
 
   output$pos_plot_uiOutput <- renderUI({
@@ -4800,20 +4809,12 @@ server <- shinyServer(function(input, output, session) {
       ))
     }
 
-    # Trigger reactivity on entity type modifications (so plot updates when dropdown changes)
-    entity_type_modifications()
+    entity_table_refresh()
     custom_entities()
 
-    # Trigger reactivity on sidebar entity selections
-    input$ner_named
-    input$ner_objects
-    input$ner_numeric
-    # Dynamic dependency on all domain category inputs
-    for (cat in current_categories()) {
-      input[[paste0("domain_", cat)]]
-    }
-
     parsed <- spacy_parsed()
+
+    selected_types <- isolate(get_selected_entity_types())
 
     # Check if entity column exists
     if (!"entity" %in% names(parsed)) {
@@ -4823,7 +4824,6 @@ server <- shinyServer(function(input, output, session) {
           dplyr::count(`Variable`, name = "n") %>%
           dplyr::rename(entity = `Variable`)
 
-        selected_types <- get_selected_entity_types()
         if (length(selected_types) > 0) {
           entity_data <- entity_data %>%
             dplyr::filter(entity %in% selected_types)
@@ -4842,7 +4842,6 @@ server <- shinyServer(function(input, output, session) {
         dplyr::filter(!is.na(entity), entity != "") %>%
         dplyr::mutate(entity_clean = gsub("_[BI]$", "", entity))
 
-      selected_types <- get_selected_entity_types()
       if (length(selected_types) > 0) {
         entity_data <- entity_data %>%
           dplyr::filter(entity_clean %in% selected_types)
@@ -4871,11 +4870,11 @@ server <- shinyServer(function(input, output, session) {
       }
     }
 
-    TextAnalysisR::plot_entity_frequencies(
+    gg_to_plotly(TextAnalysisR::plot_entity_frequencies(
       entity_data = entity_data,
       title = "Named Entity Type Frequency",
-      custom_colors = custom_entity_colors()
-    )
+      custom_colors = isolate(custom_entity_colors())
+    ))
   })
 
   custom_entities <- reactiveVal(data.frame())
@@ -4884,6 +4883,13 @@ server <- shinyServer(function(input, output, session) {
   # Key: "doc_id|token|original_entity" -> new_entity_type
   entity_type_modifications <- reactiveVal(list())
   entity_table_refresh <- reactiveVal(0)
+
+  # Refresh entity table when entity type checkboxes change
+  observeEvent(list(input$ner_named, input$ner_objects, input$ner_numeric), {
+    if (!is.null(input$apply_ner_filter) && input$apply_ner_filter > 0) {
+      entity_table_refresh(entity_table_refresh() + 1)
+    }
+  }, ignoreInit = TRUE)
 
   # Store custom entity types with colors
   # Format: list(ENTITY_NAME = "#hexcolor", ...)
@@ -5375,6 +5381,11 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
+  output$entity_table_uiOutput <- renderUI({
+    req(input$apply_ner_filter, input$apply_ner_filter > 0)
+    DT::dataTableOutput("entity_table")
+  })
+
   entity_table_proxy <- DT::dataTableProxy("entity_table")
 
   output$entity_table <- DT::renderDataTable({
@@ -5387,10 +5398,10 @@ server <- shinyServer(function(input, output, session) {
 
     custom_entities()
 
-    input$ner_named
-    input$ner_objects
-    input$ner_numeric
     isolate({
+      input$ner_named
+      input$ner_objects
+      input$ner_numeric
       for (cat in current_categories()) {
         input[[paste0("domain_", cat)]]
       }
@@ -5554,7 +5565,7 @@ server <- shinyServer(function(input, output, session) {
       }
     }
 
-    selected_types <- get_selected_entity_types()
+    selected_types <- isolate(get_selected_entity_types())
     if (length(selected_types) > 0) {
       entity_detail <- entity_detail %>%
         dplyr::filter(entity %in% selected_types | entity == "")
@@ -5596,8 +5607,7 @@ server <- shinyServer(function(input, output, session) {
     has_doc_id <- !is.null(input$ner_doc_id_var) && input$ner_doc_id_var != ""
     entity_col_idx <- if (has_doc_id) 6 else 5  # Entity column index (0-based), after adding Lemma
 
-    # Trigger re-render when custom colors change
-    custom_colors <- custom_entity_colors()
+    custom_colors <- isolate(custom_entity_colors())
 
     # Build custom color JS entries
     custom_color_js <- if (length(custom_colors) > 0) {
@@ -5746,18 +5756,11 @@ server <- shinyServer(function(input, output, session) {
 
   # Reactive to generate NER visualization content
   ner_viz_content <- reactive({
+    entity_table_refresh()
     parsed <- spacy_parsed()
     doc_id <- input$ner_viz_doc
     if (is.null(parsed) || is.null(doc_id) || doc_id == "") return(NULL)
     if (!"entity" %in% names(parsed)) return(NULL)
-
-    # Trigger reactivity on sidebar entity selections
-    input$ner_named
-    input$ner_objects
-    input$ner_numeric
-    for (cat in current_categories()) {
-      input[[paste0("domain_", cat)]]
-    }
 
     doc_data <- parsed %>%
       dplyr::filter(doc_id == !!doc_id) %>%
@@ -5772,7 +5775,7 @@ server <- shinyServer(function(input, output, session) {
 
     if (nrow(doc_data) == 0) return(NULL)
 
-    selected_entities <- get_selected_entity_types()
+    selected_entities <- isolate(get_selected_entity_types())
 
     # Filter to only show selected entity types (keep empty entities for context)
     if (length(selected_entities) > 0) {
@@ -5798,7 +5801,7 @@ server <- shinyServer(function(input, output, session) {
       "THEME" = "#7c4dff", "CODE" = "#37474f", "CATEGORY" = "#26a69a",
       "CUSTOM" = "#d81b60"
     )
-    custom_colors <- custom_entity_colors()
+    custom_colors <- isolate(custom_entity_colors())
     if (length(custom_colors) > 0) {
       for (name in names(custom_colors)) {
         entity_colors[name] <- custom_colors[[name]]
@@ -5909,6 +5912,55 @@ server <- shinyServer(function(input, output, session) {
         '</div>'
       ))
     })
+  })
+
+  # Dependency parsing datatable
+  output$dep_table <- DT::renderDataTable({
+    parsed <- spacy_parsed()
+    req(parsed, nrow(parsed) > 0)
+
+    doc_id <- input$dep_viz_doc
+    if (is.null(doc_id) || doc_id == "") {
+      doc_id <- unique(parsed$doc_id)[1]
+    }
+
+    doc_data <- parsed %>% dplyr::filter(doc_id == !!doc_id)
+    req(nrow(doc_data) > 0)
+
+    base_cols <- c("doc_id", "sentence_id", "token_id", "token", "lemma", "pos")
+    dep_cols <- c("head_token_id", "dep_rel")
+    available <- intersect(c(base_cols, dep_cols), names(doc_data))
+
+    display_df <- doc_data %>% dplyr::select(dplyr::all_of(available))
+
+    col_rename <- c(
+      "doc_id" = "Document", "sentence_id" = "Sentence", "token_id" = "Token ID",
+      "token" = "Token", "lemma" = "Lemma", "pos" = "POS",
+      "head_token_id" = "Head", "dep_rel" = "Relation"
+    )
+    for (old_name in names(col_rename)) {
+      if (old_name %in% names(display_df)) {
+        display_df <- display_df %>%
+          dplyr::rename(!!col_rename[[old_name]] := !!rlang::sym(old_name))
+      }
+    }
+
+    DT::datatable(
+      display_df,
+      rownames = FALSE,
+      extensions = "Buttons",
+      filter = "top",
+      options = list(
+        scrollX = TRUE,
+        scrollY = "400px",
+        dom = "Bfrtip",
+        buttons = c("copy", "csv", "excel"),
+        pageLength = 50,
+        columnDefs = list(list(targets = "_all", className = "dt-center"))
+      ),
+      selection = "none",
+      class = "cell-border stripe hover compact"
+    )
   })
 
   # Render download button only when there's content
@@ -7530,7 +7582,15 @@ server <- shinyServer(function(input, output, session) {
         )
       ))
     }
-    result$plot
+    w <- input$width_word_co_occurrence_network_plot %||% 900
+    h <- input$height_word_co_occurrence_network_plot %||% 800
+    plotly::plotlyOutput("word_co_occurrence_network_plotly", width = paste0(w, "px"), height = paste0(h, "px"))
+  })
+
+  output$word_co_occurrence_network_plotly <- plotly::renderPlotly({
+    result <- word_co_occurrence_network_results()
+    req(result)
+    gg_to_plotly(result$plot)
   })
 
   output$word_co_occurrence_network_table_uiOutput <- renderUI({
@@ -7831,7 +7891,15 @@ server <- shinyServer(function(input, output, session) {
         )
       ))
     }
-    result$plot
+    w <- input$width_word_correlation_network_plot %||% 900
+    h <- input$height_word_correlation_network_plot %||% 800
+    plotly::plotlyOutput("word_correlation_network_plotly", width = paste0(w, "px"), height = paste0(h, "px"))
+  })
+
+  output$word_correlation_network_plotly <- plotly::renderPlotly({
+    result <- word_correlation_network_results()
+    req(result)
+    gg_to_plotly(result$plot)
   })
 
   output$word_correlation_network_table_uiOutput <- renderUI({
@@ -7964,12 +8032,12 @@ server <- shinyServer(function(input, output, session) {
                 group_by(!!rlang::sym(input$continuous_var_3), term) %>%
                 summarise(word_frequency = sum(count), .groups = "drop")
 
-              TextAnalysisR::plot_term_trends_continuous(
+              gg_to_plotly(TextAnalysisR::plot_term_trends_continuous(
                 term_data = con_var_term_counts,
                 continuous_var = input$continuous_var_3,
                 terms = vm,
                 height = input$height_frequency_trends
-              )
+              ))
             })
           })
 
@@ -8781,7 +8849,7 @@ server <- shinyServer(function(input, output, session) {
     if (!sentiment_results$analyzed) {
       return(plot_error("Click 'Analyze Sentiment' to generate results"))
     }
-    plot_sentiment_distribution(sentiment_results$data)
+    gg_to_plotly(plot_sentiment_distribution(sentiment_results$data))
   })
 
   output$sentiment_by_category_plot <- plotly::renderPlotly({
@@ -8790,7 +8858,7 @@ server <- shinyServer(function(input, output, session) {
     } else if (!is.null(input$sentiment_category_var) && input$sentiment_category_var != "None" && !is.null(sentiment_results$grouped)) {
       plot_type <- if(is.null(input$category_plot_type)) "bar" else input$category_plot_type
 
-      if (plot_type == "bar") {
+      gg <- if (plot_type == "bar") {
         plot_sentiment_by_category(
           sentiment_results$data,
           category_var = "category_var",
@@ -8810,6 +8878,7 @@ server <- shinyServer(function(input, output, session) {
           title = paste("Sentiment Score by", input$sentiment_category_var)
         )
       }
+      gg_to_plotly(gg)
     } else {
       plot_error("Select a category variable to see analysis")
     }
@@ -8920,12 +8989,12 @@ server <- shinyServer(function(input, output, session) {
       text_preview <- sapply(doc_texts, wrap_text_for_tooltip, USE.NAMES = FALSE)
     }
 
-    plot_document_sentiment_trajectory(
+    gg_to_plotly(plot_document_sentiment_trajectory(
       sentiment_data = sentiment_results$data,
       top_n = input$sentiment_top_docs,
       doc_ids = doc_ids,
       text_preview = text_preview
-    )
+    ))
   })
 
   output$document_sentiment_table <- renderDT({
@@ -8985,7 +9054,7 @@ server <- shinyServer(function(input, output, session) {
 
     normalize <- !is.null(input$normalize_emotions) && input$normalize_emotions
 
-    if (!is.null(sentiment_results$emotion_scores_grouped) &&
+    gg <- if (!is.null(sentiment_results$emotion_scores_grouped) &&
         !is.null(input$emotion_group_var) && input$emotion_group_var != "None") {
       plot_emotion_radar(
         emotion_data = sentiment_results$emotion_scores_grouped,
@@ -8999,6 +9068,7 @@ server <- shinyServer(function(input, output, session) {
         normalize = normalize
       )
     }
+    gg_to_plotly(gg)
   })
 
   output$emotion_scores_table <- renderDT({
@@ -9457,15 +9527,16 @@ server <- shinyServer(function(input, output, session) {
       group_vals <- as.character(readability_results$original_data[[group_var]])
       scores_data[[group_var]] <- group_vals
 
-      plot_readability_by_group(scores_data, selected_metric, group_var)
+      gg <- plot_readability_by_group(scores_data, selected_metric, group_var)
 
     } else if(view_type == "document") {
       top_n <- input$readability_top_n %||% 15
-      plot_top_readability_documents(scores_data, selected_metric, top_n = top_n)
+      gg <- plot_top_readability_documents(scores_data, selected_metric, top_n = top_n)
 
     } else {
-      plot_readability_distribution(scores_data, selected_metric)
+      gg <- plot_readability_distribution(scores_data, selected_metric)
     }
+    gg_to_plotly(gg)
   })
 
   output$readability_metrics_table <- renderDT({
@@ -9717,10 +9788,10 @@ server <- shinyServer(function(input, output, session) {
     }
 
     tryCatch({
-      TextAnalysisR::plot_lexical_diversity_distribution(
+      gg_to_plotly(TextAnalysisR::plot_lexical_diversity_distribution(
         lexdiv_data = lexical_diversity_results$data,
         metric = metric
-      )
+      ))
     }, error = function(e) {
       create_error_plot(paste("Error creating plot:", e$message))
     })
@@ -9901,7 +9972,7 @@ server <- shinyServer(function(input, output, session) {
     req(nrow(log_odds_results$data) > 0)
 
     tryCatch({
-      if (log_odds_results$method == "weighted") {
+      gg <- if (log_odds_results$method == "weighted") {
         TextAnalysisR::plot_weighted_log_odds(
           weighted_data = log_odds_results$data,
           top_n = input$log_odds_top_n %||% 10
@@ -9912,6 +9983,7 @@ server <- shinyServer(function(input, output, session) {
           top_n = input$log_odds_top_n %||% 10
         )
       }
+      gg_to_plotly(gg)
     }, error = function(e) {
       create_error_plot(paste("Error creating plot:", e$message))
     })
@@ -10247,10 +10319,10 @@ server <- shinyServer(function(input, output, session) {
     if (!keyword_results$analyzed) {
       return(plot_error("Click 'Extract' button to generate results"))
     }
-    plot_tfidf_keywords(
+    gg_to_plotly(plot_tfidf_keywords(
       keyword_results$tfidf_data,
       normalized = isTRUE(keyword_results$normalized)
-    )
+    ))
   })
 
   output$tfidf_keywords_table <- renderDT({
@@ -10279,10 +10351,10 @@ server <- shinyServer(function(input, output, session) {
     if (!keyword_results$analyzed) {
       return(plot_error("Run keyword extraction to see results"))
     }
-    plot_keyness_keywords(
+    gg_to_plotly(plot_keyness_keywords(
       keyword_results$keyness_data,
       group_label = keyword_results$group_var
-    )
+    ))
   })
 
   output$textrank_keywords_table <- renderDT({
@@ -10369,11 +10441,11 @@ server <- shinyServer(function(input, output, session) {
     if (!keyword_results$analyzed) {
       return(NULL)
     }
-    plot_keyword_comparison(
+    gg_to_plotly(plot_keyword_comparison(
       keyword_results$tfidf_data,
       top_n = input$comparison_top_n %||% 10,
       normalized = isTRUE(keyword_results$normalized)
-    )
+    ))
   })
 
   output$keyword_comparison_table <- renderDT({
@@ -10705,351 +10777,6 @@ server <- shinyServer(function(input, output, session) {
     }
 
     return(dt_table)
-  })
-
-  base_similarity_results <- reactive({
-    req(input$calculate_similarities)
-    req(processed_documents())
-
-    current_category_filter <- input$heatmap_category_filter %||% "all"
-    docs_data <- get_filtered_docs_data(current_category_filter)
-
-    if (is.null(docs_data) || nrow(docs_data) == 0) {
-      showNotification("No documents to analyze. Please process documents first.", type = "error")
-      return(NULL)
-    }
-
-    if (nrow(docs_data) < 2) {
-      showNotification("Need at least 2 documents for similarity analysis.", type = "error")
-      return(NULL)
-    }
-
-    texts <- docs_data$combined_text
-
-    if (any(nchar(trimws(texts)) == 0)) {
-      showNotification("Some documents are empty. Please check text data.", type = "warning")
-      texts <- texts[nchar(trimws(texts)) > 0]
-      docs_data <- docs_data[nchar(trimws(docs_data$combined_text)) > 0, ]
-    }
-
-    current_model <- embeddings_cache$model %||% "all-MiniLM-L6-v2"
-    current_texts_hash <- digest::digest(texts, algo = "md5")
-
-    use_cached <- !is.null(embeddings_cache$embeddings) &&
-                  !is.null(embeddings_cache$model) &&
-                  !is.null(embeddings_cache$texts_hash) &&
-                  embeddings_cache$model == current_model &&
-                  embeddings_cache$texts_hash == current_texts_hash &&
-                  identical(embeddings_cache$category_filter, current_category_filter)
-
-    if (use_cached) {
-      result <- list(
-        similarity_matrix = NULL,
-        method_used = "embeddings (cached)",
-        embeddings = embeddings_cache$embeddings,
-        diagnostics = list()
-      )
-
-      if (requireNamespace("reticulate", quietly = TRUE)) {
-        tryCatch({
-          sklearn_metrics <- reticulate::import("sklearn.metrics.pairwise")
-          result$similarity_matrix <- sklearn_metrics$cosine_similarity(result$embeddings)
-          result$similarity_matrix <- as.matrix(result$similarity_matrix)
-        }, error = function(e) {
-          result$similarity_matrix <<- NULL
-        })
-      }
-    } else {
-      result <- TextAnalysisR::calculate_similarity_robust(
-        texts = texts,
-        method = "embeddings",
-        embedding_model = current_model,
-        min_word_length = 3,
-        doc_names = docs_data$doc_id
-      )
-
-      if (result$method_used == "embeddings" && !is.null(result$embeddings)) {
-        embeddings_cache$embeddings <- result$embeddings
-        embeddings_cache$model <- current_model
-        embeddings_cache$texts_hash <- current_texts_hash
-        embeddings_cache$category_filter <- current_category_filter
-        embeddings_cache$timestamp <- Sys.time()
-      }
-
-      if (result$method_used == "jaccard") {
-        showNotification(
-          "Embeddings failed. Using Jaccard similarity fallback.",
-          type = "warning",
-          duration = 5
-        )
-      }
-    }
-
-    similarity_matrix <- result$similarity_matrix
-    n_docs <- nrow(similarity_matrix)
-
-    shiny::showModal(shiny::modalDialog(
-      title = "Similarity Analysis",
-      div(
-        style = "text-align: center; padding: 20px;",
-        p("Analysis completed successfully!"),
-        p(paste(n_docs, "documents processed")),
-        p(paste("Method:", result$method_used)),
-        p("Rendering visualization..."),
-        br(),
-        div(class = "progress progress-striped active",
-            div(class = "progress-bar", style = "width: 100%")
-        )
-      ),
-      footer = NULL,
-      easyClose = FALSE,
-      size = "m"
-    ))
-
-    return(list(
-      similarity_matrix = similarity_matrix,
-      docs_data = docs_data,
-      embeddings = result$embeddings,
-      method = result$method_used
-    ))
-  })
-
-  similarity_results <- reactive({
-    req(base_similarity_results())
-
-    results <- base_similarity_results()
-    return(results)
-  })
-
-  output$document_similarity_heatmap <- plotly::renderPlotly({
-    req(input$calculate_similarities)
-    req(similarity_results())
-
-    tryCatch(
-      {
-        results <- similarity_results()
-
-        if (is.null(results) || is.null(results$similarity_matrix)) {
-          return(create_error_plot("No similarity data available"))
-        }
-
-        sim_matrix <- results$similarity_matrix
-        docs_data <- results$docs_data
-        method <- results$method %||% "unknown"
-
-        if (nrow(sim_matrix) == 0 || ncol(sim_matrix) == 0) {
-          return(create_error_plot("Empty similarity matrix"))
-        }
-
-        x_labels <- docs_data$document_number
-        y_labels <- docs_data$document_number
-
-        hover_text <- matrix("", nrow = nrow(sim_matrix), ncol = ncol(sim_matrix))
-        for (i in 1:nrow(sim_matrix)) {
-          for (j in 1:ncol(sim_matrix)) {
-            hover_text[i, j] <- paste0(
-              "Document: ", docs_data$document_id_display[i], "<br>",
-              "Category: ", docs_data$category_display[i], "<br>",
-              "Document: ", docs_data$document_id_display[j], "<br>",
-              "Category: ", docs_data$category_display[j], "<br>",
-              "Similarity: ", round(sim_matrix[i, j], 3)
-            )
-          }
-        }
-
-        if (!is.null(input$heatmap_category_filter) && input$heatmap_category_filter != "all") {
-          title_text <- paste("Document Similarity Heatmap:", input$heatmap_category_filter)
-        } else {
-          title_text <- "Document Similarity Heatmap"
-        }
-
-        annotations <- list()
-        if (!is.null(input$heatmap_category_filter) && input$heatmap_category_filter != "all" &&
-            length(unique(docs_data$category_display)) > 1) {
-          category_groups <- split(seq_len(nrow(docs_data)), docs_data$category_display)
-
-          for (cat_name in names(category_groups)) {
-            indices <- category_groups[[cat_name]]
-            if (length(indices) > 0) {
-              if (min(indices) > 1) {
-                annotations <- c(annotations, list(
-                  list(
-                    type = "line",
-                    x0 = min(indices) - 0.5,
-                    x1 = min(indices) - 0.5,
-                    y0 = 0.5,
-                    y1 = nrow(sim_matrix) + 0.5,
-                    xref = "x",
-                    yref = "y",
-                    line = list(color = "red", width = 2, dash = "dash")
-                  )
-                ))
-              }
-
-              if (min(indices) > 1) {
-                annotations <- c(annotations, list(
-                  list(
-                    type = "line",
-                    x0 = 0.5,
-                    x1 = ncol(sim_matrix) + 0.5,
-                    y0 = min(indices) - 0.5,
-                    y1 = min(indices) - 0.5,
-                    xref = "x",
-                    yref = "y",
-                    line = list(color = "red", width = 2, dash = "dash")
-                  )
-                ))
-              }
-
-              annotations <- c(annotations, list(
-                list(
-                  text = cat_name,
-                  x = mean(indices),
-                  y = -0.5,
-                  xref = "x",
-                  yref = "y",
-                  showarrow = FALSE,
-                  font = list(size = 16, color = "red"),
-                  bgcolor = "rgba(255,255,255,0.8)",
-                  bordercolor = "red",
-                  borderwidth = 1
-                )
-              ))
-            }
-          }
-        }
-
-        p <- plotly::plot_ly(type = "scatter", mode = "markers") %>%
-          plotly::add_heatmap(
-            z = sim_matrix,
-            x = x_labels,
-            y = y_labels,
-            colorscale = "Viridis",
-            text = hover_text,
-            hovertemplate = "%{text}<extra></extra>",
-            hoverlabel = TextAnalysisR::get_plotly_hover_config(),
-            showscale = TRUE
-          ) %>%
-          plotly::layout(
-            title = list(
-              text = title_text,
-              font = list(size = 18, color = "#0c1f4a", family = "Roboto"),
-              x = 0.5,
-              xref = "paper",
-              xanchor = "center",
-              y = 0.98,
-              yref = "paper",
-              yanchor = "top"
-            ),
-            xaxis = list(
-              title = list(text = "Documents"),
-              tickangle = -45,
-              tickfont = list(size = 16, color = "#3B3B3B", family = "Roboto, sans-serif"),
-              titlefont = list(size = 16, color = "#0c1f4a", family = "Roboto, sans-serif")
-            ),
-            yaxis = list(
-              title = list(text = "Documents"),
-              tickfont = list(size = 16, color = "#3B3B3B", family = "Roboto, sans-serif"),
-              titlefont = list(size = 16, color = "#0c1f4a", family = "Roboto, sans-serif")
-            ),
-            margin = list(b = 100, l = 100),
-            annotations = annotations
-          )
-
-        tryCatch(removeNotification(id = "search_k_notification"), error = function(e) {})
-
-        return(p)
-      },
-      error = function(e) {
-        return(TextAnalysisR::create_empty_plot_message(
-          paste("Error creating heatmap:", e$message),
-          color = "#EF4444"
-        ))
-      }
-    )
-  })
-
-  output$similarity_stats_table <- DT::renderDataTable({
-    req(input$calculate_similarities)
-    req(similarity_results())
-
-    tryCatch(
-      {
-        results <- similarity_results()
-
-        if (is.null(results) || is.null(results$similarity_matrix)) {
-          return(NULL)
-        }
-
-        sim_matrix <- results$similarity_matrix
-        docs_data <- results$docs_data
-        method <- results$method %||% "unknown"
-
-        if (nrow(sim_matrix) == 0 || ncol(sim_matrix) == 0) {
-          return(NULL)
-        }
-
-        off_diagonal <- sim_matrix[upper.tri(sim_matrix) | lower.tri(sim_matrix)]
-
-        if (length(off_diagonal) == 0) {
-          off_diagonal <- c(0)
-        }
-
-        mean_sim <- mean(off_diagonal, na.rm = TRUE)
-        median_sim <- median(off_diagonal, na.rm = TRUE)
-        min_sim <- min(off_diagonal, na.rm = TRUE)
-        max_sim <- max(off_diagonal, na.rm = TRUE)
-        sd_sim <- sd(off_diagonal, na.rm = TRUE)
-        pairs_above <- sum(off_diagonal >= input$similarity_threshold, na.rm = TRUE)
-
-        stats_df <- data.frame(
-          Metric = c(
-            "Analysis Method",
-            "Total Documents",
-            "Total Pairs",
-            "Mean Similarity",
-            "Median Similarity",
-            "Min Similarity",
-            "Max Similarity",
-            "Std Dev Similarity",
-            "Pairs Above Threshold",
-            "Total Categories"
-          ),
-          Value = c(
-            ifelse(method == "sentence_transformers", paste("Embeddings (", embeddings_cache$model %||% "all-MiniLM-L6-v2", ")", sep = ""), "Basic Text Similarity"),
-            nrow(sim_matrix),
-            length(off_diagonal),
-            mean_sim,
-            median_sim,
-            min_sim,
-            max_sim,
-            sd_sim,
-            pairs_above,
-            length(unique(docs_data$category_display))
-          )
-        )
-
-        DT::datatable(
-          stats_df,
-          rownames = FALSE,
-          options = list(
-            dom = "t",
-            ordering = FALSE
-          )
-        ) %>%
-          DT::formatStyle(
-            "Metric",
-            fontWeight = "bold"
-          )
-      },
-      error = function(e) {
-        DT::datatable(
-          data.frame(Error = paste("Error calculating statistics:", e$message)),
-          rownames = FALSE,
-          options = list(dom = "t", ordering = FALSE)
-        )
-      }
-    )
   })
 
   values <- reactiveValues(semantic_step = 1)
@@ -11415,16 +11142,22 @@ server <- shinyServer(function(input, output, session) {
             embeddings_cache$model == embedding_model &&
             embeddings_cache$texts_hash == current_texts_hash) {
 
-          similarity_matrix <- sklearn_metrics$cosine_similarity(embeddings_cache$embeddings)
-          similarity_matrix <- as.matrix(similarity_matrix)
+          cached_sklearn <- tryCatch(
+            reticulate::import("sklearn.metrics.pairwise"),
+            error = function(e) NULL
+          )
+          if (!is.null(cached_sklearn)) {
+            similarity_matrix <- cached_sklearn$cosine_similarity(embeddings_cache$embeddings)
+            similarity_matrix <- as.matrix(similarity_matrix)
 
-          return(list(
-            similarity_matrix = similarity_matrix,
-            embeddings = embeddings_cache$embeddings,
-            method = "embedding_cosine",
-            model_name = embedding_model,
-            n_docs = length(valid_texts)
-          ))
+            return(list(
+              similarity_matrix = similarity_matrix,
+              embeddings = embeddings_cache$embeddings,
+              method = "embedding_cosine",
+              model_name = embedding_model,
+              n_docs = length(valid_texts)
+            ))
+          }
         }
 
         python_available <- tryCatch({
@@ -11436,13 +11169,15 @@ server <- shinyServer(function(input, output, session) {
           showNotification("Python not available. Falling back to traditional similarity.", type = "warning")
           use_embeddings <- FALSE
         } else {
-          tryCatch({
+          libs_available <- tryCatch({
             sentence_transformers <- reticulate::import("sentence_transformers")
             sklearn_metrics <- reticulate::import("sklearn.metrics.pairwise")
+            TRUE
           }, error = function(e) {
             showNotification("Required Python libraries not found. Falling back to traditional similarity.", type = "warning")
-            use_embeddings <- FALSE
+            FALSE
           })
+          if (!libs_available) use_embeddings <- FALSE
         }
 
         if (use_embeddings) {
@@ -12207,11 +11942,15 @@ server <- shinyServer(function(input, output, session) {
       return(NULL)
     }
 
-    choices <- c(
-      "Words" = "words",
-      "N-grams" = "ngrams",
-      "Embeddings" = "embeddings"
-    )
+    choices <- if (is_remote) {
+      c("Words" = "words",
+        "N-grams" = "ngrams",
+        "Embeddings (API Key Required)" = "embeddings")
+    } else {
+      c("Words" = "words",
+        "N-grams" = "ngrams",
+        "Embeddings" = "embeddings")
+    }
 
     label_content <- if (input$semantic_analysis_tabs == "similarity") {
       tags$div(
@@ -12306,7 +12045,7 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    provider <- input$embedding_provider_setup %||% "ollama"
+    provider <- input$embedding_provider %||% "ollama"
     model_name <- switch(provider,
       "ollama" = input$embedding_ollama_model %||% "nomic-embed-text",
       "sentence-transformers" = input$embedding_st_model %||% "all-MiniLM-L6-v2",
@@ -12659,10 +12398,11 @@ server <- shinyServer(function(input, output, session) {
   calculate_topics_similarity <- function() {
     tryCatch(
       {
-        if (is.null(stm_K_number()$theta)) {
-          return(NULL)
-        }
-        similarity_matrix <- TextAnalysisR::calculate_cosine_similarity(stm_K_number()$theta)
+        model <- topic_model_result()
+        if (is.null(model)) return(NULL)
+        # Only STM and hybrid (which stores the STM object) have $theta
+        if (!"theta" %in% names(model)) return(NULL)
+        similarity_matrix <- TextAnalysisR::calculate_cosine_similarity(model$theta)
         list(similarity_matrix = similarity_matrix, method = "topics_cosine", embeddings = NULL)
       },
       error = function(e) {
@@ -12824,7 +12564,7 @@ server <- shinyServer(function(input, output, session) {
       if (processed_docs_null) {
         shiny::showModal(shiny::modalDialog(
           title = "Document Configuration Required",
-          p("Please click 'Process' button in the Setup tab first."),
+          p("Please go to Semantic Analysis > Summary and click 'Process' first."),
           p("This will prepare your documents for similarity analysis."),
           easyClose = TRUE,
           footer = shiny::modalButton("OK")
@@ -13072,7 +12812,7 @@ server <- shinyServer(function(input, output, session) {
       } else {
         shiny::showModal(shiny::modalDialog(
           title = "Document Processing Required",
-          p("Please click 'Process' button in the Setup tab first to process your documents."),
+          p("Please click 'Process' button in Semantic Analysis > Summary first to process your documents."),
           p("This will prepare the documents for search."),
           easyClose = TRUE,
           footer = shiny::modalButton("OK")
@@ -13085,7 +12825,7 @@ server <- shinyServer(function(input, output, session) {
       shiny::showModal(shiny::modalDialog(
         title = "Document Processing Required",
         p("Some documents have not been processed yet."),
-        p("Please click 'Process' button in the Setup tab first."),
+        p("Please click 'Process' button in Semantic Analysis > Summary first."),
         easyClose = TRUE,
         footer = shiny::modalButton("OK")
       ))
@@ -13635,7 +13375,7 @@ server <- shinyServer(function(input, output, session) {
 
       if (is.null(dfm_check) || quanteda::ndoc(dfm_check) == 0) {
         remove_notification_by_id("loadingDimRed")
-        showNotification("Please process documents in the Setup tab first.", type = "error", duration = 5)
+        showNotification("Please process documents in Semantic Analysis > Summary first.", type = "error", duration = 5)
         return()
       }
 
@@ -13821,7 +13561,7 @@ server <- shinyServer(function(input, output, session) {
 
       if (is.null(dfm_check) || quanteda::ndoc(dfm_check) == 0) {
         remove_notification_by_id("loadingDocClustering")
-        showNotification("Please process documents in the Setup tab first.", type = "error", duration = 5)
+        showNotification("Please process documents in Semantic Analysis > Summary first.", type = "error", duration = 5)
         return()
       }
 
@@ -14930,7 +14670,7 @@ server <- shinyServer(function(input, output, session) {
       docs_data <- document_display_data()
       if (is.null(docs_data) || nrow(docs_data) < 2) {
         return(create_error_plot(
-          if (is.null(docs_data)) "Process documents in the Setup tab first" else "At least 2 documents required for similarity analysis",
+          if (is.null(docs_data)) "Process documents in Semantic Analysis > Summary first" else "At least 2 documents required for similarity analysis",
           color = "#6c757d"
         ))
       }
@@ -14945,14 +14685,14 @@ server <- shinyServer(function(input, output, session) {
         input$heatmap_category_filter
       )
 
-      plot <- TextAnalysisR::plot_similarity_heatmap(
+      plot <- gg_to_plotly(TextAnalysisR::plot_similarity_heatmap(
         similarity_matrix = filtered_data$matrix,
         docs_data = filtered_data$docs_data,
         feature_type = feature_type,
         method_name = similarity_data$method_name,
         category_filter = input$heatmap_category_filter,
         doc_id_var = input$doc_id_var
-      )
+      ))
 
       comparison_results$cached_plots[[cached_plot_key]] <- plot
 
@@ -15055,7 +14795,7 @@ server <- shinyServer(function(input, output, session) {
           Value = c(
             method_name,
             nrow(similarity_matrix),
-            length(metrics$mean_similarity * nrow(similarity_matrix) * (nrow(similarity_matrix) - 1) / 2),
+            nrow(similarity_matrix) * (nrow(similarity_matrix) - 1) / 2,
             if (is.numeric(metrics$mean_similarity) && !is.na(metrics$mean_similarity)) round(metrics$mean_similarity, 3) else metrics$mean_similarity,
             if (is.numeric(metrics$median_similarity) && !is.na(metrics$median_similarity)) round(metrics$median_similarity, 3) else metrics$median_similarity,
             if (is.numeric(metrics$min_similarity) && !is.na(metrics$min_similarity)) round(metrics$min_similarity, 3) else metrics$min_similarity,
@@ -15314,7 +15054,7 @@ server <- shinyServer(function(input, output, session) {
         show_values = TRUE,
         row_label = ref_category
       )
-      plotly::ggplotly(p, tooltip = "text")
+      gg_to_plotly(p)
     }, error = function(e) {
       TextAnalysisR::create_empty_plot_message(paste("Error:", e$message))
     })
@@ -16119,12 +15859,12 @@ server <- shinyServer(function(input, output, session) {
     width_val <- if (!is.null(input$width_search_k)) input$width_search_k else 1000
     height_val <- if (!is.null(input$height_search_k)) input$height_search_k else 800
 
-    TextAnalysisR::plot_quality_metrics(
+    gg_to_plotly(TextAnalysisR::plot_quality_metrics(
       search_results = search_result,
       title = "Hybrid Model Diagnostics by K (STM Component)",
       height = height_val,
       width = width_val
-    )
+    ))
   })
 
   output$hybrid_quality_summary_table <- DT::renderDataTable({
@@ -16169,17 +15909,17 @@ server <- shinyServer(function(input, output, session) {
     width_val <- if (!is.null(input$width_search_k)) input$width_search_k else 1000
     height_val <- if (!is.null(input$height_search_k)) input$height_search_k else 600
 
-    TextAnalysisR::plot_model_comparison(
+    gg_to_plotly(TextAnalysisR::plot_model_comparison(
       search_results = search_result,
       title = "Hybrid Model: Coherence vs Exclusivity",
       height = height_val,
       width = width_val
-    )
+    ))
   })
 
   output$has_word_topic_results <- reactive({
     tryCatch({
-      !is.null(stm_K_number())
+      !is.null(topic_model_result())
     }, error = function(e) {
       FALSE
     })
@@ -16269,11 +16009,11 @@ server <- shinyServer(function(input, output, session) {
       cluster_features <- feature_matrix[cluster_docs, , drop = FALSE]
       term_freq <- colMeans(cluster_features)
 
-      TextAnalysisR::plot_cluster_terms(
+      gg_to_plotly(TextAnalysisR::plot_cluster_terms(
         terms = term_freq,
         cluster_id = cluster_id,
         n_terms = 10
-      )
+      ))
     }
   })
 
@@ -16327,26 +16067,26 @@ server <- shinyServer(function(input, output, session) {
       plotly::layout(
         title = list(
           text = "Labeled Document Clustering",
-          font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+          font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
           x = 0.5,
           xref = "paper",
           xanchor = "center"
         ),
         xaxis = list(
           title = list(text = "Dimension 1"),
-          titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
-          tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif")
+          titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif"),
+          tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
         ),
         yaxis = list(
           title = list(text = "Dimension 2"),
-          titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
-          tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif")
+          titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif"),
+          tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
         ),
-        font = list(family = "Roboto, sans-serif", size = 16, color = "#3B3B3B"),
+        font = list(family = "Roboto, sans-serif", size = 12, color = "#3B3B3B"),
         hovermode = "closest",
         hoverlabel = TextAnalysisR::get_plotly_hover_config(),
         legend = list(
-          font = list(size = 16, family = "Roboto, sans-serif")
+          font = list(size = 12, family = "Roboto, sans-serif")
         ),
         margin = list(l = 80, r = 40, t = 80, b = 60)
       ) %>%
@@ -16417,7 +16157,7 @@ server <- shinyServer(function(input, output, session) {
       hoverlabel_config <- list(
         bgcolor = hover_bg_colors,
         bordercolor = hover_bg_colors,
-        font = list(family = "Roboto, sans-serif", size = 15, color = "#ffffff"),
+        font = list(family = "Roboto, sans-serif", size = 12, color = "#ffffff"),
         align = "left",
         namelength = -1,
         maxwidth = 450
@@ -16426,7 +16166,7 @@ server <- shinyServer(function(input, output, session) {
       hoverlabel_config <- list(
         bgcolor = "#4338ca",
         bordercolor = "#4338ca",
-        font = list(family = "Roboto, sans-serif", size = 15, color = "#ffffff"),
+        font = list(family = "Roboto, sans-serif", size = 12, color = "#ffffff"),
         align = "left",
         namelength = -1,
         maxwidth = 450
@@ -16731,7 +16471,7 @@ server <- shinyServer(function(input, output, session) {
     docs_data <- document_display_data()
     if (is.null(docs_data) || nrow(docs_data) < 2) {
       return(create_error_plot(
-        if (is.null(docs_data)) "Process documents in the Setup tab first" else "At least 2 documents required for clustering",
+        if (is.null(docs_data)) "Process documents in Semantic Analysis > Summary first" else "At least 2 documents required for clustering",
         color = "#6c757d"
       ))
     }
@@ -17207,12 +16947,12 @@ server <- shinyServer(function(input, output, session) {
       cluster_dfm <- dfm_check[cluster_docs, ]
       top_features <- topfeatures(cluster_dfm, 10)
 
-      TextAnalysisR::plot_cluster_terms(
+      gg_to_plotly(TextAnalysisR::plot_cluster_terms(
         terms = top_features,
         cluster_id = cluster_id,
         n_terms = 10,
         color = "#3B82F6"
-      )
+      ))
     }
   })
 
@@ -17532,25 +17272,25 @@ server <- shinyServer(function(input, output, session) {
       plotly::layout(
         title = list(
           text = paste("Outlier Reduction Results -", stringr::str_to_title(clustering_result$outlier_reduction_method)),
-          font = list(size = 18, color = "#0c1f4a", family = "Roboto"),
+          font = list(size = 14, color = "#0c1f4a", family = "Roboto"),
           x = 0.5,
           xref = "paper",
           xanchor = "center"
         ),
         xaxis = list(
           title = paste(coord_method, "1"),
-          titlefont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-          tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif")
+          titlefont = list(size = 13, color = "#3B3B3B", family = "Roboto, sans-serif"),
+          tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
         ),
         yaxis = list(
           title = paste(coord_method, "2"),
-          titlefont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-          tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif")
+          titlefont = list(size = 13, color = "#3B3B3B", family = "Roboto, sans-serif"),
+          tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
         ),
         showlegend = TRUE,
         legend = list(
-          title = list(text = "Clusters", font = list(size = 16, color = "#3B3B3B", family = "Roboto, sans-serif")),
-          font = list(size = 16, color = "#3B3B3B"),
+          title = list(text = "Clusters", font = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")),
+          font = list(size = 12, color = "#3B3B3B"),
           orientation = "v",
           x = 1.05,
           y = 0.5
@@ -17575,7 +17315,7 @@ server <- shinyServer(function(input, output, session) {
         x = 0.5,
         y = -0.1,
         showarrow = FALSE,
-        font = list(size = 16, color = "#666")
+        font = list(size = 12, color = "#666")
       )
     }
 
@@ -17744,20 +17484,20 @@ server <- shinyServer(function(input, output, session) {
         plotly::layout(
           title = list(
             text = "Semantic Evolution Over Time",
-            font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+            font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
             x = 0.5,
             xref = "paper",
             xanchor = "center"
           ),
           xaxis = list(
             title = list(text = "Time Period"),
-            tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-            titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+            tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+            titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
           ),
           yaxis = list(
             title = list(text = "Semantic Drift Score"),
-            tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-            titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+            tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+            titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
           ),
           margin = list(t = 60, b = 60, l = 80, r = 40),
           hoverlabel = TextAnalysisR::get_plotly_hover_config()
@@ -17827,10 +17567,10 @@ server <- shinyServer(function(input, output, session) {
             verbose = FALSE
           )
           semantic_results[[method]] <- result
-        } else if (method == "stm" && !is.null(stm_K_number())) {
+        } else if (method == "stm" && !is.null(topic_model_result()) && "settings" %in% names(topic_model_result())) {
           semantic_results[[method]] <- list(
-            model = stm_K_number(),
-            n_topics = stm_K_number()$settings$dim$K
+            model = topic_model_result(),
+            n_topics = topic_model_result()$settings$dim$K
           )
         }
       }
@@ -17874,25 +17614,25 @@ server <- shinyServer(function(input, output, session) {
         plotly::layout(
           title = list(
             text = "Method Comparison Results",
-            font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+            font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
             x = 0.5,
             xref = "paper",
             xanchor = "center"
           ),
           xaxis = list(
             title = list(text = "Analysis Method"),
-            tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-            titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+            tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+            titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
           ),
           yaxis = list(
             title = list(text = "Score"),
-            tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-            titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+            tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+            titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
           ),
           barmode = "group",
           legend = list(
-            title = list(text = "Metric", font = list(size = 16, color = "#0c1f4a", family = "Roboto, sans-serif")),
-            font = list(size = 16, color = "#3B3B3B", family = "Roboto, sans-serif")
+            title = list(text = "Metric", font = list(size = 12, color = "#0c1f4a", family = "Roboto, sans-serif")),
+            font = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
           ),
           margin = list(t = 60, b = 60, l = 80, r = 40),
           hoverlabel = TextAnalysisR::get_plotly_hover_config()
@@ -18454,12 +18194,12 @@ server <- shinyServer(function(input, output, session) {
 
   output$quality_metrics_plot <- plotly::renderPlotly({
     req(K_search())
-    TextAnalysisR::plot_quality_metrics(
+    gg_to_plotly(TextAnalysisR::plot_quality_metrics(
       K_search(),
       title = "Diagnostic Plots",
       height = input$height_search_k,
       width = input$width_search_k
-    )
+    ))
   })
 
   output$quality_metrics_plot_uiOutput <- renderUI({
@@ -18602,12 +18342,12 @@ server <- shinyServer(function(input, output, session) {
 
   output$model_comparison_plot <- plotly::renderPlotly({
     req(K_search())
-    TextAnalysisR::plot_model_comparison(
+    gg_to_plotly(TextAnalysisR::plot_model_comparison(
       K_search(),
       title = "Model Comparison",
       height = input$height_search_k,
       width = input$width_search_k
-    )
+    ))
   })
 
   output$model_comparison_plot_uiOutput <- renderUI({
@@ -19000,7 +18740,7 @@ server <- shinyServer(function(input, output, session) {
   })
 
 
-  output$stm_K_number_uiOutput <- renderUI({
+  output$stm_k_selector_uiOutput <- renderUI({
     sliderInput(
       "K_number",
       "Choose K (number of topics).",
@@ -19040,7 +18780,8 @@ server <- shinyServer(function(input, output, session) {
     )
   })
 
-  stm_K_number <- reactiveVal(NULL)
+  topic_model_result <- reactiveVal(NULL)
+  topic_model_type <- reactiveVal(NULL)  # "stm", "embedding", or "hybrid"
   previous_K_number <- reactiveVal(NULL)
   previous_categorical_var_2 <- reactiveVal(NULL)
   previous_continuous_var_2 <- reactiveVal(NULL)
@@ -19304,7 +19045,8 @@ server <- shinyServer(function(input, output, session) {
           }
         })
 
-        stm_K_number(stm_result)
+        topic_model_result(stm_result)
+        topic_model_type("stm")
         generated_labels(NULL)
 
         previous_K_number(input$K_number)
@@ -19565,7 +19307,9 @@ server <- shinyServer(function(input, output, session) {
             n_topics = input$embedding_r_n_topics %||% 5,
             embedding_model = model_name,
             umap_neighbors = input$embedding_r_umap_neighbors %||% 15,
-            umap_min_dist = input$embedding_r_umap_min_dist %||% 0.1,
+            umap_n_components = input$embedding_r_umap_n_components %||% 5,
+            umap_min_dist = input$embedding_r_umap_min_dist %||% 0.0,
+            umap_metric = input$embedding_r_umap_metric %||% "cosine",
             tsne_perplexity = input$embedding_tsne_perplexity %||% 30,
             pca_dims = input$embedding_pca_dims %||% 50,
             dbscan_eps = input$embedding_dbscan_eps %||% 0.5,
@@ -19583,8 +19327,11 @@ server <- shinyServer(function(input, output, session) {
             backend = "python",
             embedding_model = model_name,
             umap_neighbors = input$embedding_umap_neighbors,
+            umap_n_components = input$embedding_umap_n_components %||% 5,
             umap_min_dist = input$embedding_umap_min_dist,
+            umap_metric = input$embedding_umap_metric %||% "cosine",
             min_topic_size = input$embedding_min_topic_size,
+            cluster_selection_method = input$embedding_cluster_selection %||% "eom",
             precomputed_embeddings = precomputed,
             seed = 123,
             verbose = TRUE
@@ -19621,7 +19368,8 @@ server <- shinyServer(function(input, output, session) {
         cat(paste(final_output, collapse = "\n"))
       })
 
-      stm_K_number(embedding_result)
+      topic_model_result(embedding_result)
+      topic_model_type("embedding")
 
       output$embedding_topics_info <- renderUI({
         tagList(
@@ -19888,9 +19636,10 @@ server <- shinyServer(function(input, output, session) {
         embeddings_cache$n_docs <- nrow(hybrid_result$embedding_result$embeddings)
       }
 
-      stm_K_number(hybrid_result$stm_result$model)
+      topic_model_result(hybrid_result$stm_result$model)
+      topic_model_type("hybrid")
 
-      attr(stm_K_number(), "hybrid_result") <- hybrid_result
+      attr(topic_model_result(), "hybrid_result") <- hybrid_result
 
       tryCatch(removeNotification(id = "hybrid_model_notification"), error = function(e) {})
       show_completion_notification("Hybrid model completed successfully!", duration = 3)
@@ -19912,15 +19661,15 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observeEvent(input$embedding_display, {
-    if (is.null(stm_K_number())) {
+    if (is.null(topic_model_result())) {
       showNotification("Please run the embedding model first.", type = "warning", duration = 3)
       return()
     }
 
-    if ("topic_assignments" %in% names(stm_K_number())) {
+    if ("topic_assignments" %in% names(topic_model_result())) {
       embedding_displayed(TRUE)
 
-      model <- stm_K_number()
+      model <- topic_model_result()
       n_topics <- length(unique(model$topic_assignments[model$topic_assignments > 0]))
       n_docs <- length(model$topic_assignments)
       n_outliers <- sum(model$topic_assignments == -1)
@@ -19940,7 +19689,7 @@ server <- shinyServer(function(input, output, session) {
       })
 
       output$embedding_keyword_table <- DT::renderDataTable({
-        model <- stm_K_number()
+        model <- topic_model_result()
         if ("topic_keywords" %in% names(model)) {
           topic_counts <- table(model$topic_assignments[model$topic_assignments > 0])
 
@@ -19978,7 +19727,7 @@ server <- shinyServer(function(input, output, session) {
       })
 
       output$embedding_topic_plot <- plotly::renderPlotly({
-        model <- stm_K_number()
+        model <- topic_model_result()
         viz_type <- input$embedding_viz_type
 
         if (viz_type == "distribution") {
@@ -19999,20 +19748,20 @@ server <- shinyServer(function(input, output, session) {
             plotly::layout(
               title = list(
                 text = "Topic Distribution",
-                font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+                font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
                 x = 0.5,
                 xref = "paper",
                 xanchor = "center"
               ),
               xaxis = list(
                 title = list(text = "Topic/Cluster (-1 = outliers)"),
-                tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-                titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+                tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+                titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
               ),
               yaxis = list(
                 title = list(text = "Proportion"),
-                tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-                titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+                tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+                titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
               ),
               margin = list(t = 60, b = 60, l = 80, r = 40),
               hoverlabel = TextAnalysisR::get_plotly_hover_config()
@@ -20034,25 +19783,25 @@ server <- shinyServer(function(input, output, session) {
             plotly::layout(
               title = list(
                 text = "Document Embeddings by Topic",
-                font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+                font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
                 x = 0.5,
                 xref = "paper",
                 xanchor = "center"
               ),
               xaxis = list(
                 title = list(text = "UMAP 1"),
-                tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-                titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+                tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+                titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
               ),
               yaxis = list(
                 title = list(text = "UMAP 2"),
-                tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-                titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+                tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+                titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
               ),
               showlegend = TRUE,
               legend = list(
-                title = list(text = "Topic", font = list(size = 16, color = "#0c1f4a", family = "Roboto, sans-serif")),
-                font = list(size = 16, color = "#3B3B3B", family = "Roboto, sans-serif")
+                title = list(text = "Topic", font = list(size = 12, color = "#0c1f4a", family = "Roboto, sans-serif")),
+                font = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
               ),
               margin = list(t = 60, b = 60, l = 80, r = 40),
               hoverlabel = TextAnalysisR::get_plotly_hover_config()
@@ -20081,18 +19830,18 @@ server <- shinyServer(function(input, output, session) {
               plotly::layout(
                 title = list(
                   text = "Topic Similarity Heatmap",
-                  font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+                  font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
                   x = 0.5,
                   xref = "paper",
                   xanchor = "center"
                 ),
                 xaxis = list(
                   title = list(text = ""),
-                  tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif")
+                  tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
                 ),
                 yaxis = list(
                   title = list(text = ""),
-                  tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif")
+                  tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif")
                 ),
                 margin = list(t = 60, b = 60, l = 100, r = 40),
                 hoverlabel = TextAnalysisR::get_plotly_hover_config()
@@ -20133,20 +19882,20 @@ server <- shinyServer(function(input, output, session) {
               plotly::layout(
                 title = list(
                   text = "Intertopic Distance Map",
-                  font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+                  font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
                   x = 0.5,
                   xref = "paper",
                   xanchor = "center"
                 ),
                 xaxis = list(
                   title = list(text = "PC1"),
-                  tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-                  titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+                  tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+                  titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
                 ),
                 yaxis = list(
                   title = list(text = "PC2"),
-                  tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-                  titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+                  tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+                  titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
                 ),
                 showlegend = FALSE,
                 margin = list(t = 60, b = 60, l = 80, r = 40),
@@ -20157,7 +19906,7 @@ server <- shinyServer(function(input, output, session) {
       })
 
       output$embedding_quality_metrics <- renderTable({
-        model <- stm_K_number()
+        model <- topic_model_result()
         n_topics <- length(unique(model$topic_assignments[model$topic_assignments > 0]))
         n_outliers <- sum(model$topic_assignments == -1)
 
@@ -20182,7 +19931,7 @@ server <- shinyServer(function(input, output, session) {
       })
 
       output$embedding_topic_table <- DT::renderDataTable({
-        model <- stm_K_number()
+        model <- topic_model_result()
         if ("topic_keywords" %in% names(model)) {
           topic_counts <- table(model$topic_assignments[model$topic_assignments > 0])
 
@@ -20204,7 +19953,7 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observeEvent(input$embedding_quote, {
-    if (is.null(stm_K_number())) {
+    if (is.null(topic_model_result())) {
       showNotification("Please run the embedding model first.", type = "warning", duration = 3)
       return()
     }
@@ -20216,7 +19965,7 @@ server <- shinyServer(function(input, output, session) {
       return()
     }
 
-    model <- stm_K_number()
+    model <- topic_model_result()
     texts <- united_tbl()$united_texts
 
     topic_docs <- which(model$topic_assignments == selected_topic)
@@ -20252,12 +20001,12 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observeEvent(input$hybrid_display, {
-    if (is.null(stm_K_number()) || is.null(attr(stm_K_number(), "hybrid_result"))) {
+    if (is.null(topic_model_result()) || is.null(attr(topic_model_result(), "hybrid_result"))) {
       showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
       return()
     }
 
-    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
 
     output$topic_prevalence_plot_uiOutput <- renderUI({
       div(
@@ -20267,7 +20016,7 @@ server <- shinyServer(function(input, output, session) {
     })
 
     output$hybrid_topic_plot <- plotly::renderPlotly({
-      theta <- hybrid_result$stm_model$theta
+      theta <- hybrid_result$stm_result$model$theta
       topic_props <- colMeans(theta)
 
       plotly::plot_ly(
@@ -20280,20 +20029,20 @@ server <- shinyServer(function(input, output, session) {
         plotly::layout(
           title = list(
             text = "Topic Prevalence",
-            font = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif"),
+            font = list(size = 14, color = "#0c1f4a", family = "Roboto, sans-serif"),
             x = 0.5,
             xref = "paper",
             xanchor = "center"
           ),
           xaxis = list(
             title = list(text = "Topic"),
-            tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-            titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+            tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+            titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
           ),
           yaxis = list(
             title = list(text = "Average Proportion"),
-            tickfont = list(size = 18, color = "#3B3B3B", family = "Roboto, sans-serif"),
-            titlefont = list(size = 18, color = "#0c1f4a", family = "Roboto, sans-serif")
+            tickfont = list(size = 12, color = "#3B3B3B", family = "Roboto, sans-serif"),
+            titlefont = list(size = 13, color = "#0c1f4a", family = "Roboto, sans-serif")
           ),
           margin = list(t = 60, b = 60, l = 80, r = 40),
           hoverlabel = TextAnalysisR::get_plotly_hover_config()
@@ -20319,13 +20068,102 @@ server <- shinyServer(function(input, output, session) {
     })
   })
 
+  # Hybrid topic alignment: STM vs Embedding cluster comparison
+  output$hybrid_alignment_plot_uiOutput <- renderUI({
+    req(topic_model_result())
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
+    req(hybrid_result, hybrid_result$alignment)
+    plotly::plotlyOutput("hybrid_alignment_plot", height = 500, width = "100%")
+  })
+
+  output$hybrid_alignment_plot <- plotly::renderPlotly({
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
+    req(hybrid_result, hybrid_result$alignment, hybrid_result$alignment$alignment_matrix)
+
+    am <- hybrid_result$alignment$alignment_matrix
+    n_stm <- nrow(am)
+    n_embed <- ncol(am)
+
+    plotly::plot_ly(
+      z = am,
+      x = paste0("Embed ", seq_len(n_embed)),
+      y = paste0("STM ", seq_len(n_stm)),
+      type = "heatmap",
+      colorscale = "Blues",
+      hovertemplate = "STM Topic %{y}<br>Embedding Cluster %{x}<br>Cosine Similarity: %{z:.3f}<extra></extra>"
+    ) %>%
+      plotly::layout(
+        title = list(
+          text = sprintf("STM vs Embedding Topic Alignment (Overall: %.3f, ARI: %.3f)",
+                         hybrid_result$alignment$overall_alignment %||% 0,
+                         hybrid_result$alignment$adjusted_rand_index %||% 0),
+          font = list(size = 14, color = "#0c1f4a")
+        ),
+        xaxis = list(title = "Embedding Cluster"),
+        yaxis = list(title = "STM Topic"),
+        margin = list(t = 80, b = 60, l = 80, r = 40),
+        hoverlabel = TextAnalysisR::get_plotly_hover_config()
+      )
+  })
+
+  output$hybrid_alignment_table <- DT::renderDataTable({
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
+    req(hybrid_result, hybrid_result$alignment)
+
+    alignment <- hybrid_result$alignment
+    qm <- hybrid_result$quality_metrics
+
+    # Per-topic alignment + overall metrics
+    n_topics <- alignment$n_stm_topics %||% length(alignment$alignment_scores)
+    topic_df <- data.frame(
+      `STM Topic` = paste0("Topic ", seq_len(n_topics)),
+      `Best Embedding Match` = paste0("Cluster ", alignment$best_matches),
+      `Alignment Score` = round(alignment$alignment_scores, 4),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+
+    # Add quality metrics per topic if available
+    if (!is.null(qm$semantic_coherence) && length(qm$semantic_coherence) == n_topics) {
+      topic_df$`Coherence (STM)` <- round(qm$semantic_coherence, 4)
+    }
+    if (!is.null(qm$exclusivity) && length(qm$exclusivity) == n_topics) {
+      topic_df$`Exclusivity (STM)` <- round(qm$exclusivity, 4)
+    }
+
+    # Add summary row
+    summary_row <- data.frame(
+      `STM Topic` = "Overall",
+      `Best Embedding Match` = "",
+      `Alignment Score` = round(alignment$overall_alignment %||% mean(alignment$alignment_scores, na.rm = TRUE), 4),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+    if ("Coherence (STM)" %in% names(topic_df)) summary_row$`Coherence (STM)` <- round(mean(qm$semantic_coherence), 4)
+    if ("Exclusivity (STM)" %in% names(topic_df)) summary_row$`Exclusivity (STM)` <- round(mean(qm$exclusivity), 4)
+    topic_df <- rbind(topic_df, summary_row)
+
+    DT::datatable(
+      topic_df,
+      rownames = FALSE,
+      extensions = "Buttons",
+      options = list(
+        dom = "Bfrtip",
+        buttons = c("copy", "csv"),
+        pageLength = 20,
+        columnDefs = list(list(targets = "_all", className = "dt-center"))
+      ),
+      class = "cell-border stripe hover compact"
+    )
+  })
+
   hybrid_effect_result <- eventReactive(input$hybrid_effect, {
-    if (is.null(stm_K_number()) || is.null(attr(stm_K_number(), "hybrid_result"))) {
+    if (is.null(topic_model_result()) || is.null(attr(topic_model_result(), "hybrid_result"))) {
       showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
       return(NULL)
     }
 
-    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
 
     showNotification("Estimating effects for hybrid model...", type = "message", duration = NULL, id = "hybrid_effect_notification")
 
@@ -20467,12 +20305,12 @@ server <- shinyServer(function(input, output, session) {
   # Hybrid categorical effects plot handler
   observeEvent(input$hybrid_display_cat, {
     output$hybrid_cat_plot <- plotly::renderPlotly({
-      plot_topic_effects_categorical(
+      gg_to_plotly(plot_topic_effects_categorical(
         effects_data = hybrid_effects_categorical_var(),
         ncol = input$hybrid_ncol_cat,
         height = 600,
         width = 1000
-      )
+      ))
     })
   })
 
@@ -20524,12 +20362,12 @@ server <- shinyServer(function(input, output, session) {
   # Hybrid continuous effects plot handler
   observeEvent(input$hybrid_display_con, {
     output$hybrid_con_plot <- plotly::renderPlotly({
-      plot_topic_effects_continuous(
+      gg_to_plotly(plot_topic_effects_continuous(
         effects_data = hybrid_effects_continuous_var(),
         ncol = input$hybrid_ncol_con,
         height = 600,
         width = 1000
-      )
+      ))
     })
   })
 
@@ -20578,8 +20416,8 @@ server <- shinyServer(function(input, output, session) {
   })
 
   observe({
-    if (!is.null(stm_K_number()) && "topic_assignments" %in% names(stm_K_number())) {
-      topics <- unique(stm_K_number()$topic_assignments[stm_K_number()$topic_assignments > 0])
+    if (!is.null(topic_model_result()) && "topic_assignments" %in% names(topic_model_result())) {
+      topics <- unique(topic_model_result()$topic_assignments[topic_model_result()$topic_assignments > 0])
       topic_choices <- setNames(topics, paste("Topic", topics))
 
       output$embedding_quote_topic_uiOutput <- renderUI({
@@ -20676,11 +20514,11 @@ server <- shinyServer(function(input, output, session) {
   })
 
   stm_topic_terms <- reactive({
-    if (is.null(stm_K_number())) {
+    if (is.null(topic_model_result())) {
       return(NULL)
     }
 
-    if ("topic_assignments" %in% names(stm_K_number())) {
+    if ("topic_assignments" %in% names(topic_model_result())) {
       return(NULL)
     }
 
@@ -20691,13 +20529,13 @@ server <- shinyServer(function(input, output, session) {
         current_top_terms <- get_top_term_number()
 
         if (measure == "beta") {
-          beta_matrix <- exp(stm_K_number()$beta$logbeta[[1]])
+          beta_matrix <- exp(topic_model_result()$beta$logbeta[[1]])
 
           topic_terms <- data.frame()
           for (i in 1:nrow(beta_matrix)) {
             top_indices <- order(beta_matrix[i, ], decreasing = TRUE)[1:current_top_terms]
             top_probs <- beta_matrix[i, top_indices]
-            top_terms <- stm_K_number()$vocab[top_indices]
+            top_terms <- topic_model_result()$vocab[top_indices]
 
             topic_data <- data.frame(
               topic = i,
@@ -20708,21 +20546,21 @@ server <- shinyServer(function(input, output, session) {
             topic_terms <- rbind(topic_terms, topic_data)
           }
         } else if (measure == "frex") {
-          label_result <- stm::labelTopics(stm_K_number(), n = current_top_terms)
+          label_result <- stm::labelTopics(topic_model_result(), n = current_top_terms)
           frex_terms <- label_result$frex
 
           package_terms <- TextAnalysisR::get_topic_terms(
-            stm_model = stm_K_number(),
+            stm_model = topic_model_result(),
             top_term_n = current_top_terms,
             verbose = FALSE
           )
 
-          beta_matrix <- exp(stm_K_number()$beta$logbeta[[1]])
+          beta_matrix <- exp(topic_model_result()$beta$logbeta[[1]])
 
           topic_terms <- data.frame()
           for (i in 1:nrow(frex_terms)) {
             terms <- as.character(frex_terms[i, ])
-            vocab_indices <- match(terms, stm_K_number()$vocab)
+            vocab_indices <- match(terms, topic_model_result()$vocab)
             term_probs <- beta_matrix[i, vocab_indices]
 
             topic_data <- data.frame(
@@ -20734,15 +20572,15 @@ server <- shinyServer(function(input, output, session) {
             topic_terms <- rbind(topic_terms, topic_data)
           }
         } else if (measure == "lift") {
-          label_result <- stm::labelTopics(stm_K_number(), n = current_top_terms)
+          label_result <- stm::labelTopics(topic_model_result(), n = current_top_terms)
           lift_terms <- label_result$lift
 
-          beta_matrix <- exp(stm_K_number()$beta$logbeta[[1]])
+          beta_matrix <- exp(topic_model_result()$beta$logbeta[[1]])
 
           topic_terms <- data.frame()
           for (i in 1:nrow(lift_terms)) {
             terms <- as.character(lift_terms[i, ])
-            vocab_indices <- match(terms, stm_K_number()$vocab)
+            vocab_indices <- match(terms, topic_model_result()$vocab)
             term_probs <- beta_matrix[i, vocab_indices]
 
             topic_data <- data.frame(
@@ -20754,15 +20592,15 @@ server <- shinyServer(function(input, output, session) {
             topic_terms <- rbind(topic_terms, topic_data)
           }
         } else if (measure == "score") {
-          label_result <- stm::labelTopics(stm_K_number(), n = current_top_terms)
+          label_result <- stm::labelTopics(topic_model_result(), n = current_top_terms)
           score_terms <- label_result$score
 
-          beta_matrix <- exp(stm_K_number()$beta$logbeta[[1]])
+          beta_matrix <- exp(topic_model_result()$beta$logbeta[[1]])
 
           topic_terms <- data.frame()
           for (i in 1:nrow(score_terms)) {
             terms <- as.character(score_terms[i, ])
-            vocab_indices <- match(terms, stm_K_number()$vocab)
+            vocab_indices <- match(terms, topic_model_result()$vocab)
             term_probs <- beta_matrix[i, vocab_indices]
 
             topic_data <- data.frame(
@@ -20808,9 +20646,10 @@ server <- shinyServer(function(input, output, session) {
   }, ignoreInit = FALSE)
 
   output$topic_summary_insights <- DT::renderDataTable({
-    req(stm_K_number())
+    req(topic_model_result())
+    req("theta" %in% names(topic_model_result()))
 
-    topic_props <- colMeans(stm_K_number()$theta)
+    topic_props <- colMeans(topic_model_result()$theta)
     n_topics <- length(topic_props)
 
     labels <- if (!is.null(generated_labels())) {
@@ -20838,7 +20677,7 @@ server <- shinyServer(function(input, output, session) {
       }
     }
 
-    label_result <- stm::labelTopics(stm_K_number(), n = 5)
+    label_result <- stm::labelTopics(topic_model_result(), n = 5)
     top_terms <- apply(label_result$frex, 1, paste, collapse = ", ")
 
     summary_df <- data.frame(
@@ -21307,8 +21146,8 @@ server <- shinyServer(function(input, output, session) {
       base_font_size = 11
     ) +
       ggplot2::theme(
-        axis.text.x = ggplot2::element_text(size = 12),
-        axis.text.y = ggplot2::element_text(size = 12),
+        axis.text.x = ggplot2::element_text(size = 11),
+        axis.text.y = ggplot2::element_text(size = 11),
         axis.title.x = ggplot2::element_text(size = 12),
         axis.title.y = ggplot2::element_text(size = 12)
       )
@@ -21317,13 +21156,14 @@ server <- shinyServer(function(input, output, session) {
 
     plotly_obj$x$layout$annotations <- lapply(
       plotly_obj$x$layout$annotations,
-      function(x) { x$font$size <- 14; x }
+      function(x) { x$font$size <- 11; x }
     )
 
     plotly_obj %>%
       plotly::layout(
         margin = list(t = 50, b = 50, l = 80, r = 20),
-        hovermode = "closest"
+        hovermode = "closest",
+        hoverlabel = TextAnalysisR::get_plotly_hover_config()
       ) %>%
       plotly::style(hoverinfo = "text")
   })
@@ -21663,11 +21503,11 @@ server <- shinyServer(function(input, output, session) {
   gamma_terms <- reactive({
     dfm_obj <- get_available_dfm()
 
-    if (is.null(stm_K_number()) || is.null(dfm_obj)) {
+    if (is.null(topic_model_result()) || is.null(dfm_obj)) {
       return(NULL)
     }
 
-    if ("topic_assignments" %in% names(stm_K_number())) {
+    if ("topic_assignments" %in% names(topic_model_result())) {
       return(NULL)
     }
 
@@ -21675,7 +21515,7 @@ server <- shinyServer(function(input, output, session) {
       {
         package_result <- tryCatch({
           result <- TextAnalysisR::calculate_topic_probability(
-            stm_model = stm_K_number(),
+            stm_model = topic_model_result(),
             top_n = input$topic_number %||% 10,
             verbose = FALSE
           )
@@ -21704,7 +21544,7 @@ server <- shinyServer(function(input, output, session) {
 
         if (is.null(package_result)) {
           gamma_td <- tidytext::tidy(
-            stm_K_number(),
+            topic_model_result(),
             matrix = "gamma",
             document_names = rownames(dfm_outcome())
           )
@@ -21748,58 +21588,6 @@ server <- shinyServer(function(input, output, session) {
       tn <- strsplit(input$stm_label_topics, split = ",")[[1]]
     }
 
-    observe({
-      req(united_tbl())
-
-      tryCatch(
-        {
-          col_names <- c("None" = "", names(united_tbl()))
-
-          updateSelectizeInput(session,
-                               "doc_id_var",
-                               choices = col_names,
-                               selected = ""
-          )
-
-          updateSelectizeInput(session,
-                               "doc_category_var",
-                               choices = col_names,
-                               selected = ""
-          )
-        },
-        error = function(e) {
-          cat("Error updating document variables:", e$message, "\n")
-        }
-      )
-    })
-
-    observe({
-      req(input$doc_category_var, input$doc_category_var != "", input$doc_category_var != "None")
-      req(united_tbl())
-
-      tryCatch(
-        {
-          if (input$doc_category_var %in% names(united_tbl())) {
-            categories <- unique(united_tbl()[[input$doc_category_var]])
-            categories <- categories[!is.na(categories)]
-
-            if (length(categories) > 0) {
-              all_choices <- c("All Categories" = "all", setNames(categories, categories))
-
-              updateSelectizeInput(session,
-                                   "heatmap_category_filter",
-                                   choices = all_choices,
-                                   selected = "all"
-              )
-            }
-          }
-        },
-        error = function(e) {
-          cat("Error updating category filter:", e$message, "\n")
-        }
-      )
-    })
-
     output$topic_by_prevalence_plot2 <- plotly::renderPlotly({
       gamma_data <- gamma_terms()
       if (is.null(gamma_data)) {
@@ -21841,7 +21629,10 @@ server <- shinyServer(function(input, output, session) {
         height = input$height_topic_prevalence,
         width = input$width_topic_prevalence
       ) %>%
-        plotly::layout(margin = list(t = 50, b = 40, l = 80, r = 40))
+        plotly::layout(
+          margin = list(t = 50, b = 40, l = 80, r = 40),
+          hoverlabel = TextAnalysisR::get_plotly_hover_config()
+        )
     })
   })
 
@@ -21968,7 +21759,7 @@ server <- shinyServer(function(input, output, session) {
   })
 
   thoughts <- eventReactive(eventExpr = input$stm_quote, {
-    if (is.null(stm_K_number()) || is.null(out()) || is.null(input$stm_topic_texts) || is.null(mydata())) {
+    if (is.null(topic_model_result()) || is.null(out()) || is.null(input$stm_topic_texts) || is.null(mydata())) {
       return(NULL)
     }
     showNotification(
@@ -22001,7 +21792,7 @@ server <- shinyServer(function(input, output, session) {
         }
 
         thoughts_result <- stm::findThoughts(
-          stm_K_number(),
+          topic_model_result(),
           texts = texts,
           n = 3,
           topics = pn
@@ -22118,8 +21909,8 @@ server <- shinyServer(function(input, output, session) {
 
   # Update hybrid_topic_texts choices when hybrid model is fitted
   observe({
-    req(stm_K_number())
-    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    req(topic_model_result())
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
     req(hybrid_result)
     req(mydata())
 
@@ -22139,12 +21930,12 @@ server <- shinyServer(function(input, output, session) {
 
   # Hybrid quote handler
   observeEvent(input$hybrid_quote, {
-    if (is.null(stm_K_number())) {
+    if (is.null(topic_model_result())) {
       showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
       return()
     }
 
-    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
     if (is.null(hybrid_result)) {
       showNotification("Please run the hybrid model first.", type = "warning", duration = 3)
       return()
@@ -22217,7 +22008,7 @@ server <- shinyServer(function(input, output, session) {
 
   # Hybrid topic label generation handler
   shiny::observeEvent(input$hybrid_generate_labels, {
-    hybrid_result <- attr(stm_K_number(), "hybrid_result")
+    hybrid_result <- attr(topic_model_result(), "hybrid_result")
     if (is.null(hybrid_result) || is.null(hybrid_result$stm_result$model)) {
       showNotification("Please run the hybrid model first.", type = "warning")
       return()
@@ -22318,8 +22109,8 @@ server <- shinyServer(function(input, output, session) {
       showNotification(paste("Label generation failed:", e$message), type = "error", duration = 8)
     })
   })
-  effect_stm_K_number <- eventReactive(eventExpr = input$stm_effect, {
-    if (is.null(stm_K_number()) || is.null(out())) {
+  stm_effect_estimates <- eventReactive(eventExpr = input$stm_effect, {
+    if (is.null(topic_model_result()) || is.null(out()) || !"theta" %in% names(topic_model_result())) {
       showNotification("No STM model available. Please run topic modeling first.", type = "warning")
       return(NULL)
     }
@@ -22359,7 +22150,7 @@ server <- shinyServer(function(input, output, session) {
           cat("Prevalence formula:", paste(deparse(prevalence_formula), collapse = " "), "\n")
           stmm <- stm::estimateEffect(
             formula = prevalence_formula,
-            stmobj = stm_K_number(),
+            stmobj = topic_model_result(),
             metadata = out()$meta,
             documents = out()$documents,
             uncertainty = "Global",
@@ -22382,9 +22173,9 @@ server <- shinyServer(function(input, output, session) {
 
   output$has_effect_estimates <- reactive({
     tryCatch({
-      effect_stm_K_number_td <- effect_stm_K_number()
-      if (!is.null(effect_stm_K_number_td)) {
-        td <- tidytext::tidy(effect_stm_K_number_td) %>%
+      stm_effect_estimates_td <- stm_effect_estimates()
+      if (!is.null(stm_effect_estimates_td)) {
+        td <- tidytext::tidy(stm_effect_estimates_td) %>%
           dplyr::mutate(across(where(is.numeric), ~ round(., 3)))
         !is.null(td) && nrow(td) > 0
       } else {
@@ -22398,8 +22189,8 @@ server <- shinyServer(function(input, output, session) {
 
   output$effect_table <- DT::renderDataTable(
     {
-      effect_stm_K_number_td <- effect_stm_K_number()
-      td <- tidytext::tidy(effect_stm_K_number_td) %>%
+      stm_effect_estimates_td <- stm_effect_estimates()
+      td <- tidytext::tidy(stm_effect_estimates_td) %>%
         dplyr::mutate(across(where(is.numeric), ~ round(., 3)))
       td
     },
@@ -22411,11 +22202,11 @@ server <- shinyServer(function(input, output, session) {
       paste0(ifelse(is.null(input$file) || input$file == "", "estimated regression data", input$file), ".xlsx")
     },
     content = function(file) {
-      if (is.null(effect_stm_K_number())) {
+      if (is.null(stm_effect_estimates())) {
         showNotification("No effect estimates available for download. Please run the effect estimation first.", type = "error")
         return()
       }
-      td <- tidytext::tidy(effect_stm_K_number()) %>%
+      td <- tidytext::tidy(stm_effect_estimates()) %>%
         dplyr::mutate(across(where(is.numeric), ~ round(., 3)))
       openxlsx::write.xlsx(td, file)
     }
@@ -22433,13 +22224,13 @@ server <- shinyServer(function(input, output, session) {
   })
 
   effects_categorical_var <- reactive({
-    if (is.null(effect_stm_K_number()) || is.null(input$stm_effect_cat_btn)) {
+    if (is.null(stm_effect_estimates()) || is.null(input$stm_effect_cat_btn)) {
       return(NULL)
     }
     tryCatch(
       {
         stminsights::get_effects(
-          estimates = effect_stm_K_number(),
+          estimates = stm_effect_estimates(),
           variable = input$stm_effect_cat_btn,
           type = "pointestimate"
         )
@@ -22453,12 +22244,12 @@ server <- shinyServer(function(input, output, session) {
 
   observeEvent(input$stm_display_cat, {
     output$cat_plot <- plotly::renderPlotly({
-      plot_topic_effects_categorical(
+      gg_to_plotly(plot_topic_effects_categorical(
         effects_data = effects_categorical_var(),
         ncol = input$stm_ncol_cat,
         height = input$height_cat_plot,
         width = input$width_cat_plot
-      )
+      ))
     })
   })
 
@@ -22519,13 +22310,13 @@ server <- shinyServer(function(input, output, session) {
   })
 
   effects_continuous_var <- reactive({
-    if (is.null(effect_stm_K_number()) || is.null(input$stm_effect_con_btn)) {
+    if (is.null(stm_effect_estimates()) || is.null(input$stm_effect_con_btn)) {
       return(NULL)
     }
     tryCatch(
       {
         stminsights::get_effects(
-          estimates = effect_stm_K_number(),
+          estimates = stm_effect_estimates(),
           variable = input$stm_effect_con_btn,
           type = "continuous"
         )
@@ -22541,12 +22332,12 @@ server <- shinyServer(function(input, output, session) {
     output$con_plot <- plotly::renderPlotly({
       req(effects_continuous_var())
 
-      plot_topic_effects_continuous(
+      gg_to_plotly(plot_topic_effects_continuous(
         effects_data = effects_continuous_var(),
         ncol = input$stm_ncol_con,
         height = input$height_con_plot,
         width = input$width_con_plot
-      )
+      ))
     })
   })
 
